@@ -6,7 +6,7 @@ import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers} from "
 import {initRoad,startRoad,stopRoad,setEnvironment} from "./modules/road.js";
 import {renderNearby} from "./modules/nearby.js";
 import {renderGrid} from "./modules/grid.js";
-import {renderRooms,openChatWith} from "./modules/chat.js";
+import {renderRooms,openChatWith,refreshChatBadge} from "./modules/chat.js";
 import {renderGrowth} from "./modules/growth.js";
 import {renderShop} from "./modules/shop.js";
 import {renderCommunity} from "./modules/community.js";
@@ -60,7 +60,7 @@ on("place:open", place => openModal(
     <div class="muted">위도 ${place.lat.toFixed(5)} · 경도 ${place.lng.toFixed(5)}</div>
   </div>`,
   [{label:"닫기",onClick:closeModal}]
-));on("chat:open",u=>{setScreen("chat");openChatWith(panel,state,u)});on("grid:create",createGrid);on("post:create",createPost);on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});on("map:north",()=>{state.mapBearing=0;rotateMap(0);save()});
+));on("chat:open",payload=>{setScreen("chat");openChatWith(panel,state,payload)});on("grid:create",createGrid);on("post:create",createPost);on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});on("map:north",()=>{state.mapBearing=0;rotateMap(0);save()});
 document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.dataset.screen));document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>setView(b.dataset.view));document.querySelector("#homeButton").onclick=()=>{setScreen("nearby");setView("near")};document.querySelector("#myPageButton").onclick=()=>openMyPage(state);document.querySelector("#modalClose").onclick=closeModal;document.querySelector("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};document.querySelector("#environmentSelect").onchange=e=>setEnvironment(e.target.value);document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
 (function boot(){
   try{
@@ -68,6 +68,7 @@ document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.
     try{initRoad(state,getUsers())}catch(e){console.error(e);showSystemMessage(e.message||"도로 모드를 불러오지 못했습니다. 지도와 패널은 사용할 수 있습니다.")}
     rotateMap(state.mapBearing||0);
     syncHeader();
+    refreshChatBadge(state);
     setScreen(currentScreen);
     setView(currentView);
     if(navigator.geolocation){

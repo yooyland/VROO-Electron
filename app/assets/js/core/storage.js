@@ -104,6 +104,37 @@ function sanitizeState(s) {
   }
   if (!s.rooms || typeof s.rooms !== "object" || Array.isArray(s.rooms)) {
     s.rooms = {};
+  } else {
+    for (const key of Object.keys(s.rooms)) {
+      const room = s.rooms[key];
+      if (!room || typeof room !== "object" || Array.isArray(room)) {
+        delete s.rooms[key];
+        continue;
+      }
+      if (!Array.isArray(room.messages)) room.messages = [];
+      else {
+        room.messages = room.messages.filter(m => m != null).map(m => {
+          if (typeof m === "string") {
+            return {id: `legacy_${key}_${Math.random().toString(36).slice(2, 7)}`, text: m, mine: false, senderId: key, createdAt: Date.now()};
+          }
+          if (typeof m !== "object") return null;
+          const text = String(m.text ?? "").trim();
+          if (!text) return null;
+          return {
+            id: m.id || `legacy_${key}_${Math.random().toString(36).slice(2, 7)}`,
+            text,
+            mine: m.mine === true,
+            senderId: m.senderId || (m.mine ? "me" : key),
+            createdAt: Number(m.createdAt) || Date.now()
+          };
+        }).filter(Boolean);
+      }
+      room.id = room.id || key;
+      room.peerId = room.peerId || room.user?.id || key;
+      room.unread = Math.max(0, Math.floor(Number(room.unread) || 0));
+      if (typeof room.last !== "string") room.last = "";
+      if (!room.title) room.title = room.user?.nickname || key;
+    }
   }
   if (!s.profile || typeof s.profile !== "object" || Array.isArray(s.profile)) {
     s.profile = structuredClone(defaults.profile);
