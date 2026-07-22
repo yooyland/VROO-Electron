@@ -74,12 +74,15 @@ document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.
       navigator.geolocation.watchPosition(
         p=>{
           const loc={lat:p.coords.latitude,lng:p.coords.longitude};
-          state.location=loc;
           setLocation(loc);
-          document.querySelector("#gpsStatus").textContent=`GPS 연결 · 오차 ${Math.round(p.coords.accuracy)}m`;
+          const gpsEl=document.querySelector("#gpsStatus");
+          if(gpsEl)gpsEl.textContent=`GPS 연결 · 오차 ${Math.round(p.coords.accuracy)}m`;
           save();
         },
-        ()=>document.querySelector("#gpsStatus").textContent="GPS 미허용 · 예시 위치",
+        ()=>{
+          const gpsEl=document.querySelector("#gpsStatus");
+          if(gpsEl)gpsEl.textContent="GPS 미허용 · 예시 위치";
+        },
         {enableHighAccuracy:true,maximumAge:4000,timeout:10000}
       );
     }

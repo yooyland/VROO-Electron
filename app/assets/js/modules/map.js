@@ -1,5 +1,5 @@
 import {emit} from "../core/events.js";
-import {carInfo, makeDemoUsers} from "./data.js";
+import {carInfo, makeDemoUsers, updateDemoUserPositions} from "./data.js";
 import {placesForZoom, normalizePlaceName} from "./places.js";
 
 let map;
@@ -8,16 +8,29 @@ let markerLayer;
 let allLayer;
 let placeLabelLayer;
 let allPlaceLabelLayer;
+/** 단일 데모 사용자 목록 — near/all/road가 동일 배열 참조 */
 let users = [];
 let stateRef;
 let labelsVisible = true;
 let mapReady = false;
-/** 최초 GPS 확정 시에만 자동 중앙 이동 */
 let awaitingFirstGpsCenter = true;
-/** 사용자가 지도를 직접 조작하면 true → 이후 GPS 자동 중앙 이동 중단 */
 let userMovedMap = false;
-/** 프로그램 setView/setZoom으로 인한 move/zoom 이벤트를 사용자 조작으로 오인하지 않기 위함 */
 let programmaticMoveDepth = 0;
+/** setMapView와 GPS 갱신이 공유하는 마커 표시 모드 */
+let markerMode = "near";
+
+const markersNear = new Map();
+const markersAll = new Map();
+let meMarkerNear = null;
+let meMarkerAll = null;
+
+let lastRenderAt = 0;
+let lastRenderLoc = null;
+const GPS_THROTTLE_MS = 1500;
+const GPS_MIN_MOVE_M = 8;
+
+let lastWarnKey = "";
+let lastWarnAt = 0;
 
 const BASEMAP_URL =
   "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png";
@@ -27,6 +40,37 @@ const BASEMAP_OPTIONS = {
   subdomains: "abcd",
   attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
 };
+
+function warnRare(tag, err) {
+  const key = `${tag}:${err?.message || err}`;
+  const now = Date.now();
+  if (key === lastWarnKey && now - lastWarnAt < 5000) return;
+  lastWarnKey = key;
+  lastWarnAt = now;
+  console.warn(tag, err);
+}
+
+function distanceMeters(a, b) {
+  if (!a || !b) return Infinity;
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function shouldRenderMarkers(location, options) {
+  if (options.forceCenter === true || options.forceRender === true) return true;
+  if (awaitingFirstGpsCenter && !userMovedMap) return true;
+  if (!lastRenderLoc) return true;
+  const now = Date.now();
+  if (now - lastRenderAt >= GPS_THROTTLE_MS) return true;
+  if (distanceMeters(lastRenderLoc, location) >= GPS_MIN_MOVE_M) return true;
+  return false;
+}
 
 function iconFor(user, me = false) {
   return L.divIcon({
@@ -49,10 +93,7 @@ function placeClass(type) {
 
 function placeIcon(place) {
   const title = normalizePlaceName(place.name);
-  const subtitle = place.subtitle
-    ? `<span>${place.subtitle}</span>`
-    : "";
-
+  const subtitle = place.subtitle ? `<span>${place.subtitle}</span>` : "";
   return L.divIcon({
     className: "",
     html: `<div class="${placeClass(place.type)}">
@@ -66,16 +107,12 @@ function placeIcon(place) {
 
 function drawPlaceLabels(targetMap, targetLayer) {
   targetLayer.clearLayers();
-
   if (!labelsVisible) return;
-
   const zoom = targetMap.getZoom();
   const bounds = targetMap.getBounds().pad(0.3);
-
   for (const place of placesForZoom(zoom)) {
     const latlng = L.latLng(place.lat, place.lng);
     if (!bounds.contains(latlng)) continue;
-
     L.marker(latlng, {
       icon: placeIcon(place),
       interactive: true,
@@ -93,8 +130,16 @@ function drawPlaceLabels(targetMap, targetLayer) {
 }
 
 function refreshLabels() {
-  if (map && placeLabelLayer) drawPlaceLabels(map, placeLabelLayer);
-  if (allMap && allPlaceLabelLayer) drawPlaceLabels(allMap, allPlaceLabelLayer);
+  try {
+    if (map && placeLabelLayer) drawPlaceLabels(map, placeLabelLayer);
+  } catch (e) {
+    warnRare("[VROO map] labels near", e);
+  }
+  try {
+    if (allMap && allPlaceLabelLayer) drawPlaceLabels(allMap, allPlaceLabelLayer);
+  } catch (e) {
+    warnRare("[VROO map] labels all", e);
+  }
 }
 
 function createBasemap(targetMap) {
@@ -121,6 +166,56 @@ function onUserMapInteract() {
 function bindUserInteraction(targetMap) {
   targetMap.on("dragstart", onUserMapInteract);
   targetMap.on("zoomstart", onUserMapInteract);
+}
+
+function syncUserMarkerMap(store, layer, list) {
+  const seen = new Set();
+  for (const user of list) {
+    seen.add(user.id);
+    let marker = store.get(user.id);
+    if (!marker) {
+      marker = L.marker([user.lat, user.lng], {icon: iconFor(user)})
+        .on("click", () => emit("user:profile", user))
+        .addTo(layer);
+      store.set(user.id, marker);
+    } else {
+      marker.setLatLng([user.lat, user.lng]);
+      marker.setIcon(iconFor(user));
+    }
+  }
+  for (const [id, marker] of store) {
+    if (seen.has(id)) continue;
+    layer.removeLayer(marker);
+    store.delete(id);
+  }
+}
+
+function syncMeMarker(which) {
+  const latlng = [stateRef.location.lat, stateRef.location.lng];
+  const icon = iconFor({}, true);
+  if (which === "near") {
+    if (!meMarkerNear) {
+      meMarkerNear = L.marker(latlng, {icon, zIndexOffset: 1000}).addTo(markerLayer);
+    } else {
+      meMarkerNear.setLatLng(latlng);
+      meMarkerNear.setIcon(icon);
+    }
+  } else {
+    if (!meMarkerAll) {
+      meMarkerAll = L.marker(latlng, {icon, zIndexOffset: 1000}).addTo(allLayer);
+    } else {
+      meMarkerAll.setLatLng(latlng);
+      meMarkerAll.setIcon(icon);
+    }
+  }
+}
+
+function notifyUsersChanged() {
+  try {
+    emit("users:changed", users);
+  } catch (e) {
+    warnRare("[VROO map] users:changed", e);
+  }
 }
 
 export function isMapReady() {
@@ -152,19 +247,13 @@ export function initMap(state) {
   allLayer = L.layerGroup().addTo(allMap);
   allPlaceLabelLayer = L.layerGroup().addTo(allMap);
 
-  users = makeDemoUsers(state.location);
-  drawUsers("near");
-  refreshLabels();
-
   map.on("zoomend moveend", refreshLabels);
   allMap.on("zoomend moveend", refreshLabels);
   bindUserInteraction(map);
   bindUserInteraction(allMap);
 
   const locateButton = document.querySelector("#locateButton");
-  if (locateButton) {
-    locateButton.onclick = () => locateMe();
-  }
+  if (locateButton) locateButton.onclick = () => locateMe();
 
   document.querySelector("#compassLeft").onclick = () => emit("map:rotate", -15);
   document.querySelector("#compassRight").onclick = () => emit("map:rotate", 15);
@@ -181,45 +270,74 @@ export function initMap(state) {
   }
 
   mapReady = true;
+  users = makeDemoUsers(state.location);
+  drawUsers("near");
+  refreshLabels();
+  notifyUsersChanged();
 }
 
-/** 📍 내 위치 버튼 — 현재 좌표로 지도 중심 이동 */
 export function locateMe() {
   if (!mapReady || !map || !stateRef?.location) return;
   const {lat, lng} = stateRef.location;
   runProgrammatic(() => {
-    map.setView([lat, lng], 16);
-    if (allMap) allMap.setView([lat, lng], allMap.getZoom());
+    try {
+      map.setView([lat, lng], 16);
+    } catch (e) {
+      warnRare("[VROO map] locate near", e);
+    }
+    try {
+      if (allMap) allMap.setView([lat, lng], allMap.getZoom());
+    } catch (e) {
+      warnRare("[VROO map] locate all", e);
+    }
   });
   refreshLabels();
 }
 
 /**
  * GPS/위치 갱신.
- * 마커·데모 유저는 항상 갱신하고, 지도 중앙 이동은 최초 GPS 1회만(사용자 조작 전).
- * options.forceCenter === true 이면 버튼 등과 같이 강제 중앙 이동.
+ * 위치 값은 항상 state에 반영. 마커·데모유저·도로 동기화는 throttle.
+ * 최초 GPS는 즉시 반영. 반환: 마커 렌더 수행 여부.
  */
 export function setLocation(location, options = {}) {
-  if (!stateRef) return;
+  if (!stateRef) return false;
   stateRef.location = location;
-  users = makeDemoUsers(location);
 
-  if (!mapReady || !map || !allMap) return;
+  const doRender = shouldRenderMarkers(location, options);
+  if (!doRender) return false;
 
-  const forceCenter = options.forceCenter === true;
-  const shouldCenter =
-    forceCenter || (awaitingFirstGpsCenter && !userMovedMap);
+  lastRenderAt = Date.now();
+  lastRenderLoc = {lat: location.lat, lng: location.lng};
 
-  if (shouldCenter) {
-    runProgrammatic(() => {
-      map.setView([location.lat, location.lng], 16);
-      allMap.setView([location.lat, location.lng], 13);
-    });
-    if (!forceCenter) awaitingFirstGpsCenter = false;
+  users = updateDemoUserPositions(users, location);
+
+  if (mapReady && map && allMap) {
+    const forceCenter = options.forceCenter === true;
+    const shouldCenter =
+      forceCenter || (awaitingFirstGpsCenter && !userMovedMap);
+
+    if (shouldCenter) {
+      runProgrammatic(() => {
+        try {
+          map.setView([location.lat, location.lng], 16);
+        } catch (e) {
+          warnRare("[VROO map] center near", e);
+        }
+        try {
+          allMap.setView([location.lat, location.lng], 13);
+        } catch (e) {
+          warnRare("[VROO map] center all", e);
+        }
+      });
+      if (!forceCenter) awaitingFirstGpsCenter = false;
+    }
+
+    drawUsers(markerMode);
+    refreshLabels();
   }
 
-  drawUsers("near");
-  refreshLabels();
+  notifyUsersChanged();
+  return true;
 }
 
 export function getUsers() {
@@ -228,35 +346,27 @@ export function getUsers() {
 
 export function drawUsers(mode = "near") {
   if (!mapReady || !markerLayer || !allLayer || !stateRef) return;
-
-  markerLayer.clearLayers();
-  allLayer.clearLayers();
+  markerMode = mode === "all" ? "all" : "near";
 
   const center = L.latLng(stateRef.location.lat, stateRef.location.lng);
   const visible =
-    mode === "near"
+    markerMode === "near"
       ? users.filter(user => center.distanceTo([user.lat, user.lng]) < 600)
       : users;
 
-  for (const user of visible) {
-    L.marker([user.lat, user.lng], {icon: iconFor(user)})
-      .on("click", () => emit("user:profile", user))
-      .addTo(markerLayer);
-
-    L.marker([user.lat, user.lng], {icon: iconFor(user)})
-      .on("click", () => emit("user:profile", user))
-      .addTo(allLayer);
+  try {
+    syncUserMarkerMap(markersNear, markerLayer, visible);
+    syncMeMarker("near");
+  } catch (e) {
+    warnRare("[VROO map] markers near", e);
   }
 
-  L.marker(
-    [stateRef.location.lat, stateRef.location.lng],
-    {icon: iconFor({}, true), zIndexOffset: 1000}
-  ).addTo(markerLayer);
-
-  L.marker(
-    [stateRef.location.lat, stateRef.location.lng],
-    {icon: iconFor({}, true), zIndexOffset: 1000}
-  ).addTo(allLayer);
+  try {
+    syncUserMarkerMap(markersAll, allLayer, visible);
+    syncMeMarker("all");
+  } catch (e) {
+    warnRare("[VROO map] markers all", e);
+  }
 }
 
 export function setMapView(mode) {
@@ -265,10 +375,14 @@ export function setMapView(mode) {
   drawUsers(mode === "all" ? "all" : "near");
 
   runProgrammatic(() => {
-    if (mode === "all") {
-      map.setZoom(13);
-    } else {
-      map.setView([stateRef.location.lat, stateRef.location.lng], 16);
+    try {
+      if (mode === "all") {
+        map.setZoom(13);
+      } else if (mode !== "road") {
+        map.setView([stateRef.location.lat, stateRef.location.lng], 16);
+      }
+    } catch (e) {
+      warnRare("[VROO map] setMapView", e);
     }
   });
 
@@ -277,15 +391,26 @@ export function setMapView(mode) {
 
 export function invalidateMaps() {
   setTimeout(() => {
-    map?.invalidateSize();
-    allMap?.invalidateSize();
+    try {
+      map?.invalidateSize();
+    } catch (e) {
+      warnRare("[VROO map] invalidate near", e);
+    }
+    try {
+      allMap?.invalidateSize();
+    } catch (e) {
+      warnRare("[VROO map] invalidate all", e);
+    }
     refreshLabels();
   }, 50);
 }
 
+/** 주변·전체 지도 모두 동일 bearing 적용 */
 export function rotateMap(bearing) {
-  const element = document.querySelector("#map");
-  if (!element) return;
-  element.style.transformOrigin = "50% 50%";
-  element.style.transform = `rotate(${bearing}deg) scale(1.18)`;
+  for (const sel of ["#map", "#allMap"]) {
+    const element = document.querySelector(sel);
+    if (!element) continue;
+    element.style.transformOrigin = "50% 50%";
+    element.style.transform = `rotate(${bearing}deg) scale(1.18)`;
+  }
 }
