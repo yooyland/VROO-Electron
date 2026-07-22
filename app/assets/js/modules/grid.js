@@ -324,9 +324,9 @@ function refreshSpatialDetailStats(panel, state, gridId) {
     }${joined ? '<span class="pill">참여 중</span>' : '<span class="pill muted-pill">미참여</span>'}`;
   }
 
-  const actions = panel.querySelector("[data-spatial-actions]");
-  if (actions) {
-    actions.innerHTML = spatialActionButtonsHtml(joined, isCurrent);
+  const joinSlot = panel.querySelector("[data-spatial-join-slot]");
+  if (joinSlot) {
+    joinSlot.innerHTML = spatialActionButtonsHtml(joined, isCurrent);
     bindSpatialActionButtons(panel, state, gridId);
   }
 
@@ -474,15 +474,23 @@ function spatialActionButtonsHtml(joined, isCurrent) {
 
 function bindMemberChatButtons(root, state) {
   if (!root) return;
+  const openMember = id => {
+    if (!id) return;
+    if (id === MY_USER_ID) {
+      emit("mypage:open");
+      return;
+    }
+    emit("chat:open", resolveMemberUser(id, state));
+  };
   root.querySelectorAll("[data-member-chat]").forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.memberChat;
-      if (id === MY_USER_ID) {
-        emit("mypage:open");
-        return;
-      }
-      emit("chat:open", resolveMemberUser(id, state));
+    btn.onclick = e => {
+      e.stopPropagation();
+      openMember(btn.dataset.memberChat);
     };
+  });
+  root.querySelectorAll("[data-member-id]").forEach(row => {
+    row.style.cursor = "pointer";
+    row.onclick = () => openMember(row.getAttribute("data-member-id"));
   });
 }
 
@@ -665,7 +673,7 @@ function joinSpatialGrid(panel, state, gridId) {
     if (!state.spatialMembers) state.spatialMembers = {};
     const members = uniqueIds([...(state.spatialMembers[localId] || []), MY_USER_ID]);
     state.spatialMembers[localId] = members;
-    state.joinedGrids.push(localId);
+    state.joinedGrids = uniqueIds([...(state.joinedGrids || []), localId]);
     state.currentGridId = localId;
     state.currentGrid = getGridDisplayName(localId);
     state.selectedGridId = localId;
@@ -828,7 +836,14 @@ export function openSpatialGridDetail(panel, state, gridId, options = {}) {
   if (state.spatialMembers?.[gridId]) {
     grid.memberIds = uniqueIds(state.spatialMembers[gridId]);
   }
-  ensureMemberMe(grid, state);
+  if ((state.joinedGrids || []).includes(gridId)) {
+    ensureMemberMe(grid, state);
+    state.spatialMembers = state.spatialMembers || {};
+    state.spatialMembers[gridId] = uniqueIds([
+      ...(state.spatialMembers[gridId] || []),
+      MY_USER_ID
+    ]);
+  }
 
   try {
     focusGridOnMap(grid);
@@ -836,18 +851,14 @@ export function openSpatialGridDetail(panel, state, gridId, options = {}) {
     console.warn("[VROO grid] spatial focus", e);
   }
 
-  const joined = state.joinedGrids.includes(gridId);
+  const joined = (state.joinedGrids || []).includes(gridId);
   const isCurrent = state.currentGridId === gridId;
   const isLocation = state.locationGridId === gridId;
   const unread = getGridRoomUnread(state, gridId);
-  const presentUsers = usersInSpatialGrid(getUsers(), gridId);
-  const mePresent = isLocation;
-  const presentCount = presentUsers.length + (mePresent ? 1 : 0);
-  const onlinePresent =
-    presentUsers.filter(u => u.online).length + (mePresent ? 1 : 0);
-  const members = uniqueIds(grid.memberIds)
-    .map(id => resolveMemberUser(id, state))
-    .filter(Boolean);
+  const presentUsers = collectPresentUsers(state, gridId);
+  const presentCount = presentUsers.length;
+  const onlinePresent = presentUsers.filter(u => u.online || u.id === MY_USER_ID).length;
+  const memberUsers = collectMemberUsers(state, gridId);
   const levelMeta = GRID_LEVELS[grid.level] || GRID_LEVELS.L3;
 
   panel.innerHTML = `<div class="card row">
@@ -859,10 +870,9 @@ export function openSpatialGridDetail(panel, state, gridId, options = {}) {
       <span class="chat-room-unread" ${unread ? "" : "hidden"}>${unread > 99 ? "99+" : unread}</span>
     </div>
     <div class="card grid-detail-actions sticky-actions">
-      <div class="row" style="flex-wrap:wrap;gap:8px">
+      <div class="row" style="flex-wrap:wrap;gap:8px" data-spatial-actions>
+        <span data-spatial-join-slot>${spatialActionButtonsHtml(joined, isCurrent)}</span>
         <button class="secondary" id="gridShowMembers" type="button">참가자 보기</button>
-        ${!joined ? `<button class="primary" id="gridJoinSpatial" type="button">이 GRID 참여</button>` : ""}
-        ${joined && !isCurrent ? `<button class="secondary" id="gridSetCurrent" type="button">내 GRID로 설정</button>` : ""}
         <button class="primary" id="gridGroupChat" type="button">GRID 단체 대화</button>
         <button class="secondary" id="gridCenterMap" type="button">지도 중심으로 이동</button>
         ${joined ? `<button class="danger" id="gridLeave" type="button">탈퇴</button>` : ""}
@@ -880,31 +890,29 @@ export function openSpatialGridDetail(panel, state, gridId, options = {}) {
         ${isCurrent ? '<span class="pill green">내 GRID</span> ' : ""}
         ${joined ? '<span class="pill">참여 중</span>' : '<span class="pill muted-pill">미참여</span>'}
       </div>
-      <div class="muted" style="margin-top:8px" data-spatial-stats>현장 차량 ${presentCount} · 온라인 ${onlinePresent} · 가입 ${members.length}</div>
+      <div class="muted" style="margin-top:8px" data-spatial-stats>현장 차량 ${presentCount} · 온라인 ${onlinePresent} · 가입 ${memberUsers.length}</div>
     </div>
     <div class="card"><b>현재 이 공간에 있는 차량</b><div class="muted">좌표가 이 LOCAL 셀에 속한 사용자</div></div>
     <div data-present-list>
     ${
       presentCount
-        ? `${
-            mePresent
-              ? memberRowHtml(resolveMemberUser(MY_USER_ID, state), state)
-              : ""
-          }${presentUsers.map(u => memberRowHtml(u, state)).join("")}`
+        ? presentUsers.map(u => presentVehicleRowHtml(u, state)).join("")
         : '<div class="card muted">현재 이 셀에 표시할 차량이 없습니다.</div>'
     }
     </div>
     <div class="card" id="joinedSection"><b>이 GRID 가입자</b><div class="muted">참여한 사용자 (user.id)</div></div>
+    <div data-member-list>
     ${
-      members.length
-        ? members.map(u => memberRowHtml(u, state)).join("")
+      memberUsers.length
+        ? memberUsers.map(u => memberJoinRowHtml(u, state, gridId)).join("")
         : '<div class="card muted">아직 가입자가 없습니다.</div>'
-    }`;
+    }
+    </div>`;
 
   panel.querySelector("#gridBack").onclick = () => renderGrid(panel, state);
   panel.querySelector("#gridGroupChat").onclick = () => {
-    if (!joined && !isCurrent) {
-      showSystemMessage("단체 대화는 참여 후 이용할 수 있습니다.");
+    if (!joined) {
+      showSystemMessage("먼저 GRID에 참여하세요.");
       return;
     }
     emit("grid:chatOpen", {gridId});
@@ -915,23 +923,10 @@ export function openSpatialGridDetail(panel, state, gridId, options = {}) {
   panel.querySelector("#gridShowMembers")?.addEventListener("click", () => {
     panel.querySelector("#joinedSection")?.scrollIntoView({behavior: "smooth"});
   });
-  const joinBtn = panel.querySelector("#gridJoinSpatial");
-  if (joinBtn) joinBtn.onclick = () => joinSpatialGrid(panel, state, gridId);
-  const setBtn = panel.querySelector("#gridSetCurrent");
-  if (setBtn) setBtn.onclick = () => setAsMyGrid(panel, state, gridId);
+  bindSpatialActionButtons(panel, state, gridId);
   const leaveBtn = panel.querySelector("#gridLeave");
   if (leaveBtn) leaveBtn.onclick = () => leaveGrid(panel, state, gridId);
-
-  panel.querySelectorAll("[data-member-chat]").forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.memberChat;
-      if (id === MY_USER_ID) {
-        emit("mypage:open");
-        return;
-      }
-      emit("chat:open", resolveMemberUser(id, state));
-    };
-  });
+  bindMemberChatButtons(panel, state);
 
   emit("state:save");
   syncGridHeader(state);
@@ -972,4 +967,133 @@ export function openGridDetail(panel, state, gridId) {
   const isOwner = grid.ownerId === MY_USER_ID;
   const unread = getGridRoomUnread(state, gridId);
   const members = uniqueIds(grid.memberIds)
-    .map(id => resolveMe
+    .map(id => resolveMemberUser(id, state))
+    .filter(Boolean);
+
+  panel.innerHTML = `<div class="card row">
+      <button class="secondary" id="gridBack" type="button">←</button>
+      <div style="flex:1;min-width:0">
+        <b>${escapeHtml(grid.name)}</b>
+        <div class="muted">커뮤니티 · 참가자 <span data-member-count>${members.length}</span>명${isCurrent ? " · 내 GRID" : ""}${isOwner ? " · 소유" : ""}</div>
+      </div>
+      <span class="chat-room-unread" ${unread ? "" : "hidden"}>${unread > 99 ? "99+" : unread}</span>
+    </div>
+    <div class="card row grid-detail-actions">
+      <button class="primary" id="gridGroupChat" type="button">단체 대화</button>
+      ${joined && !isCurrent ? `<button class="secondary" id="gridSetCurrent" type="button">내 GRID로</button>` : ""}
+      ${joined && !isOwner ? `<button class="danger" id="gridLeave" type="button">탈퇴</button>` : ""}
+      ${isOwner ? `<span class="muted">소유자 · 탈퇴 불가</span>` : ""}
+    </div>
+    <div class="card"><b>참가자</b><div class="muted">참가자를 누르면 1:1 대화가 열립니다.</div></div>
+    ${
+      members.length
+        ? members.map(u => memberRowHtml(u, state)).join("")
+        : '<div class="card muted">아직 참가자가 없습니다.</div>'
+    }`;
+
+  panel.querySelector("#gridBack").onclick = () => renderGrid(panel, state);
+  panel.querySelector("#gridGroupChat").onclick = () => {
+    emit("grid:chatOpen", {gridId});
+  };
+  const setBtn = panel.querySelector("#gridSetCurrent");
+  if (setBtn) setBtn.onclick = () => setAsMyGrid(panel, state, gridId);
+  const leaveBtn = panel.querySelector("#gridLeave");
+  if (leaveBtn) leaveBtn.onclick = () => leaveGrid(panel, state, gridId);
+
+  panel.querySelectorAll("[data-member-chat]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.memberChat;
+      if (id === MY_USER_ID) {
+        emit("mypage:open");
+        return;
+      }
+      emit("chat:open", resolveMemberUser(id, state));
+    };
+  });
+
+  emit("state:save");
+  syncGridHeader(state);
+}
+
+export function beginCreateGrid(panel, state) {
+  let busy = false;
+  const locSpatial =
+    state.locationGridId ||
+    (state.location
+      ? getGridCellFromLatLng(state.location.lat, state.location.lng, ACTIVE_GRID_LEVEL)
+          .id
+      : null);
+  openModal(
+    "새 GRID 만들기",
+    `<label>GRID 이름</label><input id="newGridName">
+     <label>유형</label>
+     <select id="newGridVisibility">
+       <option value="public">공개 GRID</option>
+       <option value="private">비공개 GRID</option>
+       <option value="club">차량모임 GRID</option>
+       <option value="event">이벤트 GRID</option>
+     </select>
+     <div class="card"><b>예상 비용</b><div>🪙 ${formatCredits(GRID_CREATE_COST)}</div>
+     <div class="muted">커뮤니티 GRID · 현재 Spatial 셀에 연결 가능</div>
+     ${locSpatial ? `<div class="muted">연결 후보: ${escapeHtml(locSpatial)}</div>` : ""}
+     </div>`,
+    [
+      {label: "취소", onClick: closeModal},
+      {
+        label: "생성",
+        className: "primary",
+        onClick: () => {
+          if (busy) return;
+          const name = document.querySelector("#newGridName")?.value.trim();
+          if (!name) {
+            showSystemMessage("GRID 이름을 입력해 주세요.");
+            return;
+          }
+          if (!canAfford(state, GRID_CREATE_COST)) {
+            showSystemMessage(`크레딧이 부족합니다. (필요 ${formatCredits(GRID_CREATE_COST)})`);
+            return;
+          }
+          busy = true;
+          const paid = spendCredits(state, GRID_CREATE_COST);
+          if (!paid.ok) {
+            busy = false;
+            showSystemMessage(`크레딧이 부족합니다. (필요 ${formatCredits(GRID_CREATE_COST)})`);
+            return;
+          }
+          const id = `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+          const visibility = document.querySelector("#newGridVisibility")?.value || "public";
+          const grid = normalizeGrid(
+            {
+              id,
+              type: "community",
+              name,
+              ownerId: MY_USER_ID,
+              memberIds: [MY_USER_ID],
+              createdAt: Date.now(),
+              center: {...(state.location || DEFAULT_CENTER)},
+              visibility,
+              chatRoomId: gridChatRoomId(id),
+              people: 1,
+              spatialId: locSpatial
+            },
+            state.location
+          );
+          if (!Array.isArray(state.grids)) state.grids = [];
+          if (getAllGrids(state).some(g => g.id === id)) {
+            busy = false;
+            showSystemMessage("GRID 생성에 실패했습니다. 다시 시도해 주세요.");
+            return;
+          }
+          state.grids.push(grid);
+          if (!state.joinedGrids.includes(id)) state.joinedGrids.push(id);
+          state.currentGridId = id;
+          state.currentGrid = grid.name;
+          closeModal();
+          emit("state:save");
+          emit("grid:changed", {gridId: id, action: "create"});
+          openGridDetail(panel, state, id);
+        }
+      }
+    ]
+  );
+}

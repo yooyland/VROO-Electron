@@ -249,6 +249,7 @@ function notifyUsersChanged() {
 
 /**
  * 강조 규칙 (겹침 시):
+ * - 내 GRID+선택: 녹색 단일 테두리(중복 두꺼움 방지) + 약한 청 채움
  * - 테두리: 선택(청) > 내 GRID(녹) > 현재 위치(금) > 일반
  * - 채움: 현재 위치 > 내 GRID > 선택 > 일반
  * 일반 셀도 Black & Gold 톤으로 경계가 보이도록 유지.
@@ -260,12 +261,16 @@ function styleForCell(cellId) {
   const isLoc = !!(locId && cellCoversGridId(cellId, locId));
   const isCur = !!(isSpatialGridId(curId) && cellCoversGridId(cellId, curId));
   const isSel = !!(selId && cellCoversGridId(cellId, selId));
+  const isMineSelected = isCur && isSel;
 
   let fillColor = "#0b1018";
   let fillOpacity = 0.03;
   if (isLoc) {
     fillColor = "#ffc400";
     fillOpacity = 0.13;
+  } else if (isMineSelected) {
+    fillColor = "#2ca9ff";
+    fillOpacity = 0.08;
   } else if (isCur) {
     fillColor = "#50df78";
     fillOpacity = 0.07;
@@ -277,7 +282,11 @@ function styleForCell(cellId) {
   let color = "#c9a227";
   let weight = 2;
   let opacity = 0.92;
-  if (isSel) {
+  if (isMineSelected) {
+    color = "#50df78";
+    weight = 3.25;
+    opacity = 1;
+  } else if (isSel) {
     color = "#2ca9ff";
     weight = 3.5;
     opacity = 1;

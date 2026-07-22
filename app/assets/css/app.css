@@ -369,6 +369,57 @@ body[data-map-view="road"] .map-rotation-controls{
   border-color:#3a4656;
   box-shadow:0 6px 14px #0006;
 }
+button.grid-joined-disabled,
+button.grid-joined-disabled:disabled{
+  background:#151a22!important;
+  border-color:#2a3340!important;
+  color:#6a7380!important;
+  opacity:.72;
+  cursor:not-allowed;
+  pointer-events:none;
+}
+.grid-join-hint{
+  font-size:11px;
+  align-self:center;
+  max-width:160px;
+  line-height:1.3;
+}
+.presence-badge{
+  display:inline-block;
+  margin-top:4px;
+  padding:1px 7px;
+  border-radius:999px;
+  border:1px solid #465465;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
+.presence-here{
+  border-color:#50df7866;
+  color:#50df78;
+  background:#50df7814;
+}
+.presence-away{
+  border-color:#2ca9ff66;
+  color:#8ecfff;
+  background:#2ca9ff14;
+}
+.presence-off{
+  border-color:#69748166;
+  color:#8a93a0;
+  background:#ffffff08;
+}
+.grid-user-row{
+  border-bottom:1px solid #2a3340;
+  border-radius:0;
+  margin:0;
+}
+[data-present-list],
+[data-member-list]{
+  max-height:min(36vh,280px);
+  overflow-y:auto;
+  margin-bottom:8px;
+}
 .pill{
   display:inline-block;
   padding:2px 8px;
