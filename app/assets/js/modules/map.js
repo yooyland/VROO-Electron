@@ -1,6 +1,16 @@
 import {emit} from "../core/events.js";
 import {carInfo, makeDemoUsers, updateDemoUserPositions} from "./data.js";
 import {placesForZoom, normalizePlaceName} from "./places.js";
+import {
+  getGridCellFromLatLng,
+  getVisibleGridCells,
+  levelForMapZoom,
+  getGridBounds,
+  ACTIVE_GRID_LEVEL,
+  isSpatialGridId,
+  localGridIdFromLatLng,
+  cellCoversGridId
+} from "./spatial-grid.js";
 
 let map;
 let allMap;
@@ -25,6 +35,15 @@ let meMarkerNear = null;
 let meMarkerAll = null;
 let gridOverlayLayer = null;
 let gridOverlayId = null;
+
+/** viewport Spatial GRID 레이어 (map별) */
+const visibleGridLayersNear = new Map();
+const visibleGridLayersAll = new Map();
+let spatialGridBound = false;
+let spatialGridEnabled = true;
+let spatialRefreshTimer = 0;
+let countBadgeNear = new Map();
+let countBadgeAll = new Map();
 
 let lastRenderAt = 0;
 let lastRenderLoc = null;
@@ -177,7 +196,7 @@ function syncUserMarkerMap(store, layer, list) {
     let marker = store.get(user.id);
     if (!marker) {
       marker = L.marker([user.lat, user.lng], {icon: iconFor(user)})
-        .on("click", () => emit("user:profile", user))
+        .on("click", () => emit("user:open", {id: user.id}))
         .addTo(layer);
       store.set(user.id, marker);
     } else {
@@ -217,6 +236,198 @@ function notifyUsersChanged() {
     emit("users:changed", users);
   } catch (e) {
     warnRare("[VROO map] users:changed", e);
+  }
+}
+
+function styleForCell(cellId) {
+  const locId = stateRef?.locationGridId;
+  const curId = stateRef?.currentGridId;
+  const selId = stateRef?.selectedGridId;
+  if (locId && cellCoversGridId(cellId, locId)) {
+    return {color: "#ffc400", weight: 3, fillColor: "#ffc400", fillOpacity: 0.14};
+  }
+  if (isSpatialGridId(curId) && cellCoversGridId(cellId, curId)) {
+    return {color: "#50df78", weight: 2.5, fillColor: "#50df78", fillOpacity: 0.1};
+  }
+  if (selId && cellCoversGridId(cellId, selId)) {
+    return {color: "#2ca9ff", weight: 2.5, fillColor: "#2ca9ff", fillOpacity: 0.12};
+  }
+  return {color: "#617184", weight: 1, fillColor: "#10151d", fillOpacity: 0.03};
+}
+
+function occupantCount(cellId) {
+  if (!cellId || !cellId.includes(":L3:")) return 0;
+  let n = 0;
+  for (const u of users) {
+    if (!Number.isFinite(u.lat) || !Number.isFinite(u.lng)) continue;
+    if (getGridCellFromLatLng(u.lat, u.lng, ACTIVE_GRID_LEVEL).id === cellId) n++;
+  }
+  if (stateRef?.location && stateRef.locationGridId === cellId) n += 1;
+  return n;
+}
+
+function syncSpatialGridsOn(targetMap, layerMap, badgeMap) {
+  if (!mapReady || !targetMap || !spatialGridEnabled) return;
+  try {
+    const bounds = targetMap.getBounds();
+    const zoom = targetMap.getZoom();
+    const preferred = levelForMapZoom(zoom);
+    const {cells} = getVisibleGridCells(bounds, preferred);
+    const seen = new Set();
+
+    for (const cell of cells) {
+      seen.add(cell.id);
+      let rect = layerMap.get(cell.id);
+      const pathOpts = {
+        ...styleForCell(cell.id),
+        interactive: true,
+        className: "vroo-spatial-grid"
+      };
+      const latlngs = [
+        [cell.south, cell.west],
+        [cell.south, cell.east],
+        [cell.north, cell.east],
+        [cell.north, cell.west]
+      ];
+      if (!rect) {
+        rect = L.polygon(latlngs, pathOpts);
+        rect.on("click", e => {
+          L.DomEvent.stopPropagation(e);
+          // 참여·채팅은 항상 LOCAL(L3). 클릭 좌표(없으면 셀 중심)로 해석.
+          const lat = e?.latlng?.lat ?? cell.center.lat;
+          const lng = e?.latlng?.lng ?? cell.center.lng;
+          const localId = localGridIdFromLatLng(lat, lng) || cell.id;
+          if (stateRef) stateRef.selectedGridId = localId;
+          emit("grid:spatialOpen", {gridId: localId});
+          refreshSpatialGridStyles();
+        });
+        rect.addTo(targetMap);
+        layerMap.set(cell.id, rect);
+      } else {
+        rect.setLatLngs(latlngs);
+        rect.setStyle(pathOpts);
+      }
+
+      const count = occupantCount(cell.id);
+      let badge = badgeMap.get(cell.id);
+      if (count > 0 && cell.level === "L3") {
+        if (!badge) {
+          badge = L.marker(cell.center, {
+            interactive: false,
+            keyboard: false,
+            zIndexOffset: 200,
+            icon: L.divIcon({
+              className: "vroo-grid-count",
+              html: `<span>${count}</span>`,
+              iconSize: [22, 18],
+              iconAnchor: [11, 9]
+            })
+          }).addTo(targetMap);
+          badgeMap.set(cell.id, badge);
+        } else {
+          badge.setLatLng(cell.center);
+          badge.setIcon(
+            L.divIcon({
+              className: "vroo-grid-count",
+              html: `<span>${count}</span>`,
+              iconSize: [22, 18],
+              iconAnchor: [11, 9]
+            })
+          );
+        }
+      } else if (badge) {
+        targetMap.removeLayer(badge);
+        badgeMap.delete(cell.id);
+      }
+    }
+
+    for (const [id, rect] of layerMap) {
+      if (seen.has(id)) continue;
+      targetMap.removeLayer(rect);
+      layerMap.delete(id);
+      const badge = badgeMap.get(id);
+      if (badge) {
+        targetMap.removeLayer(badge);
+        badgeMap.delete(id);
+      }
+    }
+  } catch (e) {
+    warnRare("[VROO map] spatial grids", e);
+  }
+}
+
+function refreshSpatialGridStyles() {
+  for (const [id, rect] of visibleGridLayersNear) {
+    try {
+      rect.setStyle(styleForCell(id));
+    } catch {
+      /* ignore */
+    }
+  }
+  for (const [id, rect] of visibleGridLayersAll) {
+    try {
+      rect.setStyle(styleForCell(id));
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export function refreshSpatialGrids() {
+  if (!mapReady || !spatialGridEnabled) return;
+  if (map) syncSpatialGridsOn(map, visibleGridLayersNear, countBadgeNear);
+  if (allMap) syncSpatialGridsOn(allMap, visibleGridLayersAll, countBadgeAll);
+}
+
+function scheduleSpatialRefresh() {
+  clearTimeout(spatialRefreshTimer);
+  spatialRefreshTimer = setTimeout(() => refreshSpatialGrids(), 120);
+}
+
+function bindSpatialGridEvents() {
+  if (spatialGridBound || !map || !allMap) return;
+  spatialGridBound = true;
+  map.on("moveend zoomend", scheduleSpatialRefresh);
+  allMap.on("moveend zoomend", scheduleSpatialRefresh);
+  window.addEventListener("resize", scheduleSpatialRefresh);
+}
+
+function updateLocationGridId(location) {
+  if (!stateRef || !location) return;
+  try {
+    const cell = getGridCellFromLatLng(location.lat, location.lng, ACTIVE_GRID_LEVEL);
+    const prev = stateRef.locationGridId;
+    stateRef.locationGridId = cell.id;
+    if (prev !== cell.id) {
+      emit("grid:locationChanged", {gridId: cell.id, prev});
+      refreshSpatialGridStyles();
+    }
+  } catch (e) {
+    warnRare("[VROO map] locationGridId", e);
+  }
+}
+
+export function setSpatialGridEnabled(on) {
+  spatialGridEnabled = !!on;
+  if (!spatialGridEnabled) {
+    for (const [id, rect] of visibleGridLayersNear) {
+      map?.removeLayer(rect);
+      visibleGridLayersNear.delete(id);
+    }
+    for (const [id, rect] of visibleGridLayersAll) {
+      allMap?.removeLayer(rect);
+      visibleGridLayersAll.delete(id);
+    }
+    for (const [id, b] of countBadgeNear) {
+      map?.removeLayer(b);
+      countBadgeNear.delete(id);
+    }
+    for (const [id, b] of countBadgeAll) {
+      allMap?.removeLayer(b);
+      countBadgeAll.delete(id);
+    }
+  } else {
+    refreshSpatialGrids();
   }
 }
 
@@ -273,8 +484,11 @@ export function initMap(state) {
 
   mapReady = true;
   users = makeDemoUsers(state.location);
+  updateLocationGridId(state.location);
   drawUsers("near");
   refreshLabels();
+  bindSpatialGridEvents();
+  refreshSpatialGrids();
   notifyUsersChanged();
 }
 
@@ -304,9 +518,13 @@ export function locateMe() {
 export function setLocation(location, options = {}) {
   if (!stateRef) return false;
   stateRef.location = location;
+  updateLocationGridId(location);
 
   const doRender = shouldRenderMarkers(location, options);
-  if (!doRender) return false;
+  if (!doRender) {
+    refreshSpatialGridStyles();
+    return false;
+  }
 
   lastRenderAt = Date.now();
   lastRenderLoc = {lat: location.lat, lng: location.lng};
@@ -336,6 +554,7 @@ export function setLocation(location, options = {}) {
 
     drawUsers(markerMode);
     refreshLabels();
+    scheduleSpatialRefresh();
   }
 
   notifyUsersChanged();
@@ -376,6 +595,12 @@ export function setMapView(mode) {
 
   drawUsers(mode === "all" ? "all" : "near");
 
+  if (mode === "road") {
+    setSpatialGridEnabled(false);
+  } else {
+    setSpatialGridEnabled(true);
+  }
+
   runProgrammatic(() => {
     try {
       if (mode === "all") {
@@ -389,6 +614,7 @@ export function setMapView(mode) {
   });
 
   refreshLabels();
+  if (mode !== "road") scheduleSpatialRefresh();
 }
 
 export function invalidateMaps() {
@@ -404,21 +630,79 @@ export function invalidateMaps() {
       warnRare("[VROO map] invalidate all", e);
     }
     refreshLabels();
+    scheduleSpatialRefresh();
   }, 50);
 }
 
-/** GRID 중심 표시 — GPS/유저 상태 초기화 없음, 오버레이 ID 단위 갱신 */
+/**
+ * GRID 중심 표시 — Spatial은 사각형 셀, Community는 호환용 원형.
+ * GPS/유저 상태 초기화 없음.
+ */
 export function focusGridOnMap(grid) {
-  if (!mapReady || !map || !grid?.center) return;
-  const lat = Number(grid.center.lat);
-  const lng = Number(grid.center.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  if (!mapReady || !map || !grid) return;
 
   try {
     if (!gridOverlayLayer) {
       gridOverlayLayer = L.layerGroup().addTo(map);
     }
     gridOverlayLayer.clearLayers();
+    gridOverlayId = grid.id || null;
+
+    const spatialId =
+      (grid.type === "spatial" && grid.id) ||
+      (isSpatialGridId(grid.id) ? grid.id : null) ||
+      (isSpatialGridId(grid.spatialId) ? grid.spatialId : null);
+
+    if (spatialId) {
+      const bounds = getGridBounds(spatialId);
+      if (bounds) {
+        L.polygon(
+          [
+            [bounds.south, bounds.west],
+            [bounds.south, bounds.east],
+            [bounds.north, bounds.east],
+            [bounds.north, bounds.west]
+          ],
+          {
+            color: "#2ca9ff",
+            weight: 3,
+            fillColor: "#2ca9ff",
+            fillOpacity: 0.12,
+            interactive: false,
+            className: "vroo-spatial-focus"
+          }
+        ).addTo(gridOverlayLayer);
+
+        if (stateRef) stateRef.selectedGridId = spatialId;
+        refreshSpatialGridStyles();
+
+        runProgrammatic(() => {
+          map.fitBounds(
+            [
+              [bounds.south, bounds.west],
+              [bounds.north, bounds.east]
+            ],
+            {padding: [40, 40], maxZoom: 16}
+          );
+          if (allMap) {
+            allMap.fitBounds(
+              [
+                [bounds.south, bounds.west],
+                [bounds.north, bounds.east]
+              ],
+              {padding: [24, 24], maxZoom: 14}
+            );
+          }
+        });
+        scheduleSpatialRefresh();
+        return;
+      }
+    }
+
+    const lat = Number(grid.center?.lat);
+    const lng = Number(grid.center?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
     const radius = Math.max(200, Number(grid.radiusM) || 800);
     L.circle([lat, lng], {
       radius,
@@ -428,7 +712,6 @@ export function focusGridOnMap(grid) {
       fillOpacity: 0.08,
       interactive: false
     }).addTo(gridOverlayLayer);
-    gridOverlayId = grid.id;
 
     runProgrammatic(() => {
       map.setView([lat, lng], 15);
@@ -437,6 +720,11 @@ export function focusGridOnMap(grid) {
   } catch (e) {
     warnRare("[VROO map] focusGrid", e);
   }
+}
+
+/** Spatial 셀 ID만으로 지도 포커스 */
+export function focusSpatialGridOnMap(gridId) {
+  focusGridOnMap({id: gridId, type: "spatial"});
 }
 
 /** 주변·전체 지도 모두 동일 bearing 적용 */

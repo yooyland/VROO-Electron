@@ -3,6 +3,7 @@ import {emit, on} from "../core/events.js";
 import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID} from "./data.js";
+import {getGridDisplayName, isSpatialGridId} from "./spatial-grid.js";
 
 /** @type {SpeechRecognition|null} */
 let voiceRecognition = null;
@@ -599,6 +600,7 @@ export function openGridChat(panel, state, gridId) {
   const displayTitle =
     state.grids?.find(g => g.id === gridId)?.name ||
     seedNames[gridId] ||
+    (isSpatialGridId(gridId) ? getGridDisplayName(gridId) : null) ||
     (state.currentGridId === gridId ? state.currentGrid : null) ||
     "GRID 대화";
 
@@ -654,7 +656,7 @@ function renderGridChat(panel, state, gridId) {
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
-        <div class="muted chat-peer-meta">GRID 단체 대화</div>
+        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"}</div>
       </div>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
     </div>

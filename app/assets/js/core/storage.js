@@ -7,6 +7,9 @@ export const DEFAULT_CREDITS = 10000;
 /** GRID 생성 비용 */
 export const GRID_CREATE_COST = 1200;
 
+/** 주변 차량 번호판 확인 비용 */
+export const PLATE_REVEAL_COST = 300;
+
 /** 성장 업그레이드: 현재 레벨 × 이 값 */
 export const LEVEL_UP_COST_FACTOR = 900;
 
@@ -61,8 +64,16 @@ export const defaults = {
   currentView: "near",
   currentGridId: "g_my",
   currentGrid: "MY GRID",
+  /** GPS가 속한 LOCAL Spatial GRID (자동) */
+  locationGridId: null,
+  /** 지도에서 조회 중인 GRID (자동 참여 아님) */
+  selectedGridId: null,
   joinedGrids: ["g_my"],
+  /** 사용자 생성 community GRID만 저장 — 전국 spatial 셀 저장 금지 */
   grids: [],
+  /** Spatial GRID 가입자 user.id 맵 { [gridId]: string[] } */
+  spatialMembers: {},
+  revealedPlateUserIds: [],
   connections: [],
   favoriteRooms: [],
   rooms: {},
@@ -101,9 +112,10 @@ function sanitizeState(s) {
   const xp = Number(s.xp);
   s.xp = Number.isFinite(xp) ? Math.max(0, Math.min(100, Math.floor(xp))) : 0;
 
-  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts", "grids"]) {
+  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts", "grids", "revealedPlateUserIds"]) {
     if (!Array.isArray(s[key])) s[key] = structuredClone(defaults[key]);
   }
+  s.revealedPlateUserIds = [...new Set(s.revealedPlateUserIds.map(String).filter(Boolean))];
 
   // 구버전 GRID 이름 → id 마이그레이션
   const legacyNameToId = {
@@ -131,12 +143,36 @@ function sanitizeState(s) {
     s.joinedGrids.push(s.currentGridId);
   }
 
-  // 사용자 생성 GRID 정규화
+  if (s.locationGridId != null && s.locationGridId !== "") {
+    s.locationGridId = String(s.locationGridId);
+  } else {
+    s.locationGridId = null;
+  }
+  if (s.selectedGridId != null && s.selectedGridId !== "") {
+    s.selectedGridId = String(s.selectedGridId);
+  } else {
+    s.selectedGridId = null;
+  }
+
+  if (!s.spatialMembers || typeof s.spatialMembers !== "object" || Array.isArray(s.spatialMembers)) {
+    s.spatialMembers = {};
+  } else {
+    const cleaned = {};
+    for (const [gid, members] of Object.entries(s.spatialMembers)) {
+      if (!String(gid).startsWith("KR:")) continue;
+      if (!Array.isArray(members)) continue;
+      cleaned[gid] = [...new Set(members.map(String).filter(Boolean))];
+    }
+    s.spatialMembers = cleaned;
+  }
+
+  // 사용자 생성 community GRID 정규화 (spatial 전국 셀은 저장하지 않음)
   const seenGridIds = new Set();
   s.grids = s.grids.map((g, i) => {
     if (!g || typeof g !== "object") return null;
     let id = String(g.id || "").trim();
     if (!id) id = `g_migrated_${i}_${Date.now().toString(36)}`;
+    if (String(id).startsWith("KR:") || g.type === "spatial") return null;
     if (seenGridIds.has(id)) return null;
     seenGridIds.add(id);
     let memberIds = Array.isArray(g.memberIds)
@@ -152,6 +188,7 @@ function sanitizeState(s) {
       : {lat: 37.5665, lng: 126.978};
     return {
       id,
+      type: "community",
       name: String(g.name || g.title || id),
       ownerId,
       memberIds,
@@ -161,12 +198,19 @@ function sanitizeState(s) {
       chatRoomId: g.chatRoomId || `grid:${id}`,
       radiusM: Math.max(200, Number(g.radiusM) || 800),
       ad: !!g.ad,
-      people: Math.max(memberIds.length, Number(g.people) || memberIds.length)
+      people: Math.max(memberIds.length, Number(g.people) || memberIds.length),
+      spatialId: g.spatialId && String(g.spatialId).startsWith("KR:") ? String(g.spatialId) : null
     };
   }).filter(Boolean);
 
   // currentGrid 표시명은 id에서 유도(없으면 유지)
   if (s.currentGridId === "g_my") s.currentGrid = s.currentGrid || "MY GRID";
+  if (String(s.currentGridId || "").startsWith("KR:")) {
+    /* 표시명은 grid 모듈에서 getGridDisplayName으로 보정 */
+    if (!s.currentGrid || s.currentGrid === s.currentGridId) {
+      s.currentGrid = s.currentGridId;
+    }
+  }
   const owned = s.grids.find(g => g.id === s.currentGridId);
   if (owned) s.currentGrid = owned.name;
   else if (legacyNameToId[s.currentGrid]) {
