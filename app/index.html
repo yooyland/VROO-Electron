@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https:; connect-src 'self' https:; media-src 'self' blob:;">
+<title>VROO Desktop 1.1.0-beta.1</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body>
+<div id="boot" class="boot"><div class="boot-card"><div class="boot-logo">VROO</div><b>Desktop 1.1.0-beta.1</b><small>모듈을 준비하고 있습니다.</small></div></div>
+<div id="systemMessage" class="system-message"></div>
+<header class="topbar">
+<button id="homeButton" class="brand"><span class="brand-v">V</span><span><b>VROO</b><small>DRIVE TOGETHER</small></span></button>
+<nav id="mainMenu" class="main-menu">
+<button data-screen="nearby" class="active">주변차량</button><button data-screen="grid">그리드</button><button data-screen="chat">대화방</button><button data-screen="growth">성장</button><button data-screen="shop">상점</button><button data-screen="community">커뮤니티</button>
+</nav>
+<div class="account-area"><span class="credit">🪙 <b id="creditText">0</b></span><button id="myPageButton" class="mycar">MY CAR Lv.<b id="levelText">1</b></button></div>
+</header>
+<main class="layout">
+<section class="stage">
+<div class="stage-head">
+  <div class="stage-head-left">
+    <button id="gridSelector" class="grid-selector">MY GRID ▼</button>
+    <span id="gpsStatus" class="status">GPS 확인 중</span><span class="status" style="color:#ffc400">DESKTOP</span>
+  </div>
+  <div id="viewTabs" class="header-view-tabs">
+    <button type="button" data-view="near" class="active">🚘 주변</button>
+    <button type="button" data-view="road">🛣️ 도로</button>
+    <button type="button" data-view="all">🗺️ 전체</button>
+  </div>
+  <div class="stage-head-right"></div>
+</div>
+<div class="stage-body">
+
+<div id="mapView" class="view-layer active"><div id="map"></div><div class="map-tools"><button id="compassLeft">↺</button><button id="northButton">N</button><button id="compassRight">↻</button><button id="labelToggleButton" class="label-toggle active">지명 ON</button></div><button id="locateButton" class="floating locate">📍 내 위치</button></div>
+<div id="roadView" class="view-layer"><div id="threeHost" class="three-host"></div><div class="road-hud"><b>MY ROAD</b> <strong id="roadSpeed">0</strong><span>km/h</span><small id="roadMeta">주행 환경 준비 중</small></div><div class="road-side">주변 차량 <b id="roadCount">0</b>대<br><span id="roadSafety">안전거리 정상</span></div><select id="environmentSelect" class="environment-select"><option value="auto">자동 환경</option><option value="urban">도심</option><option value="residential">주거</option><option value="highway">고속도로</option><option value="coast">해안</option></select></div>
+<div id="allView" class="view-layer split-view"><div id="allMap"></div><div class="road-preview"><div class="preview-road"></div><div class="preview-label">도로 미리보기</div></div></div>
+</div></section>
+<aside class="side-panel"><div id="panelContent" class="panel-content"></div></aside>
+</main>
+<div id="modal" class="modal-backdrop" aria-hidden="true"><div class="modal-card"><div class="modal-head"><h2 id="modalTitle"></h2><button id="modalClose">✕</button></div><div id="modalBody" class="modal-body"></div><div id="modalActions" class="modal-actions"></div></div></div>
+<script>window.__VROO_BOOT_OK=false;</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script type="module" src="./assets/js/app.js"></script>
+</body></html>

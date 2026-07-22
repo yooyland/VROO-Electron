@@ -1,0 +1,4 @@
+import {carInfo} from "./data.js";
+import {getUsers} from "./map.js";
+import {emit} from "../core/events.js";
+export function renderNearby(panel){const users=getUsers();panel.innerHTML=`<div class="tabs"><button class="active">주변 친구</button><button>편의시설</button><button>자주가는 곳</button><button>등록지점</button></div><div class="card"><b>내 주변 차량</b><div class="muted">실제 서비스에서는 서버의 실시간 위치를 표시합니다.</div></div>${users.slice(0,14).map(u=>`<div class="card user-row"><div class="avatar">${carInfo(u.car).emoji}</div><div><b>${u.nickname}</b><div class="muted">Lv.${u.level} · ${u.online?"온라인":"오프라인"}</div></div><button class="primary" data-user="${u.id}">프로필</button></div>`).join("")}`;panel.querySelectorAll("[data-user]").forEach(b=>b.onclick=()=>emit("user:profile",users.find(u=>u.id===b.dataset.user)))}
