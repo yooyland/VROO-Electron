@@ -1,5 +1,5 @@
 
-import {loadState,saveState} from "./core/storage.js";
+import {loadState,saveState,GRID_CREATE_COST,formatCredits,canAfford,spendCredits} from "./core/storage.js";
 import {on} from "./core/events.js";
 import {showSystemMessage,openModal,closeModal} from "./core/ui.js";
 import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers} from "./modules/map.js";
@@ -14,10 +14,40 @@ import {openMyPage,openUserProfile} from "./modules/profile.js";
 const state=loadState(),panel=document.querySelector("#panelContent");
 let currentScreen=state.currentScreen||"nearby",currentView=state.currentView||"near";
 function save(){state.currentScreen=currentScreen;state.currentView=currentView;saveState(state);syncHeader()}
-function syncHeader(){document.querySelector("#creditText").textContent=state.credits.toLocaleString();document.querySelector("#levelText").textContent=state.level;document.querySelector("#gridSelector").textContent=`${state.currentGrid} ▼`}
+function syncHeader(){document.querySelector("#creditText").textContent=formatCredits(state.credits);document.querySelector("#levelText").textContent=state.level;document.querySelector("#gridSelector").textContent=`${state.currentGrid} ▼`}
 function setScreen(name){currentScreen=name;document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen===name));const r={nearby:()=>renderNearby(panel,state),grid:()=>renderGrid(panel,state),chat:()=>renderRooms(panel,state),growth:()=>renderGrowth(panel,state),shop:()=>renderShop(panel,state),community:()=>renderCommunity(panel,state)};try{r[name]?.()}catch(e){console.error(e);showSystemMessage("화면을 표시하지 못했습니다.");panel.innerHTML='<div class="card">화면을 다시 선택해 주세요.</div>'}save()}
 function setView(name){currentView=name;document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===name));document.querySelectorAll(".view-layer").forEach(x=>x.classList.remove("active"));document.querySelector(name==="near"?"#mapView":name==="road"?"#roadView":"#allView").classList.add("active");if(name==="road")startRoad();else stopRoad();setMapView(name);invalidateMaps();save()}
-function createGrid(){openModal("새 GRID 만들기",`<label>GRID 이름</label><input id="newGridName"><label>유형</label><select><option>공개 GRID</option><option>비공개 GRID</option><option>차량모임 GRID</option><option>이벤트 GRID</option></select><div class="card"><b>예상 비용</b><div>🪙 1,200</div></div>`,[{label:"취소",onClick:closeModal},{label:"생성",className:"primary",onClick:()=>{const n=document.querySelector("#newGridName").value.trim();if(!n)return;state.joinedGrids.push(n);state.currentGrid=n;state.credits-=1200;closeModal();save();setScreen("grid")}}])}
+function createGrid(){
+  let busy=false;
+  openModal(
+    "새 GRID 만들기",
+    `<label>GRID 이름</label><input id="newGridName"><label>유형</label><select><option>공개 GRID</option><option>비공개 GRID</option><option>차량모임 GRID</option><option>이벤트 GRID</option></select><div class="card"><b>예상 비용</b><div>🪙 ${formatCredits(GRID_CREATE_COST)}</div></div>`,
+    [
+      {label:"취소",onClick:closeModal},
+      {label:"생성",className:"primary",onClick:()=>{
+        if(busy)return;
+        const n=document.querySelector("#newGridName").value.trim();
+        if(!n){showSystemMessage("GRID 이름을 입력해 주세요.");return;}
+        if(!canAfford(state,GRID_CREATE_COST)){
+          showSystemMessage(`크레딧이 부족합니다. (필요 ${formatCredits(GRID_CREATE_COST)})`);
+          return;
+        }
+        busy=true;
+        const paid=spendCredits(state,GRID_CREATE_COST);
+        if(!paid.ok){
+          busy=false;
+          showSystemMessage(`크레딧이 부족합니다. (필요 ${formatCredits(GRID_CREATE_COST)})`);
+          return;
+        }
+        state.joinedGrids.push(n);
+        state.currentGrid=n;
+        closeModal();
+        save();
+        setScreen("grid");
+      }}
+    ]
+  );
+}
 function createPost(){openModal("새 게시글",`<label>게시판</label><select id="postCat"><option>공지</option><option>자유</option><option>뽐내기</option><option>Q&A</option><option>고객센터</option></select><label>제목</label><input id="postTitle"><label>내용</label><textarea id="postBody" style="min-height:150px"></textarea><label>공개 범위</label><select id="postScope"><option value="all">전체 공개</option><option value="grid">내 GRID</option><option value="500m">주변 500m</option><option value="1km">주변 1km</option><option value="5km">주변 5km</option><option value="private">나만 보기</option></select>`,[{label:"취소",onClick:closeModal},{label:"게시하기",className:"primary",onClick:()=>{const title=document.querySelector("#postTitle").value.trim(),body=document.querySelector("#postBody").value.trim();if(!title||!body)return;state.posts.unshift({id:"p"+Date.now(),category:document.querySelector("#postCat").value,title,body,author:state.profile.nickname,scope:document.querySelector("#postScope").value,createdAt:Date.now(),likes:0,comments:[]});state.communityCategory=document.querySelector("#postCat").value;closeModal();save();setScreen("community")}}])}
 on("state:save",save);on("user:profile",openUserProfile);
 on("place:open", place => openModal(

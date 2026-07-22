@@ -1,2 +1,28 @@
-import {carInfo} from "./data.js";import {emit} from "../core/events.js";
-export function renderGrowth(panel,state){const cost=state.level*900;panel.innerHTML=`<div class="card row"><div class="avatar" style="font-size:70px">${carInfo(state.profile.car).emoji}</div><div><h3>${state.profile.nickname}</h3><div class="muted">Lv.${state.level}</div><div class="progress"><i style="width:${state.xp}%"></i></div></div></div><div class="card"><b>현재 가능한 기능</b><div class="muted">주변 차량 · GRID · 대화 · 음성 · 커뮤니티</div></div><div class="card"><b>다음 레벨 팁</b><div class="muted">탐색 범위와 음성 기능이 향상됩니다.</div></div><div class="card row"><div><b>레벨 업그레이드</b><div class="muted">🪙 ${cost.toLocaleString()}</div></div><button class="primary" id="levelUp">업그레이드</button></div>`;panel.querySelector("#levelUp").onclick=()=>{state.level++;state.xp=0;emit("state:save");renderGrowth(panel,state)}}
+import {carInfo} from "./data.js";
+import {emit} from "../core/events.js";
+import {growthUpgradeCost,formatCredits,canAfford,spendCredits} from "../core/storage.js";
+import {showSystemMessage} from "../core/ui.js";
+
+export function renderGrowth(panel,state){
+  const cost=growthUpgradeCost(state.level);
+  let busy=false;
+  panel.innerHTML=`<div class="card row"><div class="avatar" style="font-size:70px">${carInfo(state.profile.car).emoji}</div><div><h3>${state.profile.nickname}</h3><div class="muted">Lv.${state.level}</div><div class="progress"><i style="width:${state.xp}%"></i></div></div></div><div class="card"><b>현재 가능한 기능</b><div class="muted">주변 차량 · GRID · 대화 · 음성 · 커뮤니티</div></div><div class="card"><b>다음 레벨 팁</b><div class="muted">탐색 범위와 음성 기능이 향상됩니다.</div></div><div class="card row"><div><b>레벨 업그레이드</b><div class="muted">🪙 ${formatCredits(cost)}</div></div><button class="primary" id="levelUp">업그레이드</button></div>`;
+  panel.querySelector("#levelUp").onclick=()=>{
+    if(busy)return;
+    if(!canAfford(state,cost)){
+      showSystemMessage(`크레딧이 부족합니다. (필요 ${formatCredits(cost)})`);
+      return;
+    }
+    busy=true;
+    const paid=spendCredits(state,cost);
+    if(!paid.ok){
+      busy=false;
+      showSystemMessage(`크레딧이 부족합니다. (필요 ${formatCredits(cost)})`);
+      return;
+    }
+    state.level++;
+    state.xp=0;
+    emit("state:save");
+    renderGrowth(panel,state);
+  };
+}
