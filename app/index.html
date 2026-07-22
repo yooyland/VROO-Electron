@@ -25,16 +25,24 @@
     <button id="gridSelector" class="grid-selector">MY GRID ▼</button>
     <span id="gpsStatus" class="status">GPS 확인 중</span><span class="status" style="color:#ffc400">DESKTOP</span>
   </div>
-  <div id="viewTabs" class="header-view-tabs">
-    <button type="button" data-view="near" class="active">🚘 주변</button>
-    <button type="button" data-view="road">🛣️ 도로</button>
-    <button type="button" data-view="all">🗺️ 전체</button>
+  <div class="map-top-toolbar">
+    <div class="map-tools map-rotation-controls" id="mapRotationControls">
+      <button type="button" id="compassLeft" aria-label="좌회전">↺</button>
+      <button type="button" id="northButton" aria-label="북쪽">N</button>
+      <button type="button" id="compassRight" aria-label="우회전">↻</button>
+      <button type="button" id="labelToggleButton" class="label-toggle active">지명 ON</button>
+    </div>
+    <div id="viewTabs" class="header-view-tabs">
+      <button type="button" data-view="near" class="active">🚘 주변</button>
+      <button type="button" data-view="road">🛣️ 도로</button>
+      <button type="button" data-view="all">🗺️ 전체</button>
+    </div>
   </div>
   <div class="stage-head-right"></div>
 </div>
 <div class="stage-body">
 
-<div id="mapView" class="view-layer active"><div id="map"></div><div class="map-tools"><button id="compassLeft">↺</button><button id="northButton">N</button><button id="compassRight">↻</button><button id="labelToggleButton" class="label-toggle active">지명 ON</button></div><button id="locateButton" class="floating locate">📍 내 위치</button></div>
+<div id="mapView" class="view-layer active"><div id="map"></div><button id="locateButton" class="floating locate">📍 내 위치</button></div>
 <div id="roadView" class="view-layer"><div id="threeHost" class="three-host"></div><div class="road-hud"><b>MY ROAD</b> <strong id="roadSpeed">0</strong><span>km/h</span><small id="roadMeta">주행 환경 준비 중</small></div><div class="road-side">주변 차량 <b id="roadCount">0</b>대<br><span id="roadSafety">안전거리 정상</span></div><select id="environmentSelect" class="environment-select"><option value="auto">자동 환경</option><option value="urban">도심</option><option value="residential">주거</option><option value="highway">고속도로</option><option value="coast">해안</option></select></div>
 <div id="allView" class="view-layer split-view"><div id="allMap"></div><div class="road-preview"><div class="preview-road"></div><div class="preview-label">도로 미리보기</div></div></div>
 </div></section>

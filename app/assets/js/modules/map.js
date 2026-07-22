@@ -9,8 +9,10 @@ import {
   ACTIVE_GRID_LEVEL,
   isSpatialGridId,
   localGridIdFromLatLng,
-  cellCoversGridId
+  cellCoversGridId,
+  DEBUG_SPATIAL_GRID
 } from "./spatial-grid.js";
+import {showSystemMessage} from "../core/ui.js";
 
 let map;
 let allMap;
@@ -40,10 +42,16 @@ let gridOverlayId = null;
 const visibleGridLayersNear = new Map();
 const visibleGridLayersAll = new Map();
 let spatialGridBound = false;
-let spatialGridEnabled = true;
+/** 상단 메인 메뉴 “그리드”에서만 true — near/all/road 탭과 무관 */
+let spatialGridVisible = false;
+/** road 뷰일 때 일시 중지 (메뉴 상태는 유지) */
+let spatialGridPaused = false;
 let spatialRefreshTimer = 0;
 let countBadgeNear = new Map();
 let countBadgeAll = new Map();
+/** map 인스턴스 → 마지막 표시 level (hysteresis) */
+const lastDisplayLevelByMap = new WeakMap();
+let debugHudEl = null;
 
 let lastRenderAt = 0;
 let lastRenderLoc = null;
@@ -239,20 +247,61 @@ function notifyUsersChanged() {
   }
 }
 
+/**
+ * 강조 규칙 (겹침 시):
+ * - 테두리: 선택(청) > 내 GRID(녹) > 현재 위치(금) > 일반
+ * - 채움: 현재 위치 > 내 GRID > 선택 > 일반
+ * 일반 셀도 Black & Gold 톤으로 경계가 보이도록 유지.
+ */
 function styleForCell(cellId) {
   const locId = stateRef?.locationGridId;
   const curId = stateRef?.currentGridId;
   const selId = stateRef?.selectedGridId;
-  if (locId && cellCoversGridId(cellId, locId)) {
-    return {color: "#ffc400", weight: 3, fillColor: "#ffc400", fillOpacity: 0.14};
+  const isLoc = !!(locId && cellCoversGridId(cellId, locId));
+  const isCur = !!(isSpatialGridId(curId) && cellCoversGridId(cellId, curId));
+  const isSel = !!(selId && cellCoversGridId(cellId, selId));
+
+  let fillColor = "#0b1018";
+  let fillOpacity = 0.03;
+  if (isLoc) {
+    fillColor = "#ffc400";
+    fillOpacity = 0.13;
+  } else if (isCur) {
+    fillColor = "#50df78";
+    fillOpacity = 0.07;
+  } else if (isSel) {
+    fillColor = "#2ca9ff";
+    fillOpacity = 0.06;
   }
-  if (isSpatialGridId(curId) && cellCoversGridId(cellId, curId)) {
-    return {color: "#50df78", weight: 2.5, fillColor: "#50df78", fillOpacity: 0.1};
+
+  let color = "#c9a227";
+  let weight = 2;
+  let opacity = 0.92;
+  if (isSel) {
+    color = "#2ca9ff";
+    weight = 3.5;
+    opacity = 1;
+  } else if (isCur) {
+    color = "#50df78";
+    weight = 3;
+    opacity = 1;
+  } else if (isLoc) {
+    color = "#ffc400";
+    weight = 2.75;
+    opacity = 1;
   }
-  if (selId && cellCoversGridId(cellId, selId)) {
-    return {color: "#2ca9ff", weight: 2.5, fillColor: "#2ca9ff", fillOpacity: 0.12};
-  }
-  return {color: "#617184", weight: 1, fillColor: "#10151d", fillOpacity: 0.03};
+
+  return {
+    color,
+    weight,
+    opacity,
+    fillColor,
+    fillOpacity,
+    fill: true,
+    stroke: true,
+    lineJoin: "miter",
+    lineCap: "butt"
+  };
 }
 
 function occupantCount(cellId) {
@@ -260,20 +309,103 @@ function occupantCount(cellId) {
   let n = 0;
   for (const u of users) {
     if (!Number.isFinite(u.lat) || !Number.isFinite(u.lng)) continue;
-    if (getGridCellFromLatLng(u.lat, u.lng, ACTIVE_GRID_LEVEL).id === cellId) n++;
+    const cell = getGridCellFromLatLng(u.lat, u.lng, ACTIVE_GRID_LEVEL);
+    if (cell?.id === cellId) n++;
   }
   if (stateRef?.location && stateRef.locationGridId === cellId) n += 1;
   return n;
 }
 
+function ensureSpatialPane(targetMap) {
+  if (!targetMap.getPane("spatialGridPane")) {
+    targetMap.createPane("spatialGridPane");
+    const pane = targetMap.getPane("spatialGridPane");
+    pane.classList.add("spatial-grid-pane");
+    pane.style.zIndex = 450;
+  }
+  if (!targetMap._vrooGridRenderer) {
+    targetMap._vrooGridRenderer = L.svg({pane: "spatialGridPane", padding: 0.5});
+  }
+  return targetMap._vrooGridRenderer;
+}
+
+function bindDragGuard(targetMap) {
+  if (targetMap._vrooDragGuard) return;
+  targetMap._vrooDragGuard = true;
+  targetMap.on("dragstart", () => {
+    targetMap._vrooSuppressGridClick = true;
+  });
+  targetMap.on("dragend", () => {
+    setTimeout(() => {
+      targetMap._vrooSuppressGridClick = false;
+    }, 80);
+  });
+}
+
+function updateDebugHud(info) {
+  if (!DEBUG_SPATIAL_GRID) {
+    if (debugHudEl) {
+      debugHudEl.remove();
+      debugHudEl = null;
+    }
+    return;
+  }
+  if (!debugHudEl) {
+    debugHudEl = document.createElement("div");
+    debugHudEl.className = "vroo-spatial-debug";
+    document.querySelector(".stage-body")?.appendChild(debugHudEl);
+  }
+  const line = [
+    `[SpatialGrid] zoom=${info.zoom}`,
+    `preferred=${info.preferredLevel}`,
+    `resolved=${info.level}`,
+    `estimated=${info.estimated}`,
+    `created=${info.created}`,
+    `x=${info.ixMin}..${info.ixMax}`,
+    `y=${info.iyMin}..${info.iyMax}`
+  ].join(" ");
+  debugHudEl.textContent = line;
+  console.debug(line, {
+    unclamped: info.unclamped,
+    clamped: info.clamped,
+    locationGridId: info.locationGridId,
+    selectedGridId: info.selectedGridId,
+    currentGridId: info.currentGridId
+  });
+}
+
 function syncSpatialGridsOn(targetMap, layerMap, badgeMap) {
-  if (!mapReady || !targetMap || !spatialGridEnabled) return;
+  if (!mapReady || !targetMap || !spatialGridVisible || spatialGridPaused) return;
   try {
+    bindDragGuard(targetMap);
+    const renderer = ensureSpatialPane(targetMap);
     const bounds = targetMap.getBounds();
     const zoom = targetMap.getZoom();
-    const preferred = levelForMapZoom(zoom);
-    const {cells} = getVisibleGridCells(bounds, preferred);
+    const lastLv = lastDisplayLevelByMap.get(targetMap) || null;
+    const preferred = levelForMapZoom(zoom, lastLv);
+    const result = getVisibleGridCells(bounds, preferred);
+    const {cells, level} = result;
+    lastDisplayLevelByMap.set(targetMap, level);
     const seen = new Set();
+
+    if (DEBUG_SPATIAL_GRID && targetMap === map) {
+      updateDebugHud({
+        zoom: Number(zoom?.toFixed?.(2) ?? zoom),
+        preferredLevel: result.preferredLevel || preferred,
+        level,
+        estimated: result.estimated ?? cells.length,
+        created: result.created ?? cells.length,
+        ixMin: result.ixMin,
+        ixMax: result.ixMax,
+        iyMin: result.iyMin,
+        iyMax: result.iyMax,
+        unclamped: result.unclamped,
+        clamped: result.clamped,
+        locationGridId: stateRef?.locationGridId,
+        selectedGridId: stateRef?.selectedGridId,
+        currentGridId: stateRef?.currentGridId
+      });
+    }
 
     for (const cell of cells) {
       seen.add(cell.id);
@@ -281,7 +413,10 @@ function syncSpatialGridsOn(targetMap, layerMap, badgeMap) {
       const pathOpts = {
         ...styleForCell(cell.id),
         interactive: true,
-        className: "vroo-spatial-grid"
+        bubblingMouseEvents: true,
+        className: "vroo-spatial-grid",
+        pane: "spatialGridPane",
+        renderer
       };
       const latlngs = [
         [cell.south, cell.west],
@@ -292,14 +427,26 @@ function syncSpatialGridsOn(targetMap, layerMap, badgeMap) {
       if (!rect) {
         rect = L.polygon(latlngs, pathOpts);
         rect.on("click", e => {
-          L.DomEvent.stopPropagation(e);
-          // 참여·채팅은 항상 LOCAL(L3). 클릭 좌표(없으면 셀 중심)로 해석.
-          const lat = e?.latlng?.lat ?? cell.center.lat;
-          const lng = e?.latlng?.lng ?? cell.center.lng;
-          const localId = localGridIdFromLatLng(lat, lng) || cell.id;
-          if (stateRef) stateRef.selectedGridId = localId;
-          emit("grid:spatialOpen", {gridId: localId});
-          refreshSpatialGridStyles();
+          try {
+            if (targetMap._vrooSuppressGridClick) return;
+            L.DomEvent.stopPropagation(e);
+            const lat = Number(e?.latlng?.lat ?? cell.center.lat);
+            const lng = Number(e?.latlng?.lng ?? cell.center.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+              showSystemMessage("GRID 좌표를 확인할 수 없습니다.");
+              return;
+            }
+            const localId = localGridIdFromLatLng(lat, lng);
+            if (!localId) {
+              showSystemMessage("이 위치의 Spatial GRID를 계산할 수 없습니다.");
+              return;
+            }
+            if (stateRef) stateRef.selectedGridId = localId;
+            emit("grid:spatialOpen", {gridId: localId});
+            refreshSpatialGridStyles();
+          } catch (err) {
+            warnRare("[VROO map] grid click", err);
+          }
         });
         rect.addTo(targetMap);
         layerMap.set(cell.id, rect);
@@ -374,12 +521,20 @@ function refreshSpatialGridStyles() {
 }
 
 export function refreshSpatialGrids() {
-  if (!mapReady || !spatialGridEnabled) return;
+  if (!mapReady || !spatialGridVisible || spatialGridPaused) {
+    if (!spatialGridVisible || spatialGridPaused) clearSpatialGridLayers();
+    return;
+  }
   if (map) syncSpatialGridsOn(map, visibleGridLayersNear, countBadgeNear);
   if (allMap) syncSpatialGridsOn(allMap, visibleGridLayersAll, countBadgeAll);
 }
 
+export function refreshSpatialGrid() {
+  refreshSpatialGrids();
+}
+
 function scheduleSpatialRefresh() {
+  if (!spatialGridVisible || spatialGridPaused) return;
   clearTimeout(spatialRefreshTimer);
   spatialRefreshTimer = setTimeout(() => refreshSpatialGrids(), 120);
 }
@@ -392,42 +547,92 @@ function bindSpatialGridEvents() {
   window.addEventListener("resize", scheduleSpatialRefresh);
 }
 
-function updateLocationGridId(location) {
-  if (!stateRef || !location) return;
-  try {
-    const cell = getGridCellFromLatLng(location.lat, location.lng, ACTIVE_GRID_LEVEL);
-    const prev = stateRef.locationGridId;
-    stateRef.locationGridId = cell.id;
-    if (prev !== cell.id) {
-      emit("grid:locationChanged", {gridId: cell.id, prev});
-      refreshSpatialGridStyles();
+function clearSpatialGridLayers() {
+  clearTimeout(spatialRefreshTimer);
+  for (const [id, rect] of visibleGridLayersNear) {
+    try {
+      map?.removeLayer(rect);
+    } catch {
+      /* ignore */
     }
-  } catch (e) {
-    warnRare("[VROO map] locationGridId", e);
+    visibleGridLayersNear.delete(id);
+  }
+  for (const [id, rect] of visibleGridLayersAll) {
+    try {
+      allMap?.removeLayer(rect);
+    } catch {
+      /* ignore */
+    }
+    visibleGridLayersAll.delete(id);
+  }
+  for (const [id, b] of countBadgeNear) {
+    try {
+      map?.removeLayer(b);
+    } catch {
+      /* ignore */
+    }
+    countBadgeNear.delete(id);
+  }
+  for (const [id, b] of countBadgeAll) {
+    try {
+      allMap?.removeLayer(b);
+    } catch {
+      /* ignore */
+    }
+    countBadgeAll.delete(id);
+  }
+  try {
+    gridOverlayLayer?.clearLayers();
+  } catch {
+    /* ignore */
+  }
+  if (DEBUG_SPATIAL_GRID && debugHudEl) {
+    debugHudEl.remove();
+    debugHudEl = null;
   }
 }
 
+/**
+ * 상단 메인 메뉴 “그리드” 선택 시에만 Spatial GRID Leaflet 레이어 표시.
+ * locationGridId 등 계산 상태는 유지한다.
+ */
+export function setSpatialGridVisible(visible) {
+  spatialGridVisible = !!visible;
+  if (!spatialGridVisible) {
+    clearSpatialGridLayers();
+    return;
+  }
+  if (!spatialGridPaused) refreshSpatialGrids();
+}
+
+export function showSpatialGrid() {
+  setSpatialGridVisible(true);
+}
+
+export function hideSpatialGrid() {
+  setSpatialGridVisible(false);
+}
+
+/** @deprecated setSpatialGridVisible 사용 — 호환 유지 */
 export function setSpatialGridEnabled(on) {
-  spatialGridEnabled = !!on;
-  if (!spatialGridEnabled) {
-    for (const [id, rect] of visibleGridLayersNear) {
-      map?.removeLayer(rect);
-      visibleGridLayersNear.delete(id);
-    }
-    for (const [id, rect] of visibleGridLayersAll) {
-      allMap?.removeLayer(rect);
-      visibleGridLayersAll.delete(id);
-    }
-    for (const [id, b] of countBadgeNear) {
-      map?.removeLayer(b);
-      countBadgeNear.delete(id);
-    }
-    for (const [id, b] of countBadgeAll) {
-      allMap?.removeLayer(b);
-      countBadgeAll.delete(id);
-    }
-  } else {
-    refreshSpatialGrids();
+  setSpatialGridVisible(on);
+}
+
+function updateLocationGridId(location) {
+  if (!stateRef || !location) return;
+  try {
+    const lat = Number(location.lat);
+    const lng = Number(location.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const cell = getGridCellFromLatLng(lat, lng, ACTIVE_GRID_LEVEL);
+    if (!cell?.id) return;
+    const prev = stateRef.locationGridId;
+    if (prev === cell.id) return;
+    stateRef.locationGridId = cell.id;
+    emit("grid:locationChanged", {gridId: cell.id, prev});
+    if (spatialGridVisible && !spatialGridPaused) refreshSpatialGridStyles();
+  } catch (e) {
+    warnRare("[VROO map] locationGridId", e);
   }
 }
 
@@ -488,7 +693,7 @@ export function initMap(state) {
   drawUsers("near");
   refreshLabels();
   bindSpatialGridEvents();
-  refreshSpatialGrids();
+  // Spatial GRID는 상단 “그리드” 메뉴에서만 표시 — 부팅 시 레이어 생성 안 함
   notifyUsersChanged();
 }
 
@@ -521,10 +726,7 @@ export function setLocation(location, options = {}) {
   updateLocationGridId(location);
 
   const doRender = shouldRenderMarkers(location, options);
-  if (!doRender) {
-    refreshSpatialGridStyles();
-    return false;
-  }
+  if (!doRender) return false;
 
   lastRenderAt = Date.now();
   lastRenderLoc = {lat: location.lat, lng: location.lng};
@@ -596,9 +798,11 @@ export function setMapView(mode) {
   drawUsers(mode === "all" ? "all" : "near");
 
   if (mode === "road") {
-    setSpatialGridEnabled(false);
+    spatialGridPaused = true;
+    clearSpatialGridLayers();
   } else {
-    setSpatialGridEnabled(true);
+    spatialGridPaused = false;
+    if (spatialGridVisible) scheduleSpatialRefresh();
   }
 
   runProgrammatic(() => {
@@ -614,7 +818,6 @@ export function setMapView(mode) {
   });
 
   refreshLabels();
-  if (mode !== "road") scheduleSpatialRefresh();
 }
 
 export function invalidateMaps() {
@@ -640,10 +843,16 @@ export function invalidateMaps() {
  */
 export function focusGridOnMap(grid) {
   if (!mapReady || !map || !grid) return;
+  if (!spatialGridVisible || spatialGridPaused) return;
 
   try {
+    if (!map.getPane("spatialFocusPane")) {
+      map.createPane("spatialFocusPane");
+      map.getPane("spatialFocusPane").style.zIndex = 460;
+      map.getPane("spatialFocusPane").style.pointerEvents = "none";
+    }
     if (!gridOverlayLayer) {
-      gridOverlayLayer = L.layerGroup().addTo(map);
+      gridOverlayLayer = L.layerGroup({pane: "spatialFocusPane"}).addTo(map);
     }
     gridOverlayLayer.clearLayers();
     gridOverlayId = grid.id || null;
@@ -665,10 +874,12 @@ export function focusGridOnMap(grid) {
           ],
           {
             color: "#2ca9ff",
-            weight: 3,
+            weight: 3.5,
+            opacity: 1,
             fillColor: "#2ca9ff",
-            fillOpacity: 0.12,
+            fillOpacity: 0.1,
             interactive: false,
+            pane: "spatialFocusPane",
             className: "vroo-spatial-focus"
           }
         ).addTo(gridOverlayLayer);
@@ -710,7 +921,8 @@ export function focusGridOnMap(grid) {
       weight: 2,
       fillColor: "#ffc400",
       fillOpacity: 0.08,
-      interactive: false
+      interactive: false,
+      pane: "spatialFocusPane"
     }).addTo(gridOverlayLayer);
 
     runProgrammatic(() => {

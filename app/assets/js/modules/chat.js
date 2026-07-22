@@ -2,8 +2,8 @@ import {playHorn} from "./sound.js";
 import {emit, on} from "../core/events.js";
 import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
-import {gridChatRoomId, MY_USER_ID} from "./data.js";
-import {getGridDisplayName, isSpatialGridId} from "./spatial-grid.js";
+import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
+import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
 
 /** @type {SpeechRecognition|null} */
 let voiceRecognition = null;
@@ -25,6 +25,70 @@ let msgIdSeq = 0;
 function nextMessageId() {
   msgIdSeq += 1;
   return `m_${Date.now().toString(36)}_${msgIdSeq.toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** GRID 단체방 참가자 user.id 목록 (도로 광선용) */
+function resolveGridParticipantIds(state, gridId) {
+  const out = new Set([MY_USER_ID]);
+  const sm = state?.spatialMembers?.[gridId];
+  if (Array.isArray(sm)) sm.forEach(id => out.add(String(id)));
+  const owned = state?.grids?.find(g => g.id === gridId);
+  if (Array.isArray(owned?.memberIds)) owned.memberIds.forEach(id => out.add(String(id)));
+  const seed = SEED_GRIDS.find(g => g.id === gridId);
+  if (Array.isArray(seed?.memberIds)) seed.memberIds.forEach(id => out.add(String(id)));
+  if (isSpatialGridId(gridId)) {
+    for (const u of getUsers()) {
+      if (!u?.id || !Number.isFinite(u.lat) || !Number.isFinite(u.lng)) continue;
+      const cell = getGridCellFromLatLng(u.lat, u.lng, ACTIVE_GRID_LEVEL);
+      if (cell?.id === gridId) out.add(String(u.id));
+    }
+  }
+  return [...out];
+}
+
+function emitActiveRoomChanged(state, info) {
+  try {
+    emit("chat:activeRoomChanged", {
+      roomId: info.roomId,
+      type: info.type,
+      peerId: info.peerId || null,
+      gridId: info.gridId || null,
+      participantIds: Array.isArray(info.participantIds) ? info.participantIds.map(String) : []
+    });
+  } catch (e) {
+    console.warn("[VROO chat] activeRoomChanged", e);
+  }
+}
+
+function emitChatClosed(roomId) {
+  try {
+    emit("chat:closed", {roomId: roomId || null});
+  } catch (e) {
+    console.warn("[VROO chat] closed", e);
+  }
+}
+
+function emitMessagePreview(msg) {
+  if (!msg?.id || !msg?.text) return;
+  try {
+    emit("chat:messagePreview", {
+      messageId: msg.id,
+      roomId: msg.roomId,
+      roomType: msg.roomType || (String(msg.roomId || "").startsWith("grid:") ? "grid" : "direct"),
+      senderId: msg.senderId,
+      text: String(msg.text),
+      createdAt: msg.createdAt || Date.now()
+    });
+  } catch (e) {
+    console.warn("[VROO chat] messagePreview", e);
+  }
+}
+
+function closeActiveChat(state) {
+  const prev = activeRoomId;
+  activeRoomId = null;
+  viewMode = "list";
+  if (prev) emitChatClosed(prev);
 }
 
 function peerIdOf(userOrId) {
@@ -321,8 +385,7 @@ export function renderRooms(panel, state) {
   stopVoice();
   activePanel = panel;
   activeState = state;
-  activeRoomId = null;
-  viewMode = "list";
+  closeActiveChat(state);
 
   state.rooms = sanitizeRooms(state.rooms);
   const rooms = Object.values(state.rooms).sort((a, b) => {
@@ -413,6 +476,13 @@ export function openChatWith(panel, state, userOrId) {
   viewMode = "chat";
   emit("state:save");
   updateNavBadge(state);
+  emitActiveRoomChanged(state, {
+    roomId: peerId,
+    type: "direct",
+    peerId,
+    gridId: null,
+    participantIds: [MY_USER_ID, peerId]
+  });
   renderChat(panel, state, peerId);
 }
 
@@ -468,8 +538,7 @@ function renderChat(panel, state, peerId) {
   panel.querySelector("#chatBack").onclick = () => {
     stopVoice();
     clearReplyTimer(peerId);
-    activeRoomId = null;
-    viewMode = "list";
+    closeActiveChat(state);
     renderRooms(panel, state);
   };
 
@@ -522,16 +591,18 @@ function send(panel, state, peerId, text) {
   sendBusy = true;
 
   const room = ensureRoom(state, peerId, state.rooms[peerId]?.user);
-  room.messages.push({
+  const msg = {
     id: nextMessageId(),
     text: cleaned,
     mine: true,
     senderId: MY_USER_ID,
     createdAt: Date.now(),
     roomId: peerId
-  });
+  };
+  room.messages.push(msg);
   room.last = cleaned;
   emit("state:save");
+  emitMessagePreview({...msg, roomType: "direct"});
 
   const ta = panel.querySelector("#chatText");
   if (ta) ta.value = "";
@@ -550,15 +621,17 @@ function scheduleDemoReply(panel, state, peerId) {
     const reply = ["빵빵! 안전운전하세요.", "네, 확인했습니다.", "좋아요 👍"][
       Math.floor(Math.random() * 3)
     ];
-    room.messages.push({
+    const replyMsg = {
       id: nextMessageId(),
       text: reply,
       mine: false,
       senderId: peerId,
       createdAt: Date.now(),
       roomId: peerId
-    });
+    };
+    room.messages.push(replyMsg);
     room.last = reply;
+    emitMessagePreview({...replyMsg, roomType: "direct"});
 
     const isOpen = viewMode === "chat" && activeRoomId === peerId && activePanel === panel;
     if (isOpen) {
@@ -619,6 +692,13 @@ export function openGridChat(panel, state, gridId) {
   viewMode = "chat";
   emit("state:save");
   updateNavBadge(state);
+  emitActiveRoomChanged(state, {
+    roomId,
+    type: "grid",
+    peerId: null,
+    gridId,
+    participantIds: resolveGridParticipantIds(state, gridId)
+  });
   renderGridChat(panel, state, gridId);
 }
 
@@ -680,8 +760,7 @@ function renderGridChat(panel, state, gridId) {
   panel.querySelector("#chatBack").onclick = () => {
     stopVoice();
     clearReplyTimer(roomId);
-    activeRoomId = null;
-    viewMode = "list";
+    closeActiveChat(state);
     renderRooms(panel, state);
   };
 
@@ -727,16 +806,18 @@ function sendGrid(panel, state, gridId, text) {
   sendBusy = true;
   const roomId = gridChatRoomId(gridId);
   const room = ensureGridRoom(state, gridId, state.rooms[roomId]?.title);
-  room.messages.push({
+  const msg = {
     id: nextMessageId(),
     roomId,
     senderId: MY_USER_ID,
     text: cleaned,
     mine: true,
     createdAt: Date.now()
-  });
+  };
+  room.messages.push(msg);
   room.last = cleaned;
   emit("state:save");
+  emitMessagePreview({...msg, roomType: "grid"});
   const ta = panel.querySelector("#chatText");
   if (ta) ta.value = "";
   renderGridChat(panel, state, gridId);
@@ -756,15 +837,17 @@ function scheduleGridDemoReply(panel, state, gridId) {
     const reply = ["빵빵! GRID 안전운전!", "확인했습니다.", "같이 달려요 👍"][
       Math.floor(Math.random() * 3)
     ];
-    room.messages.push({
+    const replyMsg = {
       id: nextMessageId(),
       roomId,
       senderId: bot.id,
       text: reply,
       mine: false,
       createdAt: Date.now()
-    });
+    };
+    room.messages.push(replyMsg);
     room.last = reply;
+    emitMessagePreview({...replyMsg, roomType: "grid"});
     const isOpen = viewMode === "chat" && activeRoomId === roomId && activePanel === panel;
     if (isOpen) {
       room.unread = 0;
