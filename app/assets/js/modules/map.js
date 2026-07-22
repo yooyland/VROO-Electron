@@ -19,10 +19,12 @@ let programmaticMoveDepth = 0;
 /** setMapView와 GPS 갱신이 공유하는 마커 표시 모드 */
 let markerMode = "near";
 
-const markersNear = new Map();
+let markersNear = new Map();
 const markersAll = new Map();
 let meMarkerNear = null;
 let meMarkerAll = null;
+let gridOverlayLayer = null;
+let gridOverlayId = null;
 
 let lastRenderAt = 0;
 let lastRenderLoc = null;
@@ -403,6 +405,38 @@ export function invalidateMaps() {
     }
     refreshLabels();
   }, 50);
+}
+
+/** GRID 중심 표시 — GPS/유저 상태 초기화 없음, 오버레이 ID 단위 갱신 */
+export function focusGridOnMap(grid) {
+  if (!mapReady || !map || !grid?.center) return;
+  const lat = Number(grid.center.lat);
+  const lng = Number(grid.center.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+  try {
+    if (!gridOverlayLayer) {
+      gridOverlayLayer = L.layerGroup().addTo(map);
+    }
+    gridOverlayLayer.clearLayers();
+    const radius = Math.max(200, Number(grid.radiusM) || 800);
+    L.circle([lat, lng], {
+      radius,
+      color: "#ffc400",
+      weight: 2,
+      fillColor: "#ffc400",
+      fillOpacity: 0.08,
+      interactive: false
+    }).addTo(gridOverlayLayer);
+    gridOverlayId = grid.id;
+
+    runProgrammatic(() => {
+      map.setView([lat, lng], 15);
+      if (allMap) allMap.setView([lat, lng], 13);
+    });
+  } catch (e) {
+    warnRare("[VROO map] focusGrid", e);
+  }
 }
 
 /** 주변·전체 지도 모두 동일 bearing 적용 */

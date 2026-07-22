@@ -59,8 +59,10 @@ export const defaults = {
   xp: 0,
   currentScreen: "nearby",
   currentView: "near",
+  currentGridId: "g_my",
   currentGrid: "MY GRID",
-  joinedGrids: ["MY GRID"],
+  joinedGrids: ["g_my"],
+  grids: [],
   connections: [],
   favoriteRooms: [],
   rooms: {},
@@ -99,9 +101,80 @@ function sanitizeState(s) {
   const xp = Number(s.xp);
   s.xp = Number.isFinite(xp) ? Math.max(0, Math.min(100, Math.floor(xp))) : 0;
 
-  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts"]) {
+  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts", "grids"]) {
     if (!Array.isArray(s[key])) s[key] = structuredClone(defaults[key]);
   }
+
+  // 구버전 GRID 이름 → id 마이그레이션
+  const legacyNameToId = {
+    "MY GRID": "g_my",
+    "강남 드라이브": "g_gangnam",
+    "안전운전": "g_safe",
+    "야간 드라이브": "g_night",
+    "VROO 공식 이벤트": "g_event",
+    "자동차 보험 혜택": "g_insure"
+  };
+  s.joinedGrids = [...new Set(
+    s.joinedGrids
+      .map(x => {
+        const v = String(x || "");
+        return legacyNameToId[v] || v;
+      })
+      .filter(Boolean)
+  )];
+
+  if (!s.currentGridId) {
+    const fromName = legacyNameToId[s.currentGrid] || s.currentGrid;
+    s.currentGridId = s.joinedGrids.includes(fromName) ? fromName : (s.joinedGrids[0] || "g_my");
+  }
+  if (!s.joinedGrids.includes(s.currentGridId)) {
+    s.joinedGrids.push(s.currentGridId);
+  }
+
+  // 사용자 생성 GRID 정규화
+  const seenGridIds = new Set();
+  s.grids = s.grids.map((g, i) => {
+    if (!g || typeof g !== "object") return null;
+    let id = String(g.id || "").trim();
+    if (!id) id = `g_migrated_${i}_${Date.now().toString(36)}`;
+    if (seenGridIds.has(id)) return null;
+    seenGridIds.add(id);
+    let memberIds = Array.isArray(g.memberIds)
+      ? g.memberIds.map(String)
+      : Array.isArray(g.members)
+        ? g.members.map(m => (typeof m === "string" ? m : m?.id)).filter(Boolean)
+        : [];
+    memberIds = [...new Set(memberIds.filter(Boolean))];
+    const ownerId = String(g.ownerId || "me");
+    if (!memberIds.includes(ownerId)) memberIds.unshift(ownerId);
+    const center = g.center && typeof g.center === "object"
+      ? {lat: Number(g.center.lat) || 37.5665, lng: Number(g.center.lng) || 126.978}
+      : {lat: 37.5665, lng: 126.978};
+    return {
+      id,
+      name: String(g.name || g.title || id),
+      ownerId,
+      memberIds,
+      createdAt: Number(g.createdAt) || Date.now(),
+      center,
+      visibility: g.visibility || "public",
+      chatRoomId: g.chatRoomId || `grid:${id}`,
+      radiusM: Math.max(200, Number(g.radiusM) || 800),
+      ad: !!g.ad,
+      people: Math.max(memberIds.length, Number(g.people) || memberIds.length)
+    };
+  }).filter(Boolean);
+
+  // currentGrid 표시명은 id에서 유도(없으면 유지)
+  if (s.currentGridId === "g_my") s.currentGrid = s.currentGrid || "MY GRID";
+  const owned = s.grids.find(g => g.id === s.currentGridId);
+  if (owned) s.currentGrid = owned.name;
+  else if (legacyNameToId[s.currentGrid]) {
+    /* keep display until grid module resolves seed name */
+  } else if (!s.currentGrid) {
+    s.currentGrid = s.currentGridId;
+  }
+
   if (!s.rooms || typeof s.rooms !== "object" || Array.isArray(s.rooms)) {
     s.rooms = {};
   } else {
@@ -111,11 +184,12 @@ function sanitizeState(s) {
         delete s.rooms[key];
         continue;
       }
+      const isGrid = room.type === "grid" || String(key).startsWith("grid:") || String(room.id || "").startsWith("grid:");
       if (!Array.isArray(room.messages)) room.messages = [];
       else {
         room.messages = room.messages.filter(m => m != null).map(m => {
           if (typeof m === "string") {
-            return {id: `legacy_${key}_${Math.random().toString(36).slice(2, 7)}`, text: m, mine: false, senderId: key, createdAt: Date.now()};
+            return {id: `legacy_${key}_${Math.random().toString(36).slice(2, 7)}`, text: m, mine: false, senderId: isGrid ? "unknown" : key, createdAt: Date.now(), roomId: key};
           }
           if (typeof m !== "object") return null;
           const text = String(m.text ?? "").trim();
@@ -124,16 +198,25 @@ function sanitizeState(s) {
             id: m.id || `legacy_${key}_${Math.random().toString(36).slice(2, 7)}`,
             text,
             mine: m.mine === true,
-            senderId: m.senderId || (m.mine ? "me" : key),
-            createdAt: Number(m.createdAt) || Date.now()
+            senderId: m.senderId || (m.mine ? "me" : (isGrid ? "unknown" : key)),
+            createdAt: Number(m.createdAt) || Date.now(),
+            roomId: m.roomId || key
           };
         }).filter(Boolean);
       }
-      room.id = room.id || key;
-      room.peerId = room.peerId || room.user?.id || key;
       room.unread = Math.max(0, Math.floor(Number(room.unread) || 0));
       if (typeof room.last !== "string") room.last = "";
-      if (!room.title) room.title = room.user?.nickname || key;
+      if (isGrid) {
+        room.type = "grid";
+        room.gridId = room.gridId || String(key).replace(/^grid:/, "") || String(room.id || "").replace(/^grid:/, "");
+        room.id = room.id || `grid:${room.gridId}`;
+        if (!room.title) room.title = "GRID 대화";
+      } else {
+        room.type = room.type || "direct";
+        room.id = room.id || key;
+        room.peerId = room.peerId || room.user?.id || key;
+        if (!room.title) room.title = room.user?.nickname || key;
+      }
     }
   }
   if (!s.profile || typeof s.profile !== "object" || Array.isArray(s.profile)) {

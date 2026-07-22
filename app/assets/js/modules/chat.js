@@ -2,6 +2,7 @@ import {playHorn} from "./sound.js";
 import {emit, on} from "../core/events.js";
 import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
+import {gridChatRoomId, MY_USER_ID} from "./data.js";
 
 /** @type {SpeechRecognition|null} */
 let voiceRecognition = null;
@@ -46,15 +47,16 @@ function liveUser(peerId, fallback) {
   };
 }
 
-function normalizeMessage(raw, peerId, myId = "me") {
+function normalizeMessage(raw, peerId, myId = MY_USER_ID, roomId = "") {
   if (raw == null) return null;
   if (typeof raw === "string") {
     return {
       id: nextMessageId(),
       text: raw,
       mine: false,
-      senderId: peerId,
-      createdAt: Date.now()
+      senderId: peerId || "unknown",
+      createdAt: Date.now(),
+      roomId: roomId || undefined
     };
   }
   if (typeof raw !== "object") return null;
@@ -65,20 +67,48 @@ function normalizeMessage(raw, peerId, myId = "me") {
     id: raw.id || nextMessageId(),
     text,
     mine,
-    senderId: raw.senderId || (mine ? myId : peerId),
-    createdAt: Number(raw.createdAt) || Date.now()
+    senderId: raw.senderId || (mine ? myId : peerId || "unknown"),
+    createdAt: Number(raw.createdAt) || Date.now(),
+    roomId: raw.roomId || roomId || undefined
   };
 }
 
 function normalizeRoom(room, key) {
+  const isGrid =
+    room?.type === "grid" ||
+    String(key).startsWith("grid:") ||
+    String(room?.id || "").startsWith("grid:");
+
+  if (isGrid) {
+    const gridId =
+      room.gridId ||
+      String(key).replace(/^grid:/, "") ||
+      String(room.id || "").replace(/^grid:/, "");
+    if (!gridId) return null;
+    const roomId = room.id || gridChatRoomId(gridId);
+    const messages = Array.isArray(room?.messages)
+      ? room.messages.map(m => normalizeMessage(m, "unknown", MY_USER_ID, roomId)).filter(Boolean)
+      : [];
+    return {
+      id: roomId,
+      type: "grid",
+      gridId,
+      title: room.title || "GRID 대화",
+      messages,
+      last: room.last || (messages.length ? messages[messages.length - 1].text : ""),
+      unread: Math.max(0, Math.floor(Number(room?.unread) || 0))
+    };
+  }
+
   const peerId = String(room?.peerId || room?.id || room?.user?.id || key || "");
-  if (!peerId) return null;
+  if (!peerId || peerId.startsWith("grid:")) return null;
   const user = room?.user && typeof room.user === "object" ? room.user : {id: peerId};
   const messages = Array.isArray(room?.messages)
-    ? room.messages.map(m => normalizeMessage(m, peerId)).filter(Boolean)
+    ? room.messages.map(m => normalizeMessage(m, peerId, MY_USER_ID, peerId)).filter(Boolean)
     : [];
   return {
     id: peerId,
+    type: "direct",
     peerId,
     title: room?.title || user.nickname || peerId,
     user: {...user, id: peerId},
@@ -95,17 +125,21 @@ export function sanitizeRooms(rooms) {
   for (const [key, room] of Object.entries(rooms)) {
     const normalized = normalizeRoom(room, key);
     if (!normalized) continue;
-    // 같은 peerId면 메시지 병합(구버전 중복 키 대비)
-    if (out[normalized.peerId]) {
-      const existing = out[normalized.peerId];
+    const storeKey = normalized.type === "grid" ? normalized.id : normalized.peerId;
+    if (out[storeKey]) {
+      const existing = out[storeKey];
       const ids = new Set(existing.messages.map(m => m.id));
       for (const m of normalized.messages) {
         if (!ids.has(m.id)) existing.messages.push(m);
       }
       existing.unread = Math.max(existing.unread, normalized.unread);
       if (normalized.last) existing.last = normalized.last;
+      if (normalized.type === "grid") {
+        existing.title = normalized.title || existing.title;
+        existing.gridId = normalized.gridId;
+      }
     } else {
-      out[normalized.peerId] = normalized;
+      out[storeKey] = normalized;
     }
   }
   return out;
@@ -114,18 +148,22 @@ export function sanitizeRooms(rooms) {
 function ensureRoom(state, peerId, userHint) {
   if (!state.rooms || typeof state.rooms !== "object") state.rooms = {};
   const live = liveUser(peerId, userHint || state.rooms[peerId]?.user);
-  if (!state.rooms[peerId]) {
+  if (!state.rooms[peerId] || state.rooms[peerId].type === "grid") {
     state.rooms[peerId] = {
       id: peerId,
+      type: "direct",
       peerId,
       title: live.nickname || peerId,
       user: live,
-      messages: [],
-      last: "",
-      unread: 0
+      messages: Array.isArray(state.rooms[peerId]?.messages) && state.rooms[peerId]?.type !== "grid"
+        ? state.rooms[peerId].messages
+        : [],
+      last: state.rooms[peerId]?.type === "direct" ? state.rooms[peerId].last || "" : "",
+      unread: state.rooms[peerId]?.type === "direct" ? state.rooms[peerId].unread || 0 : 0
     };
   } else {
     const room = normalizeRoom(state.rooms[peerId], peerId);
+    room.type = "direct";
     room.user = {...room.user, ...live, id: peerId};
     room.title = live.nickname || room.title || peerId;
     state.rooms[peerId] = room;
@@ -133,6 +171,32 @@ function ensureRoom(state, peerId, userHint) {
   if (!Array.isArray(state.connections)) state.connections = [];
   if (!state.connections.includes(peerId)) state.connections.push(peerId);
   return state.rooms[peerId];
+}
+
+export function getGridRoomUnread(state, gridId) {
+  const room = state?.rooms?.[gridChatRoomId(gridId)];
+  return Math.max(0, Number(room?.unread) || 0);
+}
+
+function ensureGridRoom(state, gridId, title) {
+  if (!state.rooms || typeof state.rooms !== "object") state.rooms = {};
+  const roomId = gridChatRoomId(gridId);
+  if (!state.rooms[roomId] || state.rooms[roomId].type !== "grid") {
+    const prev = state.rooms[roomId];
+    state.rooms[roomId] = {
+      id: roomId,
+      type: "grid",
+      gridId,
+      title: title || prev?.title || "GRID 대화",
+      messages: Array.isArray(prev?.messages) ? prev.messages : [],
+      last: prev?.last || "",
+      unread: Math.max(0, Number(prev?.unread) || 0)
+    };
+  } else {
+    state.rooms[roomId].title = title || state.rooms[roomId].title || "GRID 대화";
+    state.rooms[roomId].gridId = gridId;
+  }
+  return state.rooms[roomId];
 }
 
 function totalUnread(state) {
@@ -271,8 +335,21 @@ export function renderRooms(panel, state) {
     rooms.length
       ? rooms
           .map(r => {
-            const peer = liveUser(r.peerId || r.id, r.user);
             const unread = Math.max(0, Number(r.unread) || 0);
+            if (r.type === "grid") {
+              return `<div class="card room-row" data-room-type="grid">
+              <div class="avatar">${state.favoriteRooms?.includes(r.id) ? "★" : "👥"}</div>
+              <div>
+                <b>${escapeHtml(r.title || "GRID 대화")}</b>
+                <div class="muted">GRID 단체 · ${escapeHtml(r.last || "대화를 시작하세요")}</div>
+              </div>
+              <div class="room-actions">
+                <span class="chat-room-unread" data-room-unread="${escapeHtml(r.id)}" ${unread ? "" : "hidden"}>${unread > 99 ? "99+" : unread}</span>
+                <button class="secondary" data-room="${escapeHtml(r.id)}" data-open-grid="${escapeHtml(r.gridId || "")}" type="button">열기</button>
+              </div>
+            </div>`;
+            }
+            const peer = liveUser(r.peerId || r.id, r.user);
             return `<div class="card room-row" data-peer-id="${escapeHtml(peer.id)}">
               <div class="avatar">${state.favoriteRooms?.includes(r.id) ? "★" : "🚘"}</div>
               <div>
@@ -281,7 +358,7 @@ export function renderRooms(panel, state) {
               </div>
               <div class="room-actions">
                 <span class="chat-room-unread" data-room-unread="${escapeHtml(r.id)}" ${unread ? "" : "hidden"}>${unread > 99 ? "99+" : unread}</span>
-                <button class="secondary" data-room="${escapeHtml(r.id)}">열기</button>
+                <button class="secondary" data-room="${escapeHtml(r.id)}" type="button">열기</button>
               </div>
             </div>`;
           })
@@ -291,9 +368,13 @@ export function renderRooms(panel, state) {
 
   panel.querySelectorAll("[data-room]").forEach(b => {
     b.onclick = () => {
+      const gridId = b.getAttribute("data-open-grid");
+      if (gridId) {
+        openGridChat(panel, state, gridId);
+        return;
+      }
       const id = b.dataset.room;
-      const peer = liveUser(id, state.rooms[id]?.user);
-      openChatWith(panel, state, peer);
+      openChatWith(panel, state, liveUser(id, state.rooms[id]?.user));
     };
   });
   updateNavBadge(state);
@@ -308,6 +389,11 @@ export function openChatWith(panel, state, userOrId) {
   const peerId = peerIdOf(userOrId);
   if (!peerId) {
     showSystemMessage("대화 상대를 확인할 수 없습니다.");
+    return;
+  }
+  if (peerId.startsWith("grid:") || userOrId?.type === "grid") {
+    const gridId = userOrId?.gridId || peerId.replace(/^grid:/, "");
+    openGridChat(panel, state, gridId);
     return;
   }
 
@@ -435,13 +521,13 @@ function send(panel, state, peerId, text) {
   sendBusy = true;
 
   const room = ensureRoom(state, peerId, state.rooms[peerId]?.user);
-  const myId = "me";
   room.messages.push({
     id: nextMessageId(),
     text: cleaned,
     mine: true,
-    senderId: myId,
-    createdAt: Date.now()
+    senderId: MY_USER_ID,
+    createdAt: Date.now(),
+    roomId: peerId
   });
   room.last = cleaned;
   emit("state:save");
@@ -459,7 +545,7 @@ function scheduleDemoReply(panel, state, peerId) {
   const timer = setTimeout(() => {
     replyTimers.delete(peerId);
     const room = state.rooms[peerId];
-    if (!room) return;
+    if (!room || room.type === "grid") return;
     const reply = ["빵빵! 안전운전하세요.", "네, 확인했습니다.", "좋아요 👍"][
       Math.floor(Math.random() * 3)
     ];
@@ -468,7 +554,8 @@ function scheduleDemoReply(panel, state, peerId) {
       text: reply,
       mine: false,
       senderId: peerId,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      roomId: peerId
     });
     room.last = reply;
 
@@ -489,6 +576,208 @@ function scheduleDemoReply(panel, state, peerId) {
     }
   }, 700);
   replyTimers.set(peerId, timer);
+}
+
+/**
+ * GRID 단체 대화방 — room id = grid:{gridId}, type: grid
+ */
+export function openGridChat(panel, state, gridId) {
+  bindUsersListener();
+  if (!gridId) {
+    showSystemMessage("GRID를 확인할 수 없습니다.");
+    return;
+  }
+
+  const seedNames = {
+    g_my: "MY GRID",
+    g_gangnam: "강남 드라이브",
+    g_safe: "안전운전",
+    g_night: "야간 드라이브",
+    g_event: "VROO 공식 이벤트",
+    g_insure: "자동차 보험 혜택"
+  };
+  const displayTitle =
+    state.grids?.find(g => g.id === gridId)?.name ||
+    seedNames[gridId] ||
+    (state.currentGridId === gridId ? state.currentGrid : null) ||
+    "GRID 대화";
+
+  const roomId = gridChatRoomId(gridId);
+  if (activeRoomId && activeRoomId !== roomId) {
+    stopVoice();
+    clearReplyTimer(activeRoomId);
+  }
+
+  const room = ensureGridRoom(state, gridId, displayTitle);
+  room.unread = 0;
+  sendBusy = false;
+  activePanel = panel;
+  activeState = state;
+  activeRoomId = roomId;
+  viewMode = "chat";
+  emit("state:save");
+  updateNavBadge(state);
+  renderGridChat(panel, state, gridId);
+}
+
+function senderLabel(senderId, state) {
+  if (senderId === MY_USER_ID) return state.profile?.nickname || "나";
+  const u = getUsers().find(x => x.id === senderId);
+  return u?.nickname || senderId || "알 수 없음";
+}
+
+function renderGridChat(panel, state, gridId) {
+  const roomId = gridChatRoomId(gridId);
+  const room = state.rooms[roomId];
+  if (!room) return renderRooms(panel, state);
+
+  stopVoice();
+  activeRoomId = roomId;
+  activePanel = panel;
+  activeState = state;
+  viewMode = "chat";
+
+  const messages = Array.isArray(room.messages) ? room.messages : [];
+  const bubbles = messages
+    .map(m => {
+      const msg = normalizeMessage(m, "unknown", MY_USER_ID, roomId);
+      if (!msg?.text) return "";
+      const label = msg.mine
+        ? ""
+        : `<div class="bubble-sender">${escapeHtml(senderLabel(msg.senderId, state))}</div>`;
+      return `${label}<div class="bubble ${msg.mine ? "mine" : ""}">${escapeHtml(msg.text)}</div>`;
+    })
+    .join("");
+
+  panel.innerHTML = `<div class="chat-shell">
+    <div class="card chat-header">
+      <button class="secondary" id="chatBack" type="button">←</button>
+      <div class="chat-header-main">
+        <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
+        <div class="muted chat-peer-meta">GRID 단체 대화</div>
+      </div>
+      <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
+    </div>
+    <div id="chatScroll" class="chat-scroll">${bubbles}</div>
+    <div class="chat-compose">
+      <div class="tabs">
+        <button type="button" class="active" data-chatmode="text">텍스트</button>
+        <button type="button" data-chatmode="voice">음성</button>
+      </div>
+      <div id="textCompose">
+        <textarea id="chatText" placeholder="GRID에 메시지를 입력하세요"></textarea>
+        <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
+      </div>
+      <div id="voiceCompose" style="display:none">
+        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">🎙️ 음성 듣기 시작</button>
+        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
+      </div>
+    </div>
+  </div>`;
+
+  panel.querySelector("#chatBack").onclick = () => {
+    stopVoice();
+    clearReplyTimer(roomId);
+    activeRoomId = null;
+    viewMode = "list";
+    renderRooms(panel, state);
+  };
+
+  panel.querySelector("#favoriteRoom").onclick = () => {
+    if (!Array.isArray(state.favoriteRooms)) state.favoriteRooms = [];
+    state.favoriteRooms = state.favoriteRooms.includes(roomId)
+      ? state.favoriteRooms.filter(x => x !== roomId)
+      : [...state.favoriteRooms, roomId];
+    emit("state:save");
+    renderGridChat(panel, state, gridId);
+  };
+
+  panel.querySelectorAll("[data-chatmode]").forEach(b => {
+    b.onclick = () => {
+      panel.querySelectorAll("[data-chatmode]").forEach(x => x.classList.toggle("active", x === b));
+      const mode = b.dataset.chatmode;
+      panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
+      panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
+      if (mode !== "voice") stopVoice();
+    };
+  });
+
+  const textarea = panel.querySelector("#chatText");
+  const doSend = () => sendGrid(panel, state, gridId, (textarea?.value || "").trim());
+  panel.querySelector("#sendChat").onclick = doSend;
+  textarea.addEventListener("keydown", e => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    doSend();
+  });
+  panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
+
+  requestAnimationFrame(() => {
+    const s = panel.querySelector("#chatScroll");
+    if (s) s.scrollTop = s.scrollHeight;
+  });
+}
+
+function sendGrid(panel, state, gridId, text) {
+  const cleaned = String(text || "").trim();
+  if (!cleaned) return;
+  if (sendBusy) return;
+  sendBusy = true;
+  const roomId = gridChatRoomId(gridId);
+  const room = ensureGridRoom(state, gridId, state.rooms[roomId]?.title);
+  room.messages.push({
+    id: nextMessageId(),
+    roomId,
+    senderId: MY_USER_ID,
+    text: cleaned,
+    mine: true,
+    createdAt: Date.now()
+  });
+  room.last = cleaned;
+  emit("state:save");
+  const ta = panel.querySelector("#chatText");
+  if (ta) ta.value = "";
+  renderGridChat(panel, state, gridId);
+  scheduleGridDemoReply(panel, state, gridId);
+  sendBusy = false;
+}
+
+function scheduleGridDemoReply(panel, state, gridId) {
+  const roomId = gridChatRoomId(gridId);
+  clearReplyTimer(roomId);
+  const timer = setTimeout(() => {
+    replyTimers.delete(roomId);
+    const room = state.rooms[roomId];
+    if (!room || room.type !== "grid") return;
+    const users = getUsers().filter(u => u.online);
+    const bot = users[Math.floor(Math.random() * Math.max(users.length, 1))] || {id: "u0"};
+    const reply = ["빵빵! GRID 안전운전!", "확인했습니다.", "같이 달려요 👍"][
+      Math.floor(Math.random() * 3)
+    ];
+    room.messages.push({
+      id: nextMessageId(),
+      roomId,
+      senderId: bot.id,
+      text: reply,
+      mine: false,
+      createdAt: Date.now()
+    });
+    room.last = reply;
+    const isOpen = viewMode === "chat" && activeRoomId === roomId && activePanel === panel;
+    if (isOpen) {
+      room.unread = 0;
+      emit("state:save");
+      playHorn(state.hornEnabled);
+      renderGridChat(panel, state, gridId);
+    } else {
+      room.unread = Math.max(0, Number(room.unread) || 0) + 1;
+      emit("state:save");
+      playHorn(state.hornEnabled);
+      updateNavBadge(state);
+      if (viewMode === "list" && activePanel === panel) renderRooms(panel, state);
+    }
+  }, 700);
+  replyTimers.set(roomId, timer);
 }
 
 function toggleVoice(panel, state, peerId) {
