@@ -96,56 +96,65 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   overflow:visible !important;
 }
 
-/* 왼쪽: 회전 + 지명 */
+/* 왼쪽: 회전 + 지명 — 중앙 탭과 동일 top / 동일 버튼 높이 */
 .map-tools,
 .map-rotation-controls{
   position:absolute !important;
-  top:10px !important;
-  left:12px !important;
+  top:12px !important;
+  left:16px !important;
   right:auto !important;
   bottom:auto !important;
   margin:0 !important;
+  padding:0 !important;
   transform:none !important;
   display:flex !important;
   align-items:center !important;
-  gap:5px !important;
+  gap:6px !important;
+  height:38px !important;
   z-index:1000 !important;
   pointer-events:auto !important;
 }
 .map-tools button,
 .map-rotation-controls button{
+  box-sizing:border-box !important;
   width:38px !important;
   height:38px !important;
   margin:0 !important;
+  margin-top:0 !important;
+  padding:0 !important;
+  padding-top:0 !important;
+  line-height:1 !important;
   border:1px solid #435164 !important;
   border-radius:9px !important;
   background:#0b131d !important;
   color:white !important;
   flex-shrink:0 !important;
+  transform:none !important;
 }
 body[data-map-view="road"] .map-rotation-controls{
   display:none !important;
 }
 
-/* 중앙: 주변 / 도로 / 전체 */
+/* 중앙: 주변 / 도로 / 전체 — 회전 그룹과 동일 Y */
 .header-view-tabs,
 .map-view-tabs{
   position:absolute !important;
-  top:10px !important;
+  top:12px !important;
   left:50% !important;
   right:auto !important;
   bottom:auto !important;
   margin:0 !important;
+  padding:0 !important;
   transform:translateX(-50%) !important;
   display:grid !important;
+  align-items:center !important;
   visibility:visible !important;
   opacity:1 !important;
   grid-template-columns:repeat(3,minmax(92px,1fr)) !important;
   gap:7px !important;
   width:min(420px,calc(100% - 24px)) !important;
   min-width:0 !important;
-  height:50px !important;
-  padding:6px !important;
+  height:38px !important;
   z-index:1000 !important;
   pointer-events:auto !important;
   border:1px solid #3b4a5d !important;
@@ -155,17 +164,24 @@ body[data-map-view="road"] .map-rotation-controls{
 }
 .header-view-tabs button,
 .map-view-tabs button{
+  box-sizing:border-box !important;
   display:block !important;
   visibility:visible !important;
   opacity:1 !important;
   width:100% !important;
   height:38px !important;
+  margin:0 !important;
+  margin-top:0 !important;
+  padding:0 8px !important;
+  padding-top:0 !important;
+  line-height:1 !important;
   border:1px solid #465466 !important;
   border-radius:10px !important;
   background:#141b24 !important;
   color:#d3d9e1 !important;
   font-weight:900 !important;
   white-space:nowrap !important;
+  transform:none !important;
 }
 .header-view-tabs button.active,
 .map-view-tabs button.active{
@@ -186,7 +202,9 @@ body[data-map-view="road"] .map-rotation-controls{
 .map-rotation-controls .label-toggle{
   width:auto !important;
   min-width:72px !important;
+  height:38px !important;
   padding:0 9px !important;
+  padding-top:0 !important;
   color:#9aa6b4 !important;
 }
 .map-tools .label-toggle.active,
@@ -196,9 +214,14 @@ body[data-map-view="road"] .map-rotation-controls{
   border-color:#ffc400 !important;
 }
 
-/* 좁은 화면: 한 줄 유지, 축약만 */
+/* 좁은 화면: top 유지, 크기만 축소 */
 @media(max-width:1100px){
-  .map-rotation-controls{gap:4px !important;left:8px !important}
+  .map-rotation-controls{
+    top:12px !important;
+    left:8px !important;
+    gap:4px !important;
+    height:34px !important;
+  }
   .map-tools button,
   .map-rotation-controls button{
     width:34px !important;
@@ -206,12 +229,12 @@ body[data-map-view="road"] .map-rotation-controls{
   }
   .header-view-tabs,
   .map-view-tabs{
-    top:10px !important;
-    height:46px !important;
+    top:12px !important;
+    height:34px !important;
     width:min(340px,calc(100% - 24px)) !important;
     grid-template-columns:repeat(3,minmax(64px,1fr)) !important;
     gap:5px !important;
-    padding:5px !important;
+    padding:0 !important;
   }
   .header-view-tabs button,
   .map-view-tabs button{
@@ -222,6 +245,7 @@ body[data-map-view="road"] .map-rotation-controls{
   .map-tools .label-toggle,
   .map-rotation-controls .label-toggle{
     min-width:44px !important;
+    height:34px !important;
     font-size:0 !important;
     padding:0 6px !important;
   }
@@ -242,7 +266,12 @@ body[data-map-view="road"] .map-rotation-controls{
     padding:0 8px !important;
   }
   .stage-body{height:calc(100% - 56px) !important}
-  .map-rotation-controls{left:6px !important;gap:3px !important}
+  .map-rotation-controls{
+    top:12px !important;
+    left:6px !important;
+    gap:3px !important;
+    height:32px !important;
+  }
   .map-tools button,
   .map-rotation-controls button{
     width:32px !important;
@@ -250,16 +279,21 @@ body[data-map-view="road"] .map-rotation-controls{
   }
   .header-view-tabs,
   .map-view-tabs{
-    top:10px !important;
-    height:44px !important;
+    top:12px !important;
+    height:32px !important;
     width:min(280px,calc(100% - 20px)) !important;
     grid-template-columns:repeat(3,minmax(56px,1fr)) !important;
     gap:4px !important;
+    padding:0 !important;
   }
   .header-view-tabs button,
   .map-view-tabs button{
     height:32px !important;
     font-size:11px !important;
+  }
+  .map-tools .label-toggle,
+  .map-rotation-controls .label-toggle{
+    height:32px !important;
   }
 }
 
