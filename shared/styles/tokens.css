@@ -1,0 +1,78 @@
+:root {
+  /* Surface hierarchy — page < sidebar/topbar < card < elevated */
+  --color-bg-page: #070A0E;
+  --color-bg-sidebar: #0B1016;
+  --color-bg-topbar: #0D1219;
+  --color-bg-surface: #121820;
+  --color-bg-elevated: #181F29;
+  --color-bg-muted: #1E2632;
+  --color-bg-hover: rgba(255, 255, 255, 0.045);
+  --color-bg-active: rgba(201, 166, 79, 0.12);
+  --color-bg-urgent: rgba(212, 91, 99, 0.08);
+  --color-bg-warning-soft: rgba(212, 160, 23, 0.08);
+
+  /* Border */
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-border-brand: rgba(201, 166, 79, 0.38);
+  --color-border-danger: rgba(212, 91, 99, 0.45);
+  --color-border-warning: rgba(212, 160, 23, 0.4);
+
+  /* Text — muted slightly brighter for contrast */
+  --color-text-primary: #F3F5F7;
+  --color-text-secondary: #B0B8C4;
+  --color-text-muted: #8A93A3;
+
+  /* Brand */
+  --color-brand: #C9A64F;
+  --color-brand-hover: #D4B45E;
+  --color-brand-soft: rgba(201, 166, 79, 0.14);
+
+  /* Status */
+  --color-success: #3DAA6D;
+  --color-warning: #D4A017;
+  --color-danger: #D45B63;
+  --color-info: #4A90C8;
+  --color-neutral: #8A93A3;
+
+  /* Legacy aliases */
+  --console-bg: var(--color-bg-page);
+  --console-panel: var(--color-bg-surface);
+  --console-panel2: var(--color-bg-elevated);
+  --console-line: var(--color-border);
+  --console-gold: var(--color-brand);
+  --console-gold-bright: var(--color-brand);
+  --console-text: var(--color-text-primary);
+  --console-muted: var(--color-text-muted);
+  --console-danger: var(--color-danger);
+  --console-ok: var(--color-success);
+  --console-warn: var(--color-warning);
+
+  /* Layout */
+  --console-sidebar: 256px;
+  --console-sidebar-collapsed: 72px;
+  --console-header: 60px;
+
+  /* Spacing & radius */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
+
+  /* Type */
+  --font-sans: Pretendard, "SUIT", "Segoe UI", "Noto Sans KR", "Apple SD Gothic Neo", Arial, sans-serif;
+  --font-size-page: 26px;
+  --font-size-section: 18px;
+  --font-size-body: 14px;
+  --font-size-small: 12px;
+  --font-size-nav: 14px;
+  --font-size-kpi: 30px;
+  --font-size-kpi-aux: 20px;
+}

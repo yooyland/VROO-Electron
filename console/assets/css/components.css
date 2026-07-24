@@ -1,0 +1,92 @@
+/* Login — operational form + secondary development access */
+.login-screen{min-height:100%;display:grid;place-items:center;padding:32px 20px;overflow:auto;background:radial-gradient(ellipse at top, #121820 0%, var(--color-bg-page) 55%)}
+.login-layout{width:min(420px,100%);display:flex;flex-direction:column;gap:16px}
+.login-card{background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:28px 26px;box-shadow:var(--shadow-md)}
+.login-brand-block{margin-bottom:20px}
+.login-brand-block .brand-name{font-size:22px;font-weight:700;letter-spacing:.4px}
+.login-brand-block .brand-name span{color:var(--color-brand)}
+.login-brand-block .brand-sub{margin-top:4px;color:var(--color-text-secondary);font-size:13px}
+.login-card h1{margin:0 0 6px;font-size:20px;font-weight:650}
+.login-field{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.login-field label{font-size:12px;color:var(--color-text-secondary);font-weight:600}
+.login-field input{background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:10px 12px}
+.login-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;color:var(--color-text-secondary)}
+.login-actions{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+.login-note{margin-top:14px;font-size:12px;color:var(--color-text-muted);line-height:1.5}
+.dev-access{border:1px dashed var(--color-border-strong);border-radius:var(--radius-md);padding:14px 16px;background:rgba(0,0,0,.2)}
+.dev-access summary{cursor:pointer;font-size:12px;font-weight:650;color:var(--color-text-secondary);list-style:none}
+.dev-access summary::-webkit-details-marker{display:none}
+.dev-access[open] summary{color:var(--color-text-primary);margin-bottom:10px}
+.dev-role-list{display:flex;flex-direction:column;gap:6px}
+.dev-role-btn{text-align:left;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-border);background:var(--color-bg-elevated);font-size:13px}
+.dev-role-btn:hover{border-color:var(--color-border-brand)}
+.dev-role-btn b{display:block;font-weight:650}
+.dev-role-btn span{color:var(--color-text-muted);font-size:11px}
+
+/* Shell */
+.console-shell{height:100%;display:flex;flex-direction:column;background:var(--color-bg-page)}
+.console-body{flex:1;min-height:0;display:grid;grid-template-columns:var(--console-sidebar) minmax(0,1fr);transition:grid-template-columns .2s ease}
+body.sidebar-collapsed .console-body{grid-template-columns:var(--console-sidebar-collapsed) minmax(0,1fr)}
+
+.console-sidebar{display:flex;flex-direction:column;border-right:1px solid var(--color-border);background:var(--color-bg-sidebar);min-width:0}
+.sidebar-brand{flex:0 0 auto;padding:18px 16px 14px;border-bottom:1px solid var(--color-border)}
+.sidebar-brand .brand-mark{font-size:15px;font-weight:700;letter-spacing:.3px}
+.sidebar-brand .brand-mark em{font-style:normal;color:var(--color-brand)}
+.sidebar-brand .brand-caption{margin-top:2px;font-size:11px;color:var(--color-text-muted);font-weight:500}
+body.sidebar-collapsed .sidebar-brand .brand-caption,
+body.sidebar-collapsed .nav-group-label,
+body.sidebar-collapsed .nav-label,
+body.sidebar-collapsed .sidebar-foot-meta{display:none}
+body.sidebar-collapsed .sidebar-brand{padding:16px 12px;text-align:center}
+body.sidebar-collapsed .console-nav-link{justify-content:center;padding:10px}
+
+.sidebar-nav{flex:1;overflow:auto;padding:10px 8px}
+.nav-group{margin-bottom:6px}
+.nav-group-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:transparent;color:var(--color-text-muted);font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;padding:8px 10px;border-radius:var(--radius-sm)}
+.nav-group-toggle:hover{color:var(--color-text-secondary);background:var(--color-bg-hover)}
+.nav-group-toggle .chev{transition:transform .15s ease}
+.nav-group.collapsed .chev{transform:rotate(-90deg)}
+.nav-group.collapsed .nav-group-items{display:none}
+.console-nav-link{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border:0;background:transparent;color:var(--color-text-secondary);padding:9px 10px 9px 12px;border-radius:var(--radius-sm);font-weight:500;font-size:var(--font-size-nav);position:relative}
+.console-nav-link:hover{background:var(--color-bg-hover);color:var(--color-text-primary)}
+.console-nav-link.active{background:var(--color-bg-active);color:var(--color-text-primary);font-weight:600}
+.console-nav-link.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--color-brand)}
+.sidebar-foot{flex:0 0 auto;border-top:1px solid var(--color-border);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.sidebar-foot-meta{font-size:11px;color:var(--color-text-muted);line-height:1.4}
+.sidebar-foot .conn{display:inline-flex;align-items:center;gap:6px}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:var(--color-neutral)}
+
+.console-topbar{height:var(--console-header);flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--color-border);background:var(--color-bg-topbar)}
+.topbar-left{min-width:0;flex:1}
+.topbar-crumb{font-size:12px;color:var(--color-text-muted);margin-bottom:2px}
+.topbar-title{font-size:15px;font-weight:650;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.icon-btn{width:36px;height:36px;min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);border:1px solid var(--color-border);background:transparent;color:var(--color-text-secondary)}
+.icon-btn:hover{background:var(--color-bg-hover);color:var(--color-text-primary)}
+.account-wrap{position:relative}
+.account-trigger{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:var(--radius-sm);border:1px solid var(--color-border);background:var(--color-bg-elevated);text-align:left;min-width:0;min-height:40px}
+.account-trigger:hover{border-color:var(--color-border-strong)}
+.account-avatar{width:28px;height:28px;border-radius:50%;background:var(--color-bg-muted);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--color-brand);flex-shrink:0}
+.account-text{min-width:0;max-width:180px}
+.account-text b{display:block;font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--color-text-primary)}
+.account-text span{display:block;font-size:11px;color:var(--color-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.account-text .account-org{color:var(--color-text-muted)}
+.account-menu{position:absolute;right:0;top:calc(100% + 6px);width:268px;background:var(--color-bg-elevated);border:1px solid var(--color-border-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:6px;z-index:40;display:none}
+.account-menu.open{display:block}
+.account-menu[hidden]{display:none!important}
+.account-menu-head{padding:10px 12px 12px;border-bottom:1px solid var(--color-border);margin-bottom:4px}
+.account-menu-head b{display:block;font-size:14px;font-weight:650}
+.account-menu-head span{display:block;font-size:12px;color:var(--color-text-secondary);margin-top:2px;line-height:1.4}
+.account-menu-head .muted{color:var(--color-text-muted);font-size:11px}
+.account-menu button{width:100%;text-align:left;border:0;background:transparent;padding:10px 12px;min-height:40px;border-radius:var(--radius-sm);font-size:13px;color:var(--color-text-primary)}
+.account-menu button:hover{background:var(--color-bg-hover)}
+.account-menu .sep{height:1px;background:var(--color-border);margin:4px 0}
+.account-menu .dev-block{margin:2px 0;padding:4px 0;border-radius:var(--radius-sm);background:rgba(0,0,0,.22);border:1px dashed var(--color-border-strong)}
+.account-menu .dev-label{padding:6px 12px 2px;font-size:11px;font-weight:700;color:var(--color-text-muted)}
+
+.console-content{overflow:auto;padding:20px 24px 36px;min-width:0;background:var(--color-bg-page)}
+
+.info-dl{display:grid;grid-template-columns:96px 1fr;gap:8px 12px;margin:0 0 12px;font-size:13px}
+.info-dl dt{color:var(--color-text-muted);font-weight:600}
+.info-dl dd{margin:0;color:var(--color-text-primary)}
+.btn.btn-sm{padding:4px 8px;font-size:12px;min-height:32px}

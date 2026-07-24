@@ -101,8 +101,15 @@ CDN 의존으로 **인터넷 연결**이 필요합니다. 백엔드·WebSocket·
 
 ```bash
 npm install
-npm start
+npm start              # 일반 사용자 앱
+npm run console        # VROO Console (역할 기반 운영)
+npm run dev:platform   # User App + Console 동시
 ```
+
+플랫폼 구조: [docs/PLATFORM_ARCHITECTURE.md](./docs/PLATFORM_ARCHITECTURE.md)  
+콘솔 가이드: [docs/CONSOLE_USER_GUIDE.md](./docs/CONSOLE_USER_GUIDE.md)
+
+> 사용자 앱 메뉴에 콘솔 링크는 없습니다. 개발 빌드에서 Electron 메뉴 **Develop → Open VROO Console** 또는 `Ctrl+Shift+C`.
 
 ### Windows 빌드
 

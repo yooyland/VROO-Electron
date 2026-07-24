@@ -1,9 +1,35 @@
 # Admin Console Plan
 
-상태: **planned** (이번 단계: 기능 목록·폴더 초안만)
+상태: **prototype** (통합 VROO Console 구현됨 — 데모 인증)
 
-Electron 본앱과 분리된 운영 콘솔을 전제로 한다.  
-실제 관리자 UI·API는 Phase 5에서 구현한다.
+상세 아키텍처: [PLATFORM_ARCHITECTURE.md](./PLATFORM_ARCHITECTURE.md)  
+사용 가이드: [CONSOLE_USER_GUIDE.md](./CONSOLE_USER_GUIDE.md)  
+권한 표: [ROLE_PERMISSION_MATRIX.md](./ROLE_PERMISSION_MATRIX.md)
+
+---
+
+## 실행
+
+```powershell
+npm run console
+```
+
+통합 콘솔 경로: `console/` · 공유: `shared/`
+
+본 문서의 구 `admin/` 폴더 초안은 `console/` 로 대체되었다.
+
+---
+
+## 1. 목적
+
+상업 운영에 필요한 회원·GRID·커머스·제휴·안전·공지를 한곳에서 관리한다.
+
+---
+
+## 2. 기능 모듈
+
+구현된 데모 화면은 Console User Guide를 참고한다.  
+실결제·실정산·실보험·서버 ACL은 아직 planned / 데모다.
 
 ---
 

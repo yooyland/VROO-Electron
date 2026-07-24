@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'">
+<title>VROO Console</title>
+<link rel="stylesheet" href="../shared/styles/tokens.css">
+<link rel="stylesheet" href="./assets/css/layout.css">
+<link rel="stylesheet" href="./assets/css/components.css">
+<link rel="stylesheet" href="./assets/css/dashboard.css">
+<link rel="stylesheet" href="./assets/css/tables.css">
+<link rel="stylesheet" href="./assets/css/responsive.css">
+</head>
+<body>
+<div id="consoleApp" class="console-app"></div>
+<div id="consoleModal" class="console-modal-backdrop" aria-hidden="true">
+  <div class="console-modal" role="dialog" aria-modal="true" aria-labelledby="consoleModalTitle">
+    <div class="console-modal-head">
+      <h2 id="consoleModalTitle"></h2>
+      <button type="button" id="consoleModalClose" class="btn ghost" aria-label="닫기">✕</button>
+    </div>
+    <div id="consoleModalBody" class="console-modal-body"></div>
+    <div id="consoleModalActions" class="console-modal-actions"></div>
+  </div>
+</div>
+<script type="module" src="./assets/js/console-app.js"></script>
+</body>
+</html>

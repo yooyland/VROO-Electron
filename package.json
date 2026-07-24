@@ -1,7 +1,7 @@
 {
   "name": "vroo-desktop",
   "version": "1.1.0-beta.1",
-  "description": "VROO desktop application with custom label-free basemap and VROO-owned place labels",
+  "description": "VROO Mobility Lifestyle Platform — User App + role-based Console",
   "main": "main.js",
   "author": "VROO",
   "license": "UNLICENSED",
@@ -9,6 +9,8 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
+    "console": "electron . -- --console",
+    "dev:platform": "electron . -- --platform",
     "pack": "electron-builder --dir",
     "build:win": "electron-builder --win nsis portable"
   },
@@ -28,6 +30,8 @@
       "main.js",
       "preload.js",
       "app/**/*",
+      "console/**/*",
+      "shared/**/*",
       "assets/**/*",
       "package.json"
     ],
