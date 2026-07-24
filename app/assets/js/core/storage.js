@@ -77,6 +77,30 @@ export const defaults = {
   connections: [],
   favoriteRooms: [],
   rooms: {},
+  /** 도로 기반 대화 세션 — Spatial·Content 공유 */
+  roadChat: null,
+  /** 주변 반경 대화 (road와 분리) */
+  nearbyChat: null,
+  /** 종료된 도로 세션 로컬 최근 기록 (일반 room 아님) */
+  roadChatHistory: [],
+  /** 대화방 목록 필터: all | spatial | direct | room */
+  roomsListFilter: "all",
+  /** 내비게이션 준비 상태 (API 미연동 시 idle) */
+  navigation: null,
+  /** 지도 공간 메시지 오버레이 */
+  spatialMessageOverlays: [],
+  spatialOverlayConfig: null,
+  /** 지도 레이어·필터 표시 설정 */
+  mapLayerPrefs: null,
+  conversationUi: null,
+  roadInsight: null,
+  /** Spatial 채팅 UI 복원용 */
+  spatialChatUi: {
+    mode: null,
+    peerId: null,
+    gridId: null
+  },
+  blockedUserIds: [],
   posts: [],
   profile: {
     nickname: "VROO 관리자",
@@ -112,8 +136,8 @@ function sanitizeState(s) {
   const xp = Number(s.xp);
   s.xp = Number.isFinite(xp) ? Math.max(0, Math.min(100, Math.floor(xp))) : 0;
 
-  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts", "grids", "revealedPlateUserIds"]) {
-    if (!Array.isArray(s[key])) s[key] = structuredClone(defaults[key]);
+  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts", "grids", "revealedPlateUserIds", "blockedUserIds"]) {
+    if (!Array.isArray(s[key])) s[key] = structuredClone(defaults[key] || []);
   }
   s.revealedPlateUserIds = [...new Set(s.revealedPlateUserIds.map(String).filter(Boolean))];
 
@@ -255,14 +279,217 @@ function sanitizeState(s) {
         room.gridId = room.gridId || String(key).replace(/^grid:/, "") || String(room.id || "").replace(/^grid:/, "");
         room.id = room.id || `grid:${room.gridId}`;
         if (!room.title) room.title = "GRID 대화";
+      } else if (room.type === "road" || String(key).startsWith("road:")) {
+        room.type = "road";
+        room.conversationType = "road";
       } else {
-        room.type = room.type || "direct";
+        room.type = room.type === "room" ? "room" : (room.type || "direct");
+        room.conversationType = room.type;
         room.id = room.id || key;
         room.peerId = room.peerId || room.user?.id || key;
         if (!room.title) room.title = room.user?.nickname || key;
       }
     }
   }
+
+  if (!s.roadChat || typeof s.roadChat !== "object" || Array.isArray(s.roadChat)) {
+    s.roadChat = {
+      session: {
+        type: "road",
+        conversationId: "road-session-current",
+        id: "road-session-current",
+        title: "현재 도로 대화",
+        roadId: null,
+        roadName: "",
+        segmentId: null,
+        direction: null,
+        laneGroup: null,
+        gridId: null,
+        participantVehicleIds: [],
+        startedAt: null,
+        lastActiveAt: null
+      },
+      messages: [],
+      unread: 0,
+      voiceMode: "inactive",
+      panelOpen: true,
+      panelMinimized: false,
+      draftText: "",
+      scrollTop: null,
+      selectedVehicleId: null,
+      contentScrollTop: null,
+      contentDraftText: ""
+    };
+  } else {
+    if (!s.roadChat.session || typeof s.roadChat.session !== "object") {
+      s.roadChat.session = {
+        type: "road",
+        conversationId: "road-session-current",
+        id: "road-session-current",
+        title: "현재 도로 대화",
+        roadId: null,
+        roadName: "",
+        segmentId: null,
+        direction: null,
+        laneGroup: null,
+        gridId: null,
+        participantVehicleIds: [],
+        startedAt: null,
+        lastActiveAt: null
+      };
+    }
+    s.roadChat.session.type = "road";
+    if (!s.roadChat.session.conversationId || s.roadChat.session.conversationId === "road-session-local") {
+      s.roadChat.session.conversationId = "road-session-current";
+    }
+    s.roadChat.session.id = s.roadChat.session.conversationId;
+    if (!s.roadChat.session.title) s.roadChat.session.title = "현재 도로 대화";
+    if (!Array.isArray(s.roadChat.messages)) s.roadChat.messages = [];
+    s.roadChat.unread = Math.max(0, Math.floor(Number(s.roadChat.unread) || 0));
+    s.roadChat.unreadSituation = Math.max(0, Math.floor(Number(s.roadChat.unreadSituation) || 0));
+    if (!["chat", "situation", "help"].includes(s.roadChat.messagePurpose)) s.roadChat.messagePurpose = "chat";
+    if (typeof s.roadChat.situationCategory !== "string") s.roadChat.situationCategory = "traffic";
+    if (typeof s.roadChat.contentCategoryFilter !== "string") s.roadChat.contentCategoryFilter = "all";
+    if (typeof s.roadChat.draftText !== "string") s.roadChat.draftText = "";
+    if (typeof s.roadChat.contentDraftText !== "string") s.roadChat.contentDraftText = "";
+  }
+
+  if (!s.roadInsight || typeof s.roadInsight !== "object" || Array.isArray(s.roadInsight)) {
+    s.roadInsight = {
+      status: "no_data",
+      generatedAt: null,
+      sourceMessageCount: 0,
+      activeVehicleCount: 0,
+      sameDirectionVehicleCount: 0,
+      trafficCount: 0,
+      incidentCount: 0,
+      hazardCount: 0,
+      constructionCount: 0,
+      helpCount: 0,
+      courtesyCount: 0,
+      confidence: null,
+      summaryText: "",
+      severity: "normal",
+      stale: false,
+      dataSource: "local",
+      consensus: []
+    };
+  }
+  if (!Array.isArray(s.roadSituationConsensus)) s.roadSituationConsensus = [];
+  if (!s.trustProfiles || typeof s.trustProfiles !== "object" || Array.isArray(s.trustProfiles)) {
+    s.trustProfiles = {};
+  }
+
+  if (!Array.isArray(s.roadChatHistory)) s.roadChatHistory = [];
+  if (!["all", "spatial", "direct", "room"].includes(s.roomsListFilter)) s.roomsListFilter = "all";
+
+  if (!s.nearbyChat || typeof s.nearbyChat !== "object" || Array.isArray(s.nearbyChat)) {
+    s.nearbyChat = {
+      session: {
+        type: "nearby",
+        conversationId: "nearby-session-current",
+        id: "nearby-session-current",
+        title: "주변 대화",
+        radiusM: 500,
+        participantVehicleIds: [],
+        startedAt: null,
+        lastActiveAt: null
+      },
+      messages: [],
+      unread: 0,
+      draftText: "",
+      scrollTop: null,
+      selectedVehicleId: null
+    };
+  } else {
+    if (!s.nearbyChat.session || typeof s.nearbyChat.session !== "object") {
+      s.nearbyChat.session = {
+        type: "nearby",
+        conversationId: "nearby-session-current",
+        id: "nearby-session-current",
+        title: "주변 대화",
+        radiusM: 500,
+        participantVehicleIds: [],
+        startedAt: null,
+        lastActiveAt: null
+      };
+    }
+    s.nearbyChat.session.type = "nearby";
+    if (!Array.isArray(s.nearbyChat.messages)) s.nearbyChat.messages = [];
+    s.nearbyChat.unread = Math.max(0, Math.floor(Number(s.nearbyChat.unread) || 0));
+  }
+
+  if (!s.navigation || typeof s.navigation !== "object" || Array.isArray(s.navigation)) {
+    s.navigation = {
+      navigationMode: "idle",
+      destination: null,
+      routeId: null,
+      currentRoadName: null,
+      direction: null,
+      remainingDistanceMeters: null,
+      eta: null,
+      speedKmh: null,
+      speedLimitKmh: null,
+      nextInstruction: null,
+      nextInstructionDistanceMeters: null,
+      laneGuidance: [],
+      incidents: [],
+      trafficLevel: "unknown",
+      dataSource: "local",
+      demoSpeedKmh: null,
+      demoForwardVehicles: 0,
+      demoSafety: "unknown"
+    };
+  } else {
+    const modes = ["idle", "route_preview", "navigating", "rerouting", "arrived", "unavailable"];
+    if (!modes.includes(s.navigation.navigationMode)) s.navigation.navigationMode = "idle";
+    if (!Array.isArray(s.navigation.laneGuidance)) s.navigation.laneGuidance = [];
+    if (!Array.isArray(s.navigation.incidents)) s.navigation.incidents = [];
+    if (!s.navigation.dataSource) s.navigation.dataSource = "local";
+  }
+
+  if (!Array.isArray(s.spatialMessageOverlays)) s.spatialMessageOverlays = [];
+  if (!s.spatialOverlayConfig || typeof s.spatialOverlayConfig !== "object") {
+    s.spatialOverlayConfig = {
+      maxBubbles: 4,
+      clusterZoomBelow: 15,
+      ttlMs: { normal: 30000, warning: 120000, urgent: 300000 }
+    };
+  }
+  if (!s.conversationUi || typeof s.conversationUi !== "object") {
+    s.conversationUi = {
+      activeConversationId: null,
+      draftByConversationId: {},
+      scrollByConversationId: {},
+      selectedVehicleByConversationId: {},
+      returnView: null,
+      drivingInteractionMode: "unknown"
+    };
+  } else if (!["parked", "passenger", "moving", "unknown"].includes(s.conversationUi.drivingInteractionMode)) {
+    s.conversationUi.drivingInteractionMode = "unknown";
+  }
+
+  if (!s.roadInsight || typeof s.roadInsight !== "object" || Array.isArray(s.roadInsight)) {
+    s.roadInsight = {
+      status: "no_data",
+      generatedAt: null,
+      sourceMessageCount: 0,
+      trafficCount: 0,
+      incidentCount: 0,
+      hazardCount: 0,
+      helpCount: 0,
+      summaryText: "",
+      confidence: null,
+      dataSource: "local"
+    };
+  } else if (s.roadInsight.status === "ai_summary") {
+    s.roadInsight.status = "local_summary";
+  }
+
+  if (!s.spatialChatUi || typeof s.spatialChatUi !== "object" || Array.isArray(s.spatialChatUi)) {
+    s.spatialChatUi = { mode: null, peerId: null, gridId: null };
+  }
+
   if (!s.profile || typeof s.profile !== "object" || Array.isArray(s.profile)) {
     s.profile = structuredClone(defaults.profile);
   }
@@ -278,6 +505,31 @@ function sanitizeState(s) {
   const bearing = Number(s.mapBearing);
   s.mapBearing = Number.isFinite(bearing) ? bearing : 0;
   s.hornEnabled = !!s.hornEnabled;
+  if (!s.mapLayerPrefs || typeof s.mapLayerPrefs !== "object" || Array.isArray(s.mapLayerPrefs)) {
+    s.mapLayerPrefs = {
+      showVehicles: true,
+      showPlaces: true,
+      showLandmarks: true,
+      showRoadLabels: true,
+      showAreaLabels: true,
+      showSpatial: true,
+      filterMode: "all",
+      placeCategoryFilter: "all",
+      vehicleFilter: "all",
+      labelsVisible: true
+    };
+  } else {
+    s.mapLayerPrefs.showVehicles = s.mapLayerPrefs.showVehicles !== false;
+    s.mapLayerPrefs.showPlaces = s.mapLayerPrefs.showPlaces !== false;
+    s.mapLayerPrefs.showLandmarks = s.mapLayerPrefs.showLandmarks !== false;
+    s.mapLayerPrefs.showRoadLabels = s.mapLayerPrefs.showRoadLabels !== false;
+    s.mapLayerPrefs.showAreaLabels = s.mapLayerPrefs.showAreaLabels !== false;
+    s.mapLayerPrefs.showSpatial = s.mapLayerPrefs.showSpatial !== false;
+    s.mapLayerPrefs.labelsVisible = s.mapLayerPrefs.labelsVisible !== false;
+    if (!["all", "vehicle", "place", "spatial"].includes(s.mapLayerPrefs.filterMode)) {
+      s.mapLayerPrefs.filterMode = "all";
+    }
+  }
   return s;
 }
 

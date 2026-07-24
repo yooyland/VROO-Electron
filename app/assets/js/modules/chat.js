@@ -4,6 +4,22 @@ import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
 import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
+import {
+  ensureRoadChat,
+  getRoadConversationCard,
+  getRoadChatHistory,
+  renderRoadChatContentDetail
+} from "./road-chat.js";
+import {
+  ensureNearbyChat,
+  getNearbyParticipants,
+  ensureConversationUi,
+  inferSpatialMeta,
+  pushSpatialOverlay
+} from "./conversation-store.js";
+
+/** 주변 대화 — 로컬 세션 (road와 분리) */
+const NEARBY_CHAT_FEATURE = { enabled: true, status: "local" };
 
 /** @type {SpeechRecognition|null} */
 let voiceRecognition = null;
@@ -266,26 +282,80 @@ function ensureGridRoom(state, gridId, title) {
 
 function totalUnread(state) {
   if (!state?.rooms) return 0;
-  return Object.values(state.rooms).reduce((sum, r) => sum + (Math.max(0, Number(r?.unread) || 0)), 0);
+  return Object.values(state.rooms).reduce((sum, r) => {
+    if (r?.type === "road") return sum;
+    return sum + (Math.max(0, Number(r?.unread) || 0));
+  }, 0);
+}
+
+function unreadByType(state) {
+  const out = { direct: 0, grid: 0, room: 0, road: 0, nearby: 0 };
+  for (const r of Object.values(state?.rooms || {})) {
+    const n = Math.max(0, Number(r?.unread) || 0);
+    if (r?.type === "grid") out.grid += n;
+    else if (r?.type === "room") out.room += n;
+    else if (r?.type === "road") out.road += n;
+    else out.direct += n;
+  }
+  out.road += Math.max(0, Number(state?.roadChat?.unread) || 0);
+  out.nearby += Math.max(0, Number(state?.nearbyChat?.unread) || 0);
+  return out;
 }
 
 function updateNavBadge(state) {
   const btn = document.querySelector('#mainMenu [data-screen="chat"]');
   if (!btn) return;
-  const n = totalUnread(state);
+  const by = unreadByType(state);
+  const n = by.direct + by.room + by.grid + by.road + by.nearby;
   let badge = btn.querySelector(".chat-unread-badge");
   if (n <= 0) {
     if (badge) badge.remove();
     btn.classList.remove("has-unread");
-    return;
+  } else {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "chat-unread-badge";
+      btn.appendChild(badge);
+    }
+    badge.textContent = n > 99 ? "99+" : String(n);
+    btn.classList.add("has-unread");
   }
-  if (!badge) {
-    badge = document.createElement("span");
-    badge.className = "chat-unread-badge";
-    btn.appendChild(badge);
+  updateSpatialBadges(by);
+}
+
+function updateSpatialBadges(by) {
+  const nearBtn = document.querySelector('#mainMenu [data-screen="nearby"]');
+  if (nearBtn) {
+    let b = nearBtn.querySelector(".road-unread-badge");
+    if (by.road > 0) {
+      if (!b) {
+        b = document.createElement("span");
+        b.className = "chat-unread-badge road-unread-badge";
+        nearBtn.appendChild(b);
+      }
+      b.textContent = by.road > 99 ? "99+" : String(by.road);
+      nearBtn.classList.add("has-unread");
+    } else {
+      b?.remove();
+      if (!nearBtn.querySelector(".chat-unread-badge")) nearBtn.classList.remove("has-unread");
+    }
   }
-  badge.textContent = n > 99 ? "99+" : String(n);
-  btn.classList.add("has-unread");
+  const gridBtn = document.querySelector('#mainMenu [data-screen="grid"]');
+  if (gridBtn) {
+    let b = gridBtn.querySelector(".grid-unread-badge");
+    if (by.grid > 0) {
+      if (!b) {
+        b = document.createElement("span");
+        b.className = "chat-unread-badge grid-unread-badge";
+        gridBtn.appendChild(b);
+      }
+      b.textContent = by.grid > 99 ? "99+" : String(by.grid);
+      gridBtn.classList.add("has-unread");
+    } else {
+      b?.remove();
+      if (!gridBtn.querySelector(".chat-unread-badge")) gridBtn.classList.remove("has-unread");
+    }
+  }
 }
 
 function stopVoice() {
@@ -301,6 +371,10 @@ function stopVoice() {
     b.textContent = "🎙️ 음성 듣기 시작";
     b.classList.remove("voice-listening");
   }
+}
+
+export function pauseChatVoice() {
+  stopVoice();
 }
 
 function clearReplyTimer(roomId) {
@@ -380,6 +454,209 @@ function refreshPresence(panel, state, users) {
   updateNavBadge(state);
 }
 
+function migrateLegacyRoadRooms(state) {
+  if (!state?.rooms) return;
+  const keys = Object.keys(state.rooms).filter(
+    (k) => state.rooms[k]?.type === "road" || String(k).startsWith("road:")
+  );
+  if (!keys.length) return;
+  ensureRoadChat(state);
+  for (const k of keys) {
+    const room = state.rooms[k];
+    for (const m of Array.isArray(room.messages) ? room.messages : []) {
+      state.roadChat.messages.push({
+        id: m.id || nextMessageId(),
+        conversationType: "road",
+        conversationId: state.roadChat.session.conversationId,
+        senderAccountId: m.senderId,
+        body: m.text || m.body,
+        text: m.text || m.body,
+        mine: !!m.mine,
+        messageType: "text",
+        roadContext: { roadId: null, segmentId: null, direction: null },
+        createdAt: m.createdAt || Date.now()
+      });
+    }
+    state.roadChat.unread = Math.max(state.roadChat.unread, Number(room.unread) || 0);
+    delete state.rooms[k];
+  }
+}
+
+function roomsFilterOf(state) {
+  const f = state.roomsListFilter;
+  return ["all", "spatial", "direct", "room"].includes(f) ? f : "all";
+}
+
+function convoIcon(kind) {
+  const common = 'class="convo-icon-svg" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"';
+  if (kind === "road") {
+    return `<svg ${common} fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19h16M7 19V7l5-3 5 3v12M10 11h4M10 15h4"/></svg>`;
+  }
+  if (kind === "grid") {
+    return `<svg ${common} fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>`;
+  }
+  if (kind === "nearby") {
+    return `<svg ${common} fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4"/></svg>`;
+  }
+  if (kind === "history") {
+    return `<svg ${common} fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5"/><path d="M12 7v5l3 2"/></svg>`;
+  }
+  return `<svg ${common} fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="9" r="3.2"/><path d="M5 19c1.5-3.2 4-4.8 7-4.8s5.5 1.6 7 4.8"/></svg>`;
+}
+
+function formatListTime(ts) {
+  const t = Number(ts);
+  if (!Number.isFinite(t)) return "";
+  const diff = Math.max(0, Date.now() - t);
+  if (diff < 60_000) return "방금";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+  return new Date(t).toLocaleDateString("ko-KR");
+}
+
+export function openRoadChatInContent(panel, state) {
+  bindUsersListener();
+  stopVoice();
+  activePanel = panel;
+  activeState = state;
+  const id = ensureRoadChat(state).session.conversationId;
+  activeRoomId = id;
+  viewMode = "chat";
+  const ui = ensureConversationUi(state);
+  ui.activeConversationId = id;
+  if (!state.spatialChatUi) state.spatialChatUi = {};
+  state.spatialChatUi.mode = "road";
+  state.spatialChatUi.peerId = null;
+  state.spatialChatUi.gridId = null;
+  emit("state:save");
+  renderRoadChatContentDetail(panel, state);
+  updateNavBadge(state);
+}
+
+export function openNearbyChatInContent(panel, state) {
+  bindUsersListener();
+  stopVoice();
+  const nc = ensureNearbyChat(state);
+  const participants = getNearbyParticipants(state, getUsers());
+  activePanel = panel;
+  activeState = state;
+  activeRoomId = nc.session.conversationId;
+  viewMode = "chat";
+  const ui = ensureConversationUi(state);
+  ui.activeConversationId = nc.session.conversationId;
+  nc.unread = 0;
+  emit("state:save");
+  updateNavBadge(state);
+
+  const messages = nc.messages || [];
+  const bubbles = messages
+    .map((m) => {
+      const label = m.mine ? "" : `<div class="bubble-sender">${escapeHtml(m.senderNickname || "차량")}</div>`;
+      return `${label}<div class="bubble ${m.mine ? "mine" : ""}">${escapeHtml(m.body || m.text || "")}</div>`;
+    })
+    .join("");
+
+  panel.innerHTML = `
+    <div class="chat-shell" data-conversation-type="nearby" data-conversation-id="${escapeHtml(nc.session.conversationId)}" data-nearby-content-detail>
+      <div class="card chat-header">
+        <button class="secondary" id="nearbyContentBack" type="button">←</button>
+        <div class="chat-header-main">
+          <b class="chat-peer-name">주변 대화</b>
+          <div class="muted">반경 ${nc.session.radiusM}m · 참여 ${participants.length}대 · 도로 대화와 분리 · 로컬</div>
+        </div>
+        <button class="secondary" id="nearbyOpenSpatial" type="button">공간에서 보기</button>
+      </div>
+      <div id="nearbyChatScroll" class="chat-scroll">${bubbles || '<div class="muted" style="padding:8px">주변 대화를 시작해 보세요.</div>'}</div>
+      <div class="chat-compose">
+        <textarea id="nearbyChatText" placeholder="주변 메시지 (개인 인사·긴 대화는 1:1 권장)" rows="2">${escapeHtml(nc.draftText || "")}</textarea>
+        <div class="compose-actions">
+          <button type="button" class="secondary" id="nearbyReport">신고</button>
+          <button type="button" class="primary" id="nearbySend">전송</button>
+        </div>
+      </div>
+    </div>`;
+
+  panel.querySelector("#nearbyContentBack").onclick = () => {
+    nc.draftText = panel.querySelector("#nearbyChatText")?.value || "";
+    emit("state:save");
+    emit("roadchat:contentBack");
+  };
+  panel.querySelector("#nearbyOpenSpatial").onclick = () => {
+    nc.draftText = panel.querySelector("#nearbyChatText")?.value || "";
+    emit("state:save");
+    emit("workspace:spatialHome");
+  };
+  panel.querySelector("#nearbyReport").onclick = () => {
+    showSystemMessage("신고는 서버 연동 후 처리됩니다. 긴급신고 서비스가 아닙니다.");
+  };
+  const sendNearby = () => {
+    const text = String(panel.querySelector("#nearbyChatText")?.value || "").trim();
+    if (!text) return;
+    const msg = {
+      id: nextMessageId(),
+      conversationType: "nearby",
+      conversationId: nc.session.conversationId,
+      senderAccountId: MY_USER_ID,
+      senderVehicleId: MY_USER_ID,
+      senderNickname: state.profile?.nickname || "나",
+      body: text,
+      text,
+      mine: true,
+      createdAt: Date.now()
+    };
+    nc.messages.push(msg);
+    nc.draftText = "";
+    nc.session.lastActiveAt = Date.now();
+    const spatial = inferSpatialMeta(text);
+    if (spatial.spatialVisibility !== "none") {
+      pushSpatialOverlay(state, {
+        id: `ov-${msg.id}`,
+        conversationId: nc.session.conversationId,
+        conversationType: "nearby",
+        senderVehicleId: MY_USER_ID,
+        senderNickname: msg.senderNickname,
+        body: text,
+        spatialVisibility: spatial.spatialVisibility,
+        spatialPriority: spatial.spatialPriority,
+        createdAt: msg.createdAt,
+        anchorVehicleId: MY_USER_ID
+      });
+    }
+    emit("state:save");
+    openNearbyChatInContent(panel, state);
+  };
+  panel.querySelector("#nearbySend").onclick = sendNearby;
+  panel.querySelector("#nearbyChatText")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    sendNearby();
+  });
+  requestAnimationFrame(() => {
+    const s = panel.querySelector("#nearbyChatScroll");
+    if (s) s.scrollTop = nc.scrollTop != null ? nc.scrollTop : s.scrollHeight;
+  });
+}
+
+/** 지도·도로 요약에서 대화방 상세로 진입 */
+export function openConversationById(panel, state, conversationId) {
+  const id = String(conversationId || "");
+  if (!id) return renderRooms(panel, state);
+  if (id === "road-session-current" || id === ensureRoadChat(state).session.conversationId) {
+    return openRoadChatInContent(panel, state);
+  }
+  if (id === "nearby-session-current" || id === ensureNearbyChat(state).session.conversationId) {
+    return openNearbyChatInContent(panel, state);
+  }
+  if (id.startsWith("grid:") || state.rooms[id]?.type === "grid") {
+    const gridId = state.rooms[id]?.gridId || id.replace(/^grid:/, "");
+    return openGridChat(panel, state, gridId);
+  }
+  if (state.rooms[id]) {
+    return openChatWith(panel, state, liveUser(id, state.rooms[id]?.user));
+  }
+  return renderRooms(panel, state);
+}
+
 export function renderRooms(panel, state) {
   bindUsersListener();
   stopVoice();
@@ -388,55 +665,220 @@ export function renderRooms(panel, state) {
   closeActiveChat(state);
 
   state.rooms = sanitizeRooms(state.rooms);
-  const rooms = Object.values(state.rooms).sort((a, b) => {
-    const fa = state.favoriteRooms?.includes(b.id) ? 1 : 0;
-    const fb = state.favoriteRooms?.includes(a.id) ? 1 : 0;
-    if (fa !== fb) return fa - fb;
-    return (b.unread || 0) - (a.unread || 0);
-  });
+  migrateLegacyRoadRooms(state);
+  ensureRoadChat(state);
+  ensureNearbyChat(state);
 
-  panel.innerHTML = `<div class="card"><b>대화방</b><div class="muted">즐겨찾기 대화방은 위에 표시됩니다.</div></div>${
-    rooms.length
-      ? rooms
-          .map(r => {
+  const filter = roomsFilterOf(state);
+  const all = Object.values(state.rooms);
+  const directs = all.filter((r) => r.type !== "grid" && r.type !== "road" && r.type !== "room");
+  const rooms = all.filter((r) => r.type === "room");
+  const grids = all.filter((r) => r.type === "grid");
+  const sortRooms = (list) =>
+    list.sort((a, b) => {
+      const fa = state.favoriteRooms?.includes(b.id) ? 1 : 0;
+      const fb = state.favoriteRooms?.includes(a.id) ? 1 : 0;
+      if (fa !== fb) return fa - fb;
+      return (b.unread || 0) - (a.unread || 0);
+    });
+  sortRooms(directs);
+  sortRooms(grids);
+  sortRooms(rooms);
+  const by = unreadByType(state);
+  const roadCard = getRoadConversationCard(state);
+  const history = getRoadChatHistory(state);
+  const showSpatial = filter === "all" || filter === "spatial";
+  const showDirect = filter === "all" || filter === "direct";
+  const showRoom = filter === "all" || filter === "room";
+
+  const roadSpace = roadCard.hasContextName
+    ? `${escapeHtml(roadCard.roadName)} · ${escapeHtml(roadCard.directionLabel)}`
+    : "도로 정보를 확인하고 있습니다.";
+  const roadMeta = roadCard.hasContextName
+    ? `참여 차량 ${roadCard.participantCount}대`
+    : `주변 차량 ${roadCard.participantCount}대`;
+  const unreadRoad =
+    roadCard.unread > 0
+      ? `<span class="chat-room-unread" aria-label="대화 ${roadCard.unreadMessageCount || 0} 상황 ${roadCard.unreadSituationCount || 0}">${
+          roadCard.unreadSituationCount
+            ? `상황 ${roadCard.unreadSituationCount}${roadCard.unreadMessageCount ? ` · 대화 ${roadCard.unreadMessageCount}` : ""}`
+            : `대화 ${roadCard.unreadMessageCount > 99 ? "99+" : roadCard.unreadMessageCount}`
+        }</span>`
+      : "";
+
+  const currentRoadHtml = showSpatial
+    ? `<div class="card convo-card convo-card-road pinned" data-conversation-id="${escapeHtml(roadCard.conversationId)}">
+        <div class="convo-icon">${convoIcon("road")}</div>
+        <div class="convo-body">
+          <div class="convo-title-row"><b>현재 도로 대화</b>${unreadRoad}</div>
+          <div class="convo-space">${roadSpace}</div>
+          <div class="muted">${roadMeta}${roadCard.lastActiveLabel ? ` · ${escapeHtml(roadCard.lastActiveLabel)}` : ""}</div>
+          <div class="convo-preview muted">${roadCard.lastMessage ? `최근 메시지: “${escapeHtml(roadCard.lastMessage.slice(0, 80))}”` : "아직 메시지가 없습니다."}</div>
+          <div class="muted">음성 모드 ${roadCard.voiceAvailable ? "사용 가능" : "미지원"}</div>
+          <div class="convo-actions">
+            <button type="button" class="primary" id="openRoadChatContent">대화 열기</button>
+            <button type="button" class="secondary" id="openRoadChatSpatial">도로 화면에서 보기</button>
+          </div>
+        </div>
+      </div>`
+    : "";
+
+  const nearby = ensureNearbyChat(state);
+  const nearParts = getNearbyParticipants(state, getUsers());
+  const nearLast = nearby.messages?.length ? nearby.messages[nearby.messages.length - 1] : null;
+  const nearUnread = Math.max(0, Number(nearby.unread) || 0);
+  const nearbyHtml = showSpatial
+    ? NEARBY_CHAT_FEATURE.enabled
+      ? `<div class="card convo-card" data-conversation-id="${escapeHtml(nearby.session.conversationId)}">
+          <div class="convo-icon">${convoIcon("nearby")}</div>
+          <div class="convo-body">
+            <div class="convo-title-row"><b>주변 대화</b>${nearUnread ? `<span class="chat-room-unread">${nearUnread > 99 ? "99+" : nearUnread}</span>` : ""}</div>
+            <div class="convo-space">반경 ${nearby.session.radiusM}m · 참여 ${nearParts.length}대 · 도로와 분리</div>
+            <div class="convo-preview muted">${nearLast ? `최근: “${escapeHtml(String(nearLast.body || nearLast.text || "").slice(0, 80))}”` : "아직 메시지가 없습니다."}</div>
+            <div class="muted">로컬 세션 · 서버 미연동</div>
+            <div class="convo-actions">
+              <button type="button" class="primary" id="openNearbyChatContent">대화 열기</button>
+              <button type="button" class="secondary" id="openNearbySpatial">공간에서 보기</button>
+            </div>
+          </div>
+        </div>`
+      : `<div class="card convo-card muted">
+          <div class="convo-icon">${convoIcon("nearby")}</div>
+          <div class="convo-body">
+            <div class="convo-title-row"><b>주변 대화</b></div>
+            <div class="muted">설정 필요 · 기능 연동 전입니다.</div>
+          </div>
+        </div>`
+    : "";
+
+  const historyHtml =
+    showSpatial && history.length
+      ? `<div class="card section-label"><b>최근 도로 대화</b><div class="muted">로컬 최근 기록 · 일반 대화방으로 변환되지 않습니다.</div></div>${history
+          .map(
+            (h) => `<div class="card convo-card convo-card-history">
+            <div class="convo-icon">${convoIcon("history")}</div>
+            <div class="convo-body">
+              <div class="convo-title-row"><b>${escapeHtml(h.roadName || "도로 대화")}</b><span class="muted">${escapeHtml(formatListTime(h.endedAt))}</span></div>
+              <div class="convo-space">${escapeHtml(h.directionLabel || "")} · 참여 ${Number(h.participantCount) || 0}대</div>
+              <div class="convo-preview muted">${escapeHtml(String(h.lastMessage || "").slice(0, 80))}</div>
+              <div class="muted">읽기 전용 · 로컬 기록</div>
+            </div>
+          </div>`
+          )
+          .join("")}`
+      : showSpatial
+        ? `<div class="card muted">최근 도로 대화(로컬)가 없습니다.</div>`
+        : "";
+
+  const gridHtml = showSpatial
+    ? grids.length
+      ? grids
+          .map((r) => {
             const unread = Math.max(0, Number(r.unread) || 0);
-            if (r.type === "grid") {
-              return `<div class="card room-row" data-room-type="grid">
-              <div class="avatar">${state.favoriteRooms?.includes(r.id) ? "★" : "👥"}</div>
-              <div>
-                <b>${escapeHtml(r.title || "GRID 대화")}</b>
-                <div class="muted">GRID 단체 · ${escapeHtml(r.last || "대화를 시작하세요")}</div>
-              </div>
-              <div class="room-actions">
-                <span class="chat-room-unread" data-room-unread="${escapeHtml(r.id)}" ${unread ? "" : "hidden"}>${unread > 99 ? "99+" : unread}</span>
-                <button class="secondary" data-room="${escapeHtml(r.id)}" data-open-grid="${escapeHtml(r.gridId || "")}" type="button">열기</button>
-              </div>
-            </div>`;
-            }
-            const peer = liveUser(r.peerId || r.id, r.user);
-            return `<div class="card room-row" data-peer-id="${escapeHtml(peer.id)}">
-              <div class="avatar">${state.favoriteRooms?.includes(r.id) ? "★" : "🚘"}</div>
-              <div>
-                <b data-peer-title>${escapeHtml(peer.nickname || r.title)}</b>
-                <div class="muted"><span class="status-dot ${peer.online ? "online" : "offline"}" data-online-dot></span> <span data-online-text>${onlineLabel(peer)}</span> · ${escapeHtml(r.last || "대화를 시작하세요")}</div>
-              </div>
-              <div class="room-actions">
-                <span class="chat-room-unread" data-room-unread="${escapeHtml(r.id)}" ${unread ? "" : "hidden"}>${unread > 99 ? "99+" : unread}</span>
-                <button class="secondary" data-room="${escapeHtml(r.id)}" type="button">열기</button>
+            return `<div class="card convo-card" data-room-type="grid">
+              <div class="convo-icon">${convoIcon("grid")}</div>
+              <div class="convo-body">
+                <div class="convo-title-row"><b>${escapeHtml(r.title || "GRID 대화")}</b>${unread ? `<span class="chat-room-unread">${unread > 99 ? "99+" : unread}</span>` : ""}</div>
+                <div class="convo-space">현재 GRID 대화</div>
+                <div class="convo-preview muted">${escapeHtml(r.last || "대화를 시작하세요")}</div>
+                <div class="convo-actions">
+                  <button class="primary" data-grid-content="${escapeHtml(r.gridId || "")}" type="button">대화 열기</button>
+                  <button class="secondary" data-open-grid="${escapeHtml(r.gridId || "")}" type="button">공간에서 열기</button>
+                </div>
               </div>
             </div>`;
           })
           .join("")
-      : '<div class="card muted">아직 대화방이 없습니다.</div>'
-  }`;
+      : `<div class="card muted">참여 중인 GRID 대화가 없습니다.</div>`
+    : "";
 
-  panel.querySelectorAll("[data-room]").forEach(b => {
+  const directHtml = showDirect
+    ? `<div class="card section-label"><b>직접 대화</b><div class="muted">1:1 지속 대화</div></div>${
+        directs.length
+          ? directs
+              .map((r) => {
+                const unread = Math.max(0, Number(r.unread) || 0);
+                const peer = liveUser(r.peerId || r.id, r.user);
+                return `<div class="card convo-card room-row" data-peer-id="${escapeHtml(peer.id)}">
+              <div class="convo-icon">${convoIcon("direct")}</div>
+              <div class="convo-body">
+                <div class="convo-title-row"><b data-peer-title>${escapeHtml(peer.nickname || r.title)}</b>${unread ? `<span class="chat-room-unread" data-room-unread="${escapeHtml(r.id)}">${unread > 99 ? "99+" : unread}</span>` : ""}</div>
+                <div class="muted"><span class="status-dot ${peer.online ? "online" : "offline"}" data-online-dot></span> <span data-online-text>${onlineLabel(peer)}</span></div>
+                <div class="convo-preview muted">${escapeHtml(r.last || "대화를 시작하세요")}</div>
+                <div class="convo-actions">
+                  <button class="secondary" data-room="${escapeHtml(r.id)}" type="button">열기</button>
+                </div>
+              </div>
+            </div>`;
+              })
+              .join("")
+          : '<div class="card muted">아직 1:1 대화방이 없습니다.</div>'
+      }`
+    : "";
+
+  const roomHtml = showRoom
+    ? `<div class="card section-label"><b>일반 대화방</b><div class="muted">참여 중인 그룹 · 친구 · 향후 커뮤니티</div></div>${
+        rooms.length
+          ? rooms
+              .map((r) => {
+                const unread = Math.max(0, Number(r.unread) || 0);
+                return `<div class="card convo-card">
+              <div class="convo-icon">${convoIcon("direct")}</div>
+              <div class="convo-body">
+                <div class="convo-title-row"><b>${escapeHtml(r.title || "그룹 대화")}</b>${unread ? `<span class="chat-room-unread">${unread > 99 ? "99+" : unread}</span>` : ""}</div>
+                <div class="convo-preview muted">${escapeHtml(r.last || "대화를 시작하세요")}</div>
+                <div class="convo-actions"><button class="secondary" data-room="${escapeHtml(r.id)}" type="button">열기</button></div>
+              </div>
+            </div>`;
+              })
+              .join("")
+          : '<div class="card muted">참여 중인 그룹·친구 대화방이 없습니다. 커뮤니티 대화방은 향후 연동 예정입니다.</div>'
+      }`
+    : "";
+
+  panel.innerHTML = `
+    <div class="card">
+      <b>대화방</b>
+      <div class="muted">도로·GRID·주변 공간 대화와 1:1 지속 대화를 한곳에서 확인합니다.</div>
+      <div class="muted" style="margin-top:8px">읽지 않음 · 공간 ${by.road + by.nearby + by.grid} · 1:1 ${by.direct} · 일반 ${by.room}</div>
+    </div>
+    <div class="tabs rooms-filter-tabs" role="tablist">
+      <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
+      <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간 대화</button>
+      <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
+      <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">일반 대화방</button>
+    </div>
+    ${showSpatial ? `<div class="card section-label"><b>공간 대화</b></div>${currentRoadHtml}${nearbyHtml}${gridHtml}${historyHtml}` : ""}
+    ${directHtml}
+    ${roomHtml}`;
+
+  panel.querySelectorAll("[data-rooms-filter]").forEach((b) => {
     b.onclick = () => {
-      const gridId = b.getAttribute("data-open-grid");
-      if (gridId) {
-        openGridChat(panel, state, gridId);
-        return;
-      }
+      state.roomsListFilter = b.dataset.roomsFilter;
+      emit("state:save");
+      renderRooms(panel, state);
+    };
+  });
+  panel.querySelector("#openRoadChatContent")?.addEventListener("click", () => {
+    openRoadChatInContent(panel, state);
+  });
+  panel.querySelector("#openRoadChatSpatial")?.addEventListener("click", () => {
+    emit("roadchat:requestOpen");
+  });
+  panel.querySelector("#openNearbyChatContent")?.addEventListener("click", () => {
+    openNearbyChatInContent(panel, state);
+  });
+  panel.querySelector("#openNearbySpatial")?.addEventListener("click", () => {
+    emit("workspace:spatialHome");
+  });
+  panel.querySelectorAll("[data-grid-content]").forEach((b) => {
+    b.onclick = () => openGridChat(panel, state, b.dataset.gridContent);
+  });
+  panel.querySelectorAll("[data-open-grid]").forEach((b) => {
+    b.onclick = () => emit("grid:chatOpen", { gridId: b.dataset.openGrid });
+  });
+  panel.querySelectorAll("[data-room]").forEach((b) => {
+    b.onclick = () => {
       const id = b.dataset.room;
       openChatWith(panel, state, liveUser(id, state.rooms[id]?.user));
     };
@@ -474,6 +916,10 @@ export function openChatWith(panel, state, userOrId) {
   activeState = state;
   activeRoomId = peerId;
   viewMode = "chat";
+  if (!state.spatialChatUi) state.spatialChatUi = {};
+  state.spatialChatUi.mode = "direct";
+  state.spatialChatUi.peerId = peerId;
+  state.spatialChatUi.gridId = null;
   emit("state:save");
   updateNavBadge(state);
   emitActiveRoomChanged(state, {
@@ -514,7 +960,7 @@ function renderChat(panel, state, peerId) {
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name" data-peer-title>${escapeHtml(peer.nickname || room.title)}</b>
-        <div class="muted chat-peer-meta" data-peer-meta>${peer.plate ? `${escapeHtml(peer.plate)} · ` : ""}Lv.${peer.level ?? "?"} · <span class="status-dot ${peer.online ? "online" : "offline"}" data-online-dot></span> <span data-online-text>${onlineLabel(peer)}</span></div>
+        <div class="muted chat-peer-meta" data-peer-meta>1:1 대화 · ${peer.plate ? `${escapeHtml(peer.plate)} · ` : ""}Lv.${peer.level ?? "?"} · <span class="status-dot ${peer.online ? "online" : "offline"}" data-online-dot></span> <span data-online-text>${onlineLabel(peer)}</span></div>
       </div>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(peerId) ? "★" : "☆"}</button>
     </div>
@@ -539,7 +985,11 @@ function renderChat(panel, state, peerId) {
     stopVoice();
     clearReplyTimer(peerId);
     closeActiveChat(state);
-    renderRooms(panel, state);
+    if (state.spatialChatUi) {
+      state.spatialChatUi.mode = null;
+      state.spatialChatUi.peerId = null;
+    }
+    emit("spatialChat:back");
   };
 
   panel.querySelector("#favoriteRoom").onclick = () => {
@@ -602,7 +1052,7 @@ function send(panel, state, peerId, text) {
   room.messages.push(msg);
   room.last = cleaned;
   emit("state:save");
-  emitMessagePreview({...msg, roomType: "direct"});
+  emitMessagePreview({...msg, roomType: "direct", conversationType: "direct"});
 
   const ta = panel.querySelector("#chatText");
   if (ta) ta.value = "";
@@ -690,6 +1140,10 @@ export function openGridChat(panel, state, gridId) {
   activeState = state;
   activeRoomId = roomId;
   viewMode = "chat";
+  if (!state.spatialChatUi) state.spatialChatUi = {};
+  state.spatialChatUi.mode = "grid";
+  state.spatialChatUi.peerId = null;
+  state.spatialChatUi.gridId = gridId;
   emit("state:save");
   updateNavBadge(state);
   emitActiveRoomChanged(state, {
@@ -731,13 +1185,14 @@ function renderGridChat(panel, state, gridId) {
     })
     .join("");
 
-  panel.innerHTML = `<div class="chat-shell">
+  panel.innerHTML = `<div class="chat-shell" data-conversation-type="grid" data-conversation-id="${escapeHtml(roomId)}">
     <div class="card chat-header">
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
-        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"}</div>
+        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 동일 세션</div>
       </div>
+      <button class="secondary" id="gridOpenSpatial" type="button">공간에서 열기</button>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
     </div>
     <div id="chatScroll" class="chat-scroll">${bubbles}</div>
@@ -751,7 +1206,7 @@ function renderGridChat(panel, state, gridId) {
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
       <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">🎙️ 음성 듣기 시작</button>
+        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">음성 듣기 시작</button>
         <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
       </div>
     </div>
@@ -761,7 +1216,14 @@ function renderGridChat(panel, state, gridId) {
     stopVoice();
     clearReplyTimer(roomId);
     closeActiveChat(state);
-    renderRooms(panel, state);
+    if (state.spatialChatUi) {
+      state.spatialChatUi.mode = null;
+      state.spatialChatUi.gridId = null;
+    }
+    emit("spatialChat:back");
+  };
+  panel.querySelector("#gridOpenSpatial").onclick = () => {
+    emit("grid:chatOpen", { gridId });
   };
 
   panel.querySelector("#favoriteRoom").onclick = () => {

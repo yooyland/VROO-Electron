@@ -35,7 +35,8 @@ export const CONSOLE_NAV_ITEMS = Object.freeze([
   { id: "analytics", group: "analytics", label: "통계", icon: "chart", route: "analytics", permission: "analytics.view", status: "ready" },
 
   { id: "system", group: "system", label: "시스템 상태", icon: "system", route: "system", permission: "system.view", status: "ready" },
-  { id: "permissions", group: "system", label: "권한 관리", icon: "key", route: "permissions", permission: "system.view", status: "ready" }
+  { id: "accounts", group: "system", label: "계정·역할 관리", icon: "users", route: "accounts", permission: "accounts.view", status: "ready" },
+  { id: "permissions", group: "system", label: "권한 정보", icon: "key", route: "permissions", permission: "system.view", status: "ready" }
 ]);
 
 export function getNavItemByRoute(route) {

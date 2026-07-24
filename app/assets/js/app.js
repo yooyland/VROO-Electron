@@ -1,30 +1,48 @@
 import {loadState,saveState,formatCredits} from "./core/storage.js";
 import {on} from "./core/events.js";
 import {showSystemMessage,openModal,closeModal} from "./core/ui.js";
-import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers,setSpatialGridVisible} from "./modules/map.js";
+import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers,setSpatialGridVisible,drawUsers} from "./modules/map.js";
 import {initRoad,startRoad,stopRoad,pauseRoad,resumeRoad,setEnvironment,mountRoadStage,resizeRoad} from "./modules/road.js";
-import {renderNearby,openUserDetail} from "./modules/nearby.js";
+import {renderNearby,openUserDetail,renderAllViewSummary} from "./modules/nearby.js";
 import {renderGrid, beginCreateGrid, syncGridHeader, openSpatialGridDetail} from "./modules/grid.js";
-import {renderRooms,openChatWith,openGridChat,refreshChatBadge} from "./modules/chat.js";
+import {renderRooms,openChatWith,openGridChat,refreshChatBadge,pauseChatVoice,openConversationById} from "./modules/chat.js";
+import {
+  renderRoadChatPanel,
+  ensureRoadChatDock,
+  syncRoadChatOnView,
+  captureRoadChatUi,
+  pauseRoadVoiceForWorkspace,
+  clearWorkspaceVoicePauseFlag,
+  bindRoadChatBoot,
+  ensureRoadChat,
+  syncRoadNavigationHud
+} from "./modules/road-chat.js";
+import {ensureNearbyChat,ensureNavigation,ensureConversationUi,ensureRoadInsight} from "./modules/conversation-store.js";
+import {playHornThrottled} from "./modules/sound.js";
 import {renderGrowth} from "./modules/growth.js";
 import {renderShop} from "./modules/shop.js";
 import {renderCommunity} from "./modules/community.js";
 import {renderMyPage} from "./modules/profile.js";
 
 const state=loadState();
+ensureRoadChat(state);
+ensureNearbyChat(state);
+ensureNavigation(state);
+ensureConversationUi(state);
+ensureRoadInsight(state);
 const spatialPanel=document.querySelector("#panelContent");
 const contentPanel=document.querySelector("#contentPanel");
 const spatialWs=document.querySelector("#spatialWorkspace");
 const contentWs=document.querySelector("#contentWorkspace");
 
-/** Spatial: 지도 사용 / Content: 전체 화면 서비스 */
+/** Spatial: 지도·도로·GRID·공간 대화 / Content: 상점·성장·커뮤니티·대화방·MY */
 const SPATIAL_SCREENS=new Set(["nearby","grid"]);
 const CONTENT_SCREENS=new Set(["shop","growth","community","chat","my"]);
 const CONTENT_TITLES={
   shop:["상점","STORE · 차량·혜택 상품"],
   growth:["성장","PLAY · 레벨·크레딧"],
   community:["커뮤니티","SOCIAL · 게시판"],
-  chat:["대화방","SOCIAL · 1:1 · GRID 채팅"],
+  chat:["대화방","SOCIAL · 공간·1:1·일반 대화"],
   my:["MY","내 차량 · 프로필"]
 };
 
@@ -39,6 +57,25 @@ if(!SPATIAL_SCREENS.has(currentScreen)&&!CONTENT_SCREENS.has(currentScreen)){
 
 function save(){state.currentScreen=currentScreen;state.currentView=currentView;saveState(state);syncHeader()}
 function syncHeader(){document.querySelector("#creditText").textContent=formatCredits(state.credits);document.querySelector("#levelText").textContent=state.level;syncGridHeader(state)}
+
+function restoreSpatialChatUi(){
+  const ui=state.spatialChatUi||{};
+  if(ui.mode==="direct"&&ui.peerId){
+    openChatWith(spatialPanel,state,ui.peerId);
+    return;
+  }
+  if(ui.mode==="grid"&&ui.gridId){
+    openGridChat(spatialPanel,state,ui.gridId);
+    return;
+  }
+  if(ui.mode==="road"||currentView==="road"||currentView==="all"){
+    renderRoadChatPanel(spatialPanel,state);
+    ensureRoadChatDock(state);
+    return;
+  }
+  if(currentScreen==="grid")renderGrid(spatialPanel,state);
+  else renderNearby(spatialPanel,state);
+}
 
 function setWorkspace(mode){
   const next=mode==="content"?"content":"spatial";
@@ -59,20 +96,25 @@ function setWorkspace(mode){
   }
 
   if(next==="content"){
+    captureRoadChatUi(state);
+    pauseRoadVoiceForWorkspace();
+    pauseChatVoice();
     pauseRoad();
   }else if(prev==="content"){
-    /* 지도·renderer 재생성 없이 표시만 복구 */
+    clearWorkspaceVoicePauseFlag();
     requestAnimationFrame(()=>{
       try{
         invalidateMaps();
         if(currentView==="road"||currentView==="all"){
           mountRoadStage(currentView==="all"?"all":"road");
           resumeRoad();
+          ensureRoadChatDock(state);
         }else{
           mountRoadStage("road");
           pauseRoad();
         }
         resizeRoad();
+        restoreSpatialChatUi();
       }catch(e){console.warn("[VROO] workspace restore",e)}
     });
   }
@@ -97,7 +139,6 @@ function setScreen(name){
 
   currentScreen=name;
   document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen===name));
-  /* MY는 상단 메뉴 버튼이 없으므로 메뉴 active 해제 */
   if(name==="my"){
     document.querySelectorAll("[data-screen]").forEach(b=>b.classList.remove("active"));
   }
@@ -105,7 +146,22 @@ function setScreen(name){
   try{setSpatialGridVisible(name==="grid"&&currentWorkspace==="spatial")}catch(e){console.warn("[VROO] spatial grid visibility",e)}
 
   const r={
-    nearby:()=>renderNearby(spatialPanel,state),
+    nearby:()=>{
+      if(currentView==="all"){
+        renderAllViewSummary(spatialPanel,state);
+        ensureRoadChatDock(state);
+      }else if(currentView==="road"){
+        if(!state.spatialChatUi)state.spatialChatUi={};
+        if(state.spatialChatUi.mode!=="direct"&&state.spatialChatUi.mode!=="grid"){
+          state.spatialChatUi.mode="road";
+          renderRoadChatPanel(spatialPanel,state);
+        }
+        ensureRoadChatDock(state);
+      }else{
+        if(state.spatialChatUi)state.spatialChatUi.mode=null;
+        renderNearby(spatialPanel,state);
+      }
+    },
     grid:()=>renderGrid(spatialPanel,state),
     chat:()=>renderRooms(contentPanel,state),
     growth:()=>renderGrowth(contentPanel,state),
@@ -131,7 +187,6 @@ function setView(name){
   document.querySelectorAll(".view-layer").forEach(x=>x.classList.remove("active"));
   document.querySelector(name==="near"?"#mapView":name==="road"?"#roadView":"#allView").classList.add("active");
   if(currentWorkspace!=="spatial"){
-    /* Content 중에는 loop만 멈추고 view 상태만 기록 */
     pauseRoad();
     setMapView(name);
     save();
@@ -140,13 +195,62 @@ function setView(name){
   if(name==="road"||name==="all"){
     mountRoadStage(name==="all"?"all":"road");
     startRoad();
+    syncRoadChatOnView(state,name);
+    syncRoadNavigationHud(state);
+    if(currentScreen==="nearby"||!SPATIAL_SCREENS.has(currentScreen)){
+      if(!state.spatialChatUi)state.spatialChatUi={};
+      if(state.spatialChatUi.mode!=="direct"&&state.spatialChatUi.mode!=="grid"){
+        if(name==="all")renderAllViewSummary(spatialPanel,state);
+        else{
+          state.spatialChatUi.mode="road";
+          renderRoadChatPanel(spatialPanel,state);
+        }
+      }
+    }
   }else{
     stopRoad();
     mountRoadStage("road");
+    if(currentScreen==="nearby")renderNearby(spatialPanel,state);
   }
   setMapView(name);
   invalidateMaps();
   requestAnimationFrame(()=>{try{resizeRoad()}catch(e){}});
+  save();
+}
+
+function openSpatialDirect(payload){
+  setWorkspace("spatial");
+  if(currentView!=="road"&&currentView!=="all"&&currentView!=="near"){
+    /* keep view */
+  }
+  currentScreen="nearby";
+  document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen==="nearby"));
+  openChatWith(spatialPanel,state,payload);
+  save();
+}
+
+function openSpatialGridChat(gridId){
+  setWorkspace("spatial");
+  currentScreen="grid";
+  document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen==="grid"));
+  try{setSpatialGridVisible(true)}catch(e){}
+  openGridChat(spatialPanel,state,gridId);
+  save();
+}
+
+function openRoadConversation(){
+  setWorkspace("spatial");
+  setView(currentView==="all"?"all":"road");
+  currentScreen="nearby";
+  document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen==="nearby"));
+  if(!state.spatialChatUi)state.spatialChatUi={};
+  state.spatialChatUi.mode="road";
+  state.spatialChatUi.peerId=null;
+  state.spatialChatUi.gridId=null;
+  clearWorkspaceVoicePauseFlag();
+  renderRoadChatPanel(spatialPanel,state);
+  ensureRoadChatDock(state);
+  /* 스크롤·draft는 state.roadChat에서 복원. 마이크는 자동 재활성화하지 않음 */
   save();
 }
 
@@ -157,21 +261,99 @@ on("user:open",payload=>openUserDetail(state,payload));
 on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
 on("workspace:spatialHome",()=>{setScreen("nearby");setView(currentView||"near")});
-on("place:open", place => openModal(
-  place.name,
-  `<div class="card">
-    <div style="font-size:38px">${place.icon || "📍"}</div>
-    <h3>${place.name}</h3>
-    <div class="muted">${place.subtitle || "VROO 지명 정보"}</div>
-    <p>VROO 자체 지명 레이어에 등록된 장소입니다.</p>
-    <div class="muted">위도 ${place.lat.toFixed(5)} · 경도 ${place.lng.toFixed(5)}</div>
-  </div>`,
-  [{label:"닫기",onClick:closeModal}]
-));
-on("chat:open",payload=>{setScreen("chat");openChatWith(contentPanel,state,payload)});
-on("grid:chatOpen",({gridId})=>{setScreen("chat");openGridChat(contentPanel,state,gridId)});
+on("place:open", place => {
+  const kind = place.kind || place.type || "place";
+  const kindText =
+    kind === "landmark" ? "주요 이정표" :
+    kind === "road_label" ? "도로 정보" :
+    kind === "area_label" ? "지역 정보" :
+    "등록지점";
+  openModal(
+    place.name,
+    `<div class="card map-place-detail">
+      <div class="muted">${kindText}${place.category ? ` · ${place.category}` : ""}</div>
+      <h3>${place.name}</h3>
+      <div class="muted">${place.subtitle || "VROO 지명 정보"}</div>
+      <p>VROO 자체 지명 레이어에 등록된 장소입니다. 차량 대화와는 별도입니다.</p>
+      <div class="muted">위도 ${Number(place.lat).toFixed(5)} · 경도 ${Number(place.lng).toFixed(5)}</div>
+      <div class="convo-actions" style="margin-top:10px">
+        <button type="button" class="primary" id="placeModalRoute">길찾기</button>
+        <button type="button" class="secondary" id="placeModalFav">즐겨찾기</button>
+      </div>
+    </div>`,
+    [{label:"닫기",onClick:closeModal}]
+  );
+  setTimeout(() => {
+    document.querySelector("#placeModalRoute")?.addEventListener("click", () => {
+      showSystemMessage("길찾기는 경로 API 연동 후 이용할 수 있습니다.");
+    });
+    document.querySelector("#placeModalFav")?.addEventListener("click", () => {
+      showSystemMessage("즐겨찾기는 로컬 저장 연동 준비 중입니다.");
+    });
+  }, 0);
+});
+/** 차량 1:1·공간 대화는 Content로 보내지 않음 */
+on("chat:open",payload=>openSpatialDirect(payload));
+on("grid:chatOpen",({gridId})=>openSpatialGridChat(gridId));
 on("grid:spatialOpen",({gridId})=>{setScreen("grid");openSpatialGridDetail(spatialPanel,state,gridId)});
 on("grid:create",()=>beginCreateGrid(spatialPanel,state));
+on("roadchat:requestOpen",()=>openRoadConversation());
+on("chat:openMenu",()=>setScreen("chat"));
+on("chat:openConversation",({conversationId,returnView})=>{
+  const ui=ensureConversationUi(state);
+  if(returnView)ui.returnView=returnView;
+  ui.activeConversationId=conversationId||null;
+  setScreen("chat");
+  openConversationById(contentPanel,state,conversationId);
+});
+on("spatialOverlay:changed",()=>{
+  try{drawUsers(currentView==="all"?"all":"near")}catch(e){}
+  refreshChatBadge(state);
+});
+on("user:horn",({id})=>{
+  try{playHornThrottled(state.hornEnabled)}catch(e){}
+  showSystemMessage(id?"빵빵 신호를 보냈습니다. (로컬)":"빵빵");
+});
+on("roadchat:contentBack",()=>{
+  if(currentWorkspace==="content"&&currentScreen==="chat")renderRooms(contentPanel,state);
+});
+on("roadchat:changed",()=>{
+  refreshChatBadge(state);
+  if(currentWorkspace==="content"&&currentScreen==="chat"){
+    const detail=contentPanel?.querySelector?.("[data-road-content-detail],[data-nearby-content-detail]");
+    if(!detail&&!contentPanel?.querySelector?.(".chat-shell"))renderRooms(contentPanel,state);
+  }
+});
+on("roadchat:openPanel",()=>{
+  if(currentWorkspace!=="spatial")return;
+  if(!state.spatialChatUi)state.spatialChatUi={};
+  state.spatialChatUi.mode="road";
+  if(state.roadChat){
+    if(state.roadChat.dockMode==="collapsed")state.roadChat.dockMode="compact";
+    state.roadChat.panelMinimized=false;
+  }
+  if(currentView==="all")renderAllViewSummary(spatialPanel,state);
+  else renderRoadChatPanel(spatialPanel,state);
+  ensureRoadChatDock(state);
+});
+on("spatialChat:back",()=>{
+  if(currentWorkspace==="content"){
+    const ui=ensureConversationUi(state);
+    if(ui.returnView){
+      setWorkspace("spatial");
+      setView(ui.returnView==="all"||ui.returnView==="road"||ui.returnView==="near"?ui.returnView:"near");
+      ui.returnView=null;
+      save();
+      return;
+    }
+    renderRooms(contentPanel,state);
+    return;
+  }
+  if(currentView==="all")renderAllViewSummary(spatialPanel,state);
+  else if(currentView==="road")openRoadConversation();
+  else if(currentScreen==="grid")renderGrid(spatialPanel,state);
+  else renderNearby(spatialPanel,state);
+});
 on("post:create",createPost);
 on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));
 on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});
@@ -188,6 +370,7 @@ document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
 
 (function boot(){
   try{
+    bindRoadChatBoot();
     try{initMap(state)}catch(e){console.error(e);showSystemMessage(e.message||"지도를 불러오지 못했습니다. 나머지 기능은 사용할 수 있습니다.")}
     try{initRoad(state,getUsers())}catch(e){console.error(e);showSystemMessage(e.message||"도로 모드를 불러오지 못했습니다. 지도와 패널은 사용할 수 있습니다.")}
     rotateMap(state.mapBearing||0);
@@ -220,8 +403,6 @@ document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
     setTimeout(()=>document.querySelector("#boot")?.remove(),700);
   }catch(e){
     console.error(e);
-    showSystemMessage(e.message||"초기화 오류가 발생했습니다.");
-    document.querySelector("#boot")?.classList.add("hidden");
+    showSystemMessage(e.message||"앱을 시작하지 못했습니다.");
   }
 })();
-window.addEventListener("beforeunload",save);

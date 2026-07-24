@@ -15,6 +15,7 @@ import { renderSupport } from "./modules/support.js";
 import { renderIncidents } from "./modules/incidents.js";
 import { renderAnalytics } from "./modules/analytics.js";
 import { renderSystem, renderPermissionsTool, renderNotifications } from "./modules/system.js";
+import { renderAccounts } from "./modules/accounts.js";
 
 const ROUTES = {
   dashboard: renderDashboard,
@@ -33,6 +34,7 @@ const ROUTES = {
   incidents: renderIncidents,
   analytics: renderAnalytics,
   system: renderSystem,
+  accounts: renderAccounts,
   permissions: renderPermissionsTool
 };
 

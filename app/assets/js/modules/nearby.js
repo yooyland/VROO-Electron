@@ -10,6 +10,13 @@ import {
   spendCredits
 } from "../core/storage.js";
 import {playHornThrottled} from "./sound.js";
+import {
+  getVehicleConversationStatus,
+  getUnreadSummary,
+  ensureNearbyChat,
+  openConversationInChat,
+  ensureConversationUi
+} from "./conversation-store.js";
 
 let plateBusy = false;
 let detailBoundUserId = null;
@@ -133,14 +140,31 @@ function listNearbyUsers(state, query) {
 }
 
 export function renderNearby(panel, state) {
+  ensureNearbyChat(state);
   const query = panel.querySelector("#nearbySearch")?.value || "";
   const rows = listNearbyUsers(state, query);
+  const unread = getUnreadSummary(state);
   const listHtml = rows.length
     ? rows
         .map(({user: u, dist}) => {
           const car = carInfo(u.car);
           const plateHint = isPlateRevealed(state, u.id) ? "번호판 공개" : "번호판 숨김";
           const distLabel = formatDistance(dist);
+          const st = getVehicleConversationStatus(state, u.id);
+          const stLabel =
+            st.status === "urgent"
+              ? "긴급·주의 공간 메시지"
+              : st.status === "unread"
+                ? `읽지 않음 ${st.unread}`
+                : st.status === "active"
+                  ? "대화 중"
+                  : st.status === "blocked"
+                    ? "차단됨"
+                    : "대화 없음";
+          const preview =
+            st.lastMessage && st.status !== "no_conversation"
+              ? `<div class="muted nearby-msg-preview">최근: “${escapeHtml(String(st.lastMessage).slice(0, 40))}”</div>`
+              : "";
           return `<div class="card user-row" data-open-user="${escapeHtml(u.id)}">
             <div class="avatar">${car.emoji}</div>
             <div>
@@ -150,7 +174,8 @@ export function renderNearby(panel, state) {
                 ${u.online ? "온라인" : "오프라인"} · ${escapeHtml(car.name)} · Lv.${u.level}
                 ${distLabel ? ` · ${distLabel}` : ""}
               </div>
-              <div class="muted">${plateHint} · ${escapeHtml(displayPlate(state, u))}</div>
+              <div class="muted">${escapeHtml(stLabel)} · ${plateHint}</div>
+              ${preview}
             </div>
             <button class="primary" data-open-user-btn="${escapeHtml(u.id)}" type="button">보기</button>
           </div>`;
@@ -159,15 +184,19 @@ export function renderNearby(panel, state) {
     : '<div class="card muted">검색 결과가 없습니다.</div>';
 
   panel.innerHTML = `<div class="tabs">
-      <button type="button" class="active" data-nearby-tab="friends">주변 친구</button>
+      <button type="button" class="active" data-nearby-tab="friends">주변 차량</button>
       <button type="button" data-nearby-tab="poi">편의시설</button>
       <button type="button" data-nearby-tab="fav">자주가는 곳</button>
       <button type="button" data-nearby-tab="pins">등록지점</button>
     </div>
     <div class="card nearby-search-card">
-      <b>내 주변 차량</b>
-      <input id="nearbySearch" class="nearby-search" type="search" placeholder="닉네임 · 차종 · 번호판 검색" value="${escapeHtml(query)}">
-      <div class="muted">실제 서비스에서는 서버의 실시간 위치를 표시합니다.</div>
+      <b>주변 차량 · 지도에서 대화 중</b>
+      <div class="muted">주변 대화 미읽음 ${unread.nearby} · 도로 ${unread.road} · 공간 메시지는 지도 배지·선택 미리보기</div>
+      <input id="nearbySearch" class="nearby-search" type="search" placeholder="닉네임 · 차종 검색" value="${escapeHtml(query)}">
+      <div class="convo-actions" style="margin-top:8px">
+        <button type="button" class="secondary" id="openNearbyChatRooms">주변 대화 열기</button>
+        <button type="button" class="secondary" id="openRoadChatRooms">도로 대화 열기</button>
+      </div>
     </div>
     <div id="nearbyList">${listHtml}</div>`;
 
@@ -187,6 +216,23 @@ export function renderNearby(panel, state) {
     };
   });
 
+  panel.querySelector("#openNearbyChatRooms")?.addEventListener("click", () => {
+    const id = ensureNearbyChat(state).session.conversationId;
+    const ui = ensureConversationUi(state);
+    ui.activeConversationId = id;
+    ui.returnView = "near";
+    emit("state:save");
+    openConversationInChat(id, { returnView: "near" });
+  });
+  panel.querySelector("#openRoadChatRooms")?.addEventListener("click", () => {
+    const id = state.roadChat?.session?.conversationId || "road-session-current";
+    const ui = ensureConversationUi(state);
+    ui.activeConversationId = id;
+    ui.returnView = "near";
+    emit("state:save");
+    openConversationInChat(id, { returnView: "near" });
+  });
+
   const open = id => emit("user:open", {id});
   panel.querySelectorAll("[data-open-user-btn]").forEach(b => {
     b.onclick = e => {
@@ -199,6 +245,44 @@ export function renderNearby(panel, state) {
       if (e.target.closest("button")) return;
       open(row.dataset.openUser);
     };
+  });
+}
+
+/** 전체 화면 사이드: 통합 요약 (상세 대화 복제 없음) */
+export function renderAllViewSummary(panel, state) {
+  ensureNearbyChat(state);
+  const unread = getUnreadSummary(state);
+  const roadLast = state.roadChat?.messages?.at(-1);
+  const nearLast = state.nearbyChat?.messages?.at(-1);
+  const urgent = (state.spatialMessageOverlays || []).find((o) => o.spatialPriority === "urgent");
+  panel.innerHTML = `
+    <div class="card">
+      <b>통합 보기</b>
+      <div class="muted">지도·도로·공간 대화 현황을 요약합니다. 상세 메시지는 대화방에서 확인하세요.</div>
+    </div>
+    <div class="card">
+      <b>공간 대화 현황</b>
+      <div class="muted">도로 ${unread.road} · 주변 ${unread.nearby} · GRID ${unread.grid} · 1:1 ${unread.direct}</div>
+      <div class="convo-actions" style="margin-top:8px">
+        <button type="button" class="primary" data-go-chat="road-session-current">도로 대화</button>
+        <button type="button" class="secondary" data-go-chat="nearby-session-current">주변 대화</button>
+        <button type="button" class="secondary" data-go-chat-menu>대화방</button>
+      </div>
+    </div>
+    <div class="card">
+      <b>최근 도로 메시지</b>
+      <div class="muted">${roadLast ? `“${escapeHtml(String(roadLast.body || roadLast.text || "").slice(0, 80))}”` : "없음"}</div>
+    </div>
+    <div class="card">
+      <b>최근 공간 메시지</b>
+      <div class="muted">${nearLast ? `“${escapeHtml(String(nearLast.body || nearLast.text || "").slice(0, 80))}”` : "없음"}</div>
+      ${urgent ? `<div class="muted" style="margin-top:6px">주의(공간 표시): “${escapeHtml(String(urgent.body || "").slice(0, 48))}” · 긴급신고 서비스가 아닙니다</div>` : ""}
+    </div>`;
+  panel.querySelectorAll("[data-go-chat]").forEach((b) => {
+    b.onclick = () => openConversationInChat(b.dataset.goChat, { returnView: "all" });
+  });
+  panel.querySelector("[data-go-chat-menu]")?.addEventListener("click", () => {
+    emit("chat:openMenu");
   });
 }
 
@@ -229,10 +313,16 @@ export function openUserDetail(state, payload) {
 
 function renderDetailModal(state, userSnap) {
   const user = liveUserById(userSnap.id, userSnap) || userSnap;
+  const distM = haversineMeters(state.location, user);
+  const dist = formatDistance(distM);
+  const myHeading = Number(state.mapBearing) || 0;
+  const theirHeading = Number.isFinite(Number(user.heading)) ? Number(user.heading) : null;
+  const sameDir =
+    theirHeading != null &&
+    Math.abs((((theirHeading - myHeading) % 360) + 540) % 360 - 180) < 45;
   const car = carInfo(user.car);
   const revealed = isPlateRevealed(state, user.id);
   const plateText = displayPlate(state, user);
-  const dist = formatDistance(haversineMeters(state.location, user));
   const grids = userGridNames(state, user.id);
   const canReveal =
     !revealed &&
@@ -245,6 +335,7 @@ function renderDetailModal(state, userSnap) {
         <h3>${escapeHtml(user.nickname)}</h3>
         <div class="muted">${escapeHtml(car.name)} · Lv.${user.level}</div>
         <div class="muted"><span class="status-dot ${user.online ? "online" : "offline"}"></span> ${user.online ? "온라인" : "오프라인"}${dist ? ` · ${dist}` : ""}</div>
+        <div class="muted" style="margin-top:4px">${sameDir ? "같은 진행 방향" : "진행 방향 다름 또는 확인 중"}</div>
       </div>
     </div>
     <div class="card">
@@ -257,7 +348,7 @@ function renderDetailModal(state, userSnap) {
         ? `<div class="card"><b>GRID</b><div class="muted" style="margin-top:6px">${grids.map(escapeHtml).join(" · ")}</div></div>`
         : ""
     }
-    <div class="card muted">빵빵은 데모 피드백입니다. 상대 기기로 전달되지 않습니다.</div>`;
+    <div class="card muted">빵빵은 데모 피드백입니다. 상대 기기로 전달되지 않습니다. 정확한 위치 좌표는 메시지에 첨부되지 않습니다.</div>`;
 
   const actions = [{label: "닫기", onClick: closeModal}];
 
@@ -287,6 +378,26 @@ function renderDetailModal(state, userSnap) {
       closeModal();
       const fresh = liveUserById(user.id, user) || user;
       emit("chat:open", fresh);
+    }
+  });
+
+  actions.push({
+    label: "차단",
+    className: "danger",
+    onClick: () => {
+      if (!Array.isArray(state.blockedUserIds)) state.blockedUserIds = [];
+      if (!state.blockedUserIds.includes(user.id)) state.blockedUserIds.push(user.id);
+      emit("state:save");
+      closeModal();
+      showSystemMessage(`${user.nickname} 님을 차단했습니다. (로컬)`);
+    }
+  });
+
+  actions.push({
+    label: "신고",
+    className: "secondary",
+    onClick: () => {
+      showSystemMessage("신고가 접수 대기 상태로 기록됩니다. (서버 연동 전 · 로컬 안내)");
     }
   });
 

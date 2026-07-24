@@ -7,7 +7,7 @@ export const ROLES = Object.freeze({
   super_admin: {
     id: "super_admin",
     label: "최고 관리자",
-    description: "VROO 전체 운영 권한",
+    description: "VROO 전체 운영 및 권한 관리",
     permissions: ROLE_PERMISSION_MAP.super_admin,
     defaultRoute: "dashboard",
     consoleSections: ["operations", "commerce", "partners", "support", "analytics", "system"],
@@ -16,7 +16,7 @@ export const ROLES = Object.freeze({
   operator: {
     id: "operator",
     label: "운영 관리자",
-    description: "회원·GRID·신고·상품 등 일상 운영",
+    description: "회원·차량·GRID·신고·상품 운영",
     permissions: ROLE_PERMISSION_MAP.operator,
     defaultRoute: "dashboard",
     consoleSections: ["operations", "commerce", "support", "analytics"],
@@ -52,7 +52,7 @@ export const ROLES = Object.freeze({
   analyst: {
     id: "analyst",
     label: "통계 분석가",
-    description: "통계·보고서 읽기 전용",
+    description: "서비스 통계 및 보고서 열람",
     permissions: ROLE_PERMISSION_MAP.analyst,
     defaultRoute: "analytics",
     consoleSections: ["analytics"],
@@ -61,7 +61,7 @@ export const ROLES = Object.freeze({
   developer: {
     id: "developer",
     label: "개발자",
-    description: "시스템 상태·로그·기능 플래그",
+    description: "시스템 상태·기능 플래그·로그 확인",
     permissions: ROLE_PERMISSION_MAP.developer,
     defaultRoute: "system",
     consoleSections: ["system", "analytics"],

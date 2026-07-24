@@ -30,7 +30,10 @@ export function makeDemoUsers(center){
       level:1+(i*7)%45,
       online:i%5!==0,
       lat:pos.lat,
-      lng:pos.lng
+      lng:pos.lng,
+      /** 데모 진행 방향(도) — 실도로 매칭 전 로컬 컨텍스트용 */
+      heading:(i*37)%360,
+      lastSeenAt:Date.now()
     };
   });
 }

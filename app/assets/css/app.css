@@ -95,7 +95,15 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   border-bottom:1px solid #ffc40088;
   transform:translateX(-50%) rotate(45deg);
 }
-.road-chat-bubble.fade-out{opacity:0}.road-stage{position:absolute;inset:0;min-width:0;min-height:0;overflow:hidden}.road-hud{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:10;min-width:360px;text-align:center;padding:9px 15px;border:1px solid #2b91df;border-radius:15px;background:#06101cee}.road-hud strong{font-size:26px;color:var(--yellow);margin:0 6px}.road-hud small{display:block;color:#aab5c0}.road-side{position:absolute;right:14px;top:14px;z-index:10;padding:10px 12px;border:1px solid #455568;border-radius:12px;background:#06101cee;font-size:11px}.environment-select{width:auto;min-width:112px;max-width:148px;background:#101a25;color:white;border:1px solid #455568;border-radius:8px;padding:8px 10px}
+.road-chat-bubble.fade-out{opacity:0}.road-stage{position:absolute;inset:0;min-width:0;min-height:0;overflow:hidden}.road-hud{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:10;
+  min-width:min(420px,calc(100% - 24px));text-align:center;padding:9px 15px;
+  border:1px solid #2b91df;border-radius:15px;background:#06101cee;
+}
+.road-hud strong{font-size:26px;color:var(--yellow);margin:0 6px}
+.road-hud small{display:block;color:#aab5c0}
+.road-nav-strip{margin-top:4px;font-size:11px;color:#d7dee7;line-height:1.35}
+.road-side{position:absolute;right:14px;top:14px;z-index:10;padding:10px 12px;border:1px solid #455568;border-radius:12px;background:#06101cee;font-size:11px}.environment-select{width:auto;min-width:112px;max-width:148px;background:#101a25;color:white;border:1px solid #455568;border-radius:8px;padding:8px 10px}
 .all-live-layout{display:none;grid-template-columns:minmax(0,1fr) minmax(0,1fr);height:100%;min-height:0}.all-live-layout.active{display:grid}.all-live-map-pane,.all-live-road-pane{position:relative;min-width:0;min-height:0;overflow:hidden}.all-live-map-pane{border-right:1px solid #c9a22766}.all-live-map-pane #allMap{height:100%;width:100%}.all-live-road-pane .road-stage{position:absolute;inset:0}
 @media(max-width:900px){
   .all-live-layout.active{
@@ -139,7 +147,7 @@ body[data-map-view="all"] .road-hud b{font-size:12px}body[data-map-view="all"] .
 }
 
 
-/* stage-head: GRID/GPS. stage-body: guidebar + content 분리 */
+/* stage-head: GRID/GPS. stage-body: guidebar + content ?? */
 .stage-head{
   height:64px !important;
   display:grid !important;
@@ -208,7 +216,7 @@ body[data-map-view="all"] .road-hud b{font-size:12px}body[data-map-view="all"] .
   overflow:hidden !important;
 }
 
-/* 왼쪽: 회전 + 지명 — guidebar 흐름 안 (지도 위 floating 아님) */
+/* ??: ?? + ?? ? guidebar ?? ? (?? ? floating ??) */
 .map-tools,
 .map-rotation-controls{
   position:static !important;
@@ -253,7 +261,7 @@ body[data-map-view="all"] .road-hud b{font-size:12px}body[data-map-view="all"] .
   height:38px !important;
 }
 
-/* 중앙: 주변 / 도로 / 전체 */
+/* ??: ?? / ?? / ?? */
 .header-view-tabs,
 .map-view-tabs{
   position:static !important;
@@ -331,7 +339,7 @@ body[data-map-view="all"] .road-hud b{font-size:12px}body[data-map-view="all"] .
   display:none !important;
 }
 
-/* 화면별 guidebar 슬롯 */
+/* ??? guidebar ?? */
 body[data-map-view="near"] .map-rotation-controls,
 body[data-map-view="all"] .map-rotation-controls{
   display:flex !important;
@@ -401,7 +409,7 @@ body[data-map-view="all"] .view-guidebar .environment-select{
   }
   .map-tools .label-toggle::after,
   .map-rotation-controls .label-toggle::after{
-    content:"지명";
+    content:"??";
     font-size:11px;
     font-weight:900;
   }
@@ -478,77 +486,125 @@ body[data-map-view="all"] .view-guidebar .environment-select{
   .guidebar-road-status{height:32px !important;line-height:32px !important}
 }
 
-.vroo-place-label{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:7px;
-  min-width:132px;
-  max-width:190px;
-  padding:7px 10px;
-  border:1px solid #617184;
-  border-radius:11px;
-  background:#07101de8;
-  color:#fff;
-  box-shadow:0 7px 18px #0009;
-  backdrop-filter:blur(3px);
-  transform:translateZ(0);
-  pointer-events:auto;
+.vroo-place-label{display:none}
+.vroo-marker-wrap{background:transparent!important;border:0!important}
+.vroo-marker{
+  position:relative;pointer-events:auto;font-family:inherit;color:#fff;
+  filter:drop-shadow(0 3px 6px #0008);
 }
-.vroo-place-label i{
-  font-style:normal;
-  font-size:17px;
+.vroo-marker:focus-visible{outline:2px solid #2b91df;outline-offset:2px}
+.vroo-ico{width:18px;height:18px;display:block}
+.vroo-marker--vehicle{display:flex;align-items:flex-end;gap:6px;max-width:150px}
+.vroo-marker-vehicle-icon{
+  position:relative;width:40px;height:40px;min-width:40px;border-radius:10px;
+  background:#0a1628;border:2px solid #2b91df;display:flex;align-items:center;justify-content:center;color:#7ec4ff
 }
-.vroo-place-label div{
-  min-width:0;
-  text-align:left;
-  line-height:1.15;
+.vroo-marker--vehicle.is-selected .vroo-marker-vehicle-icon{border-color:#6ec1ff;box-shadow:0 0 0 2px #2b91df88}
+.vroo-marker--vehicle.is-offline .vroo-marker-vehicle-icon{border-color:#697481;opacity:.85}
+.vroo-marker-car-emoji{position:absolute;font-size:16px;line-height:1;pointer-events:none}
+.vroo-marker-vehicle-icon .vroo-ico{opacity:.35;width:28px;height:28px}
+.vroo-marker-heading{position:absolute;top:-8px;left:50%;margin-left:-5px;font-size:9px;color:#7ec4ff;transform-origin:50% 14px}
+.vroo-marker-online-dot{
+  position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;
+  background:#3dd68c;border:2px solid #0a1628
 }
-.vroo-place-label b{
-  display:block;
-  font-size:12px;
-  white-space:nowrap;
+.vroo-marker--vehicle.is-offline .vroo-marker-online-dot{background:#8090a0}
+.vroo-marker-vehicle-card{
+  background:#0a1628ee;border:1px solid #2b91df99;border-radius:10px;
+  padding:5px 8px;min-width:0;max-width:110px;line-height:1.2
 }
-.vroo-place-label span{
-  display:block;
-  margin-top:3px;
-  color:#aeb9c5;
-  font-size:9px;
-  white-space:nowrap;
+.vroo-marker--vehicle.is-selected .vroo-marker-vehicle-card{border-color:#6ec1ff}
+.vroo-marker-vehicle-card b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vroo-marker-meta{display:block;margin-top:2px;font-size:10px;color:#9ec9ef}
+.vroo-marker--me{width:72px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.vroo-me-core{
+  width:16px;height:16px;border-radius:50%;background:#ffc400;border:2px solid #fff;position:relative;z-index:1
 }
-.vroo-place-heritage{
-  border-color:#e6b947;
-  background:#2b220eea;
+.vroo-me-pulse{
+  position:absolute;width:28px;height:28px;border-radius:50%;border:2px solid #ffc40088;
+  top:8px;animation:vrooMePulse 2.4s ease-out infinite
 }
-.vroo-place-station{
-  border-color:#36a8ff;
-  background:#081d32ea;
+.vroo-me-label{
+  margin-top:4px;font-size:10px;font-weight:800;color:#ffc400;
+  background:#0b1520cc;border:1px solid #c9a22788;border-radius:999px;padding:2px 7px
 }
-.vroo-place-road{
-  border-color:#808c99;
-  background:#171d24df;
-  box-shadow:none;
+@media (prefers-reduced-motion:reduce){.vroo-me-pulse{animation:none}}
+@keyframes vrooMePulse{0%{transform:scale(.7);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+.vroo-marker--place,.vroo-marker--landmark{display:flex;flex-direction:column;align-items:flex-start;max-width:168px}
+.vroo-marker-pin{
+  width:32px;height:32px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
+  display:flex;align-items:center;justify-content:center;
+  background:#3a5a40;border:2px solid #8fbf7a;color:#e8ffe0;margin-bottom:-4px;margin-left:4px
 }
-.vroo-place-road i{
-  display:none;
+.vroo-marker-pin .vroo-ico{transform:rotate(45deg);width:16px;height:16px}
+.vroo-marker--landmark .vroo-marker-pin{
+  background:#4a3a18;border-color:#e6b947;color:#ffe9a8;border-radius:8px 8px 8px 2px
 }
-.vroo-place-road b{
-  font-size:11px;
-  letter-spacing:.4px;
+.vroo-marker--place.cat-station .vroo-marker-pin{background:#123a5a;border-color:#36a8ff;color:#b8e0ff}
+.vroo-marker--landmark.cat-park .vroo-marker-pin{background:#1e3a24;border-color:#4b9c68;color:#c8f0d0}
+.vroo-marker--landmark.cat-heritage .vroo-marker-pin{background:#4a3a18;border-color:#e6b947}
+.vroo-marker-sign{
+  background:#f4f0e6f2;color:#1a1a1a;border:1px solid #c4b89a;border-radius:4px 10px 10px 10px;
+  padding:5px 8px;min-width:72px;max-width:150px;line-height:1.15;box-shadow:0 4px 10px #0005
 }
-.vroo-place-district{
-  border-color:#4b9c68;
-  background:#0b2917df;
+.vroo-marker--landmark .vroo-marker-sign{background:#2b220ef0;color:#fff;border-color:#e6b94799}
+.vroo-marker--place .vroo-marker-sign{background:#eef6faf2;color:#102030;border-color:#36a8ff88}
+.vroo-marker-kind{display:block;font-size:9px;font-weight:700;letter-spacing:.2px;opacity:.8;margin-bottom:1px}
+.vroo-marker-sign b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vroo-marker-sub{display:block;margin-top:2px;font-size:9px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vroo-marker--place.is-selected .vroo-marker-sign,
+.vroo-marker--landmark.is-selected .vroo-marker-sign{box-shadow:0 0 0 2px #2b91df88}
+.vroo-marker--road,.vroo-marker--area{
+  pointer-events:none;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:800;
+  letter-spacing:.3px;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9
 }
+.vroo-marker--road{background:#171d24cc;border:1px solid #808c99;color:#d0d7de;box-shadow:none}
+.vroo-marker--area{background:#0b2917cc;border:1px solid #4b9c68;color:#c8e8d0}
+.vroo-marker--spatial-message{
+  background:#0b1520f0;border:1px solid #c9a22788;border-radius:10px;padding:6px 8px;font-size:11px;max-width:160px;line-height:1.3
+}
+.map-place-preview{
+  position:absolute;left:12px;bottom:12px;z-index:21;width:min(320px,calc(100% - 24px));
+  background:#0b1520f2;border:1px solid #c9a22788;border-radius:14px;padding:12px;color:#fff
+}
+.map-preview-kind{font-size:11px;font-weight:800;color:#c9a227;margin-bottom:4px}
+.map-place-preview-icon{color:#e6b947;margin:4px 0}
+.map-place-preview-icon .vroo-ico{width:28px;height:28px}
+.map-legend{
+  position:absolute;right:12px;top:12px;z-index:22;display:flex;flex-direction:column;align-items:flex-end;gap:6px
+}
+.map-legend-toggle{
+  border:1px solid #455568;border-radius:999px;background:#0b1520ee;color:#fff;
+  font-weight:800;font-size:12px;padding:8px 12px;min-height:40px;cursor:pointer
+}
+.map-legend-toggle:focus-visible{outline:2px solid #2b91df;outline-offset:2px}
+.map-legend-panel{
+  width:min(220px,70vw);background:#0b1520f5;border:1px solid #455568;border-radius:12px;
+  padding:10px;color:#fff;font-size:12px;max-height:min(50vh,360px);overflow:auto
+}
+.map-legend-title{font-weight:800;margin:6px 0 4px}
+.map-legend-filters{display:flex;flex-wrap:wrap;gap:4px}
+.map-legend-filters .secondary.active{border-color:#2b91df;background:#143049}
+.map-legend-layers{display:flex;flex-direction:column;gap:4px}
+.map-legend-layers label{display:flex;align-items:center;gap:6px;min-height:28px;cursor:pointer}
+.map-legend-swatches{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.map-legend-swatches .sw{font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid #455568}
+.sw-vehicle{border-color:#2b91df!important;color:#9ec9ef}
+.sw-place{border-color:#36a8ff!important}
+.sw-landmark{border-color:#e6b947!important;color:#e6b947}
+.sw-spatial{border-color:#c9a227!important}
+.sw-road{border-color:#808c99!important;color:#aab}
+.vroo-place-heritage,.vroo-place-station,.vroo-place-road,.vroo-place-district{display:none}
 
+@media(max-width:1366px){
+  .vroo-marker-vehicle-card{max-width:88px;padding:4px 6px}
+  .vroo-marker-vehicle-card b{font-size:10px}
+  .vroo-marker-sign{max-width:120px}
+  .vroo-marker-sub{display:none}
+  .map-legend{right:8px;top:8px}
+}
 @media(max-width:700px){
-  .vroo-place-label{
-    min-width:105px;
-    max-width:145px;
-    padding:5px 7px;
-  }
-  .vroo-place-label b{font-size:10px}
-  .vroo-place-label span{display:none}
+  .vroo-marker--vehicle .vroo-marker-meta{display:none}
   .map-tools .label-toggle,
   .map-rotation-controls .label-toggle{
     min-width:40px !important;
@@ -557,7 +613,7 @@ body[data-map-view="all"] .view-guidebar .environment-select{
   }
 }
 
-/* Spatial GRID overlay — SVG pane above tiles, below markers (z 450) */
+/* Spatial GRID overlay ? SVG pane above tiles, below markers (z 450) */
 .spatial-grid-pane{
   z-index:450;
   pointer-events:auto;
@@ -796,3 +852,214 @@ button.grid-joined-disabled:disabled{
   .board-dropdown{min-width:84px}
   .option-dropdown{min-width:104px}
 }
+
+/* Spatial Floating Road Chat */
+.road-chat-dock{
+  position:absolute;left:12px;bottom:12px;z-index:12;
+  width:min(360px,calc(100% - 24px));
+  display:flex;flex-direction:column;gap:6px;
+  pointer-events:none;
+}
+.road-chat-dock > *{pointer-events:auto}
+.road-chat-dock-toggle{
+  align-self:flex-start;border:1px solid #2b91df;border-radius:999px;
+  background:#06101cee;color:#fff;font-weight:800;padding:10px 14px;
+  display:inline-flex;align-items:center;gap:8px;
+}
+.road-float-shell{
+  background:#0b1520f2;border:1px solid #455568;border-radius:14px;padding:10px 12px;color:#fff;
+  max-height:none;overflow:visible;pointer-events:auto;
+}
+.road-float-shell.road-float-compact{overflow:visible}
+.road-float-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.road-float-head-actions{display:flex;gap:6px;flex-shrink:0}
+.road-float-preview{margin:6px 0 8px;font-size:13px;line-height:1.35}
+.road-float-scroll{max-height:120px;overflow:auto;margin:6px 0;display:flex;flex-direction:column;gap:4px}
+.road-float-msg{font-size:12px;padding:4px 6px;border-radius:8px;background:#121a24}
+.road-float-msg.mine{background:#1a2a3a}
+.road-float-insight-mini{font-size:11px;margin:4px 0 6px;line-height:1.35}
+.road-float-compose-wrap{position:relative}
+.road-float-compose-row{
+  display:flex;align-items:flex-end;gap:8px;
+}
+.road-float-plus{
+  flex:0 0 40px;width:40px;height:40px;min-width:40px;border-radius:10px;
+  border:1px solid #455568;background:#121a24;color:#fff;font-size:22px;font-weight:700;
+  line-height:1;padding:0;cursor:pointer
+}
+.road-float-plus.open,.road-float-plus[aria-expanded="true"]{border-color:#2b91df;background:#143049}
+.road-float-plus:focus-visible{outline:2px solid #2b91df;outline-offset:2px}
+.road-float-input-wrap{position:relative;flex:1;min-width:0}
+.road-float-input-wrap textarea{
+  width:100%;min-height:40px;max-height:72px;resize:none;border-radius:10px;box-sizing:border-box;
+  border:1px solid #455568;background:#101a25;color:#fff;padding:10px 28px 18px 10px;font:inherit;
+}
+.road-float-inline-clear{
+  position:absolute;right:6px;top:6px;width:24px;height:24px;border:0;border-radius:6px;
+  background:transparent;color:#9aa7b5;font-size:16px;line-height:1;cursor:pointer;padding:0
+}
+.road-float-count{
+  position:absolute;right:8px;bottom:4px;font-size:10px;color:#8090a0;pointer-events:none
+}
+.road-float-count.near-limit{color:#e0a100;font-weight:700}
+.road-float-send{flex:0 0 auto;min-height:40px;min-width:56px}
+.road-float-overlay{
+  position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:20;
+  background:#0b1520f8;border:1px solid #455568;border-radius:12px;padding:8px;
+  box-shadow:0 8px 24px #0008;max-height:min(36vh,280px);overflow:auto
+}
+.road-float-menu{display:flex;flex-direction:column;gap:2px;padding:6px}
+.road-float-menu-item{
+  text-align:left;border:0;background:transparent;color:#fff;padding:10px 12px;
+  border-radius:8px;font:inherit;min-height:40px;cursor:pointer
+}
+.road-float-menu-item:hover,.road-float-menu-item:focus-visible{background:#143049;outline:none}
+.road-float-sheet-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.road-float-quick-sheet .road-quick-row{margin:6px 0 10px}
+.road-mode-chip{
+  display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;
+  background:#143049;border:1px solid #2b91df88;border-radius:999px;padding:4px 6px 4px 10px;font-size:12px
+}
+.road-mode-chip-clear{
+  width:28px;height:28px;min-width:28px;border:0;border-radius:50%;background:#1a2734;color:#fff;
+  font-size:16px;line-height:1;cursor:pointer;padding:0
+}
+.road-voice-bar{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  margin:0 0 8px;padding:6px 8px;border-radius:8px;background:#1a2734;font-size:12px
+}
+.road-drive-hint{margin:4px 0 6px;font-size:11px}
+.road-float-collapsed-preview{padding:0 4px;font-size:12px;pointer-events:none}
+.road-chat-dock.dock-collapsed{width:min(280px,calc(100% - 24px))}
+.road-chat-dock.dock-compact .road-float-shell{max-height:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.road-insight-card{border-color:#c9a22755;order:0}
+.road-insight-card .insight-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.road-insight-card .insight-summary{margin:8px 0;font-size:14px;line-height:1.4}
+.road-insight-card .insight-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px;font-size:13px
+}
+.road-insight-card .insight-severity{
+  display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:13px
+}
+.insight-sev-dot{
+  width:8px;height:8px;border-radius:50%;background:#8a9aab;flex-shrink:0
+}
+.road-insight-card.severity-notice .insight-sev-dot{background:#e0a100}
+.road-insight-card.severity-warning .insight-sev-dot{background:#ff8a3d}
+.road-insight-card.severity-critical .insight-sev-dot{background:#ff4d5a}
+.road-insight-card.severity-notice{border-color:#e0a10066}
+.road-insight-card.severity-warning{border-color:#ff8a3d88}
+.road-insight-card.severity-critical{border-color:#ff4d5a99}
+.insight-confirm{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.insight-confirm-row,.insight-filter-btn{
+  display:flex;justify-content:space-between;gap:8px;font-size:13px;
+  background:#121a24;border:1px solid #354150;border-radius:8px;padding:6px 8px;color:#fff;width:100%;text-align:left
+}
+.insight-filter-btn:focus-visible,.road-purpose-bar button:focus-visible,
+.road-cat-bar button:focus-visible,.road-suggest-item:focus-visible,
+.road-content-filters button:focus-visible{outline:2px solid #2b91df;outline-offset:2px}
+.insight-disclaimer{font-size:11px;margin-top:6px;line-height:1.35}
+.road-purpose-bar,.road-cat-bar,.road-content-filters{
+  display:flex;flex-wrap:wrap;gap:6px;margin:6px 0
+}
+.road-purpose-bar .secondary.active,.road-cat-bar .secondary.active,
+.road-content-filters .secondary.active{border-color:#2b91df;background:#143049}
+.road-quick-group{margin:6px 0}
+.road-suggest{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.road-suggest-item{text-align:left;font-size:12px}
+.road-help-note{font-size:11px;margin:4px 0 6px}
+.road-drive-assist{display:flex;flex-direction:column;gap:10px}
+.road-nav-compact .road-nav-grid{display:none}
+.road-chat-summary-compact{font-size:13px}
+.bubble-situation{border-left:3px solid #c9a227}
+.bubble-chat{opacity:.95}
+.bubble-cat{font-size:10px;margin-right:4px}
+.spatial-cluster-badge{display:flex;flex-direction:column;gap:2px}
+.spatial-overlay-cluster.sev-urgent .spatial-cluster-badge{border-color:#ff4d5a}
+@media (prefers-reduced-motion:reduce){
+  .road-chat-dock *,.road-insight-card *{transition:none!important;animation:none!important}
+}
+@media (max-width:1366px){
+  .road-insight-card .insight-grid{grid-template-columns:1fr 1fr}
+  .road-insight-card .insight-summary{font-size:13px}
+  .road-drive-assist .road-nav-card{padding:8px 10px}
+}
+.road-chat-shell{display:flex;flex-direction:column;gap:8px;min-height:0;height:100%}
+.road-chat-title{font-size:16px;font-weight:900}
+.road-chat-sub{margin-top:4px;font-size:13px;color:#d7dee7}
+.road-chat-scroll{min-height:120px;max-height:220px;overflow:auto}
+.road-participant-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.road-participant{
+  text-align:left;border:1px solid #354150;border-radius:10px;background:#121a24;
+  padding:8px 10px;color:#fff;
+}
+.road-participant.selected{border-color:#c9a227}
+.road-participant b{display:block;font-size:13px}
+.road-quick-row{display:flex;flex-wrap:wrap;gap:6px}
+.road-quick{padding:8px 10px;font-size:12px;font-weight:700}
+.road-compose textarea{min-height:56px}
+.road-history-card{border-color:#2b91df66}
+.rooms-filter-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.section-label{padding:10px 12px}
+.section-label b{display:block}
+.convo-card{
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr);
+  gap:10px;
+  align-items:start;
+}
+.convo-card.pinned{border-color:#2b91df88;box-shadow:inset 0 0 0 1px #2b91df33}
+.convo-icon{
+  width:40px;height:40px;border-radius:10px;background:#121a24;border:1px solid #354150;
+  display:flex;align-items:center;justify-content:center;color:#9ec9ef;
+}
+.convo-icon-svg{display:block}
+.convo-body{min-width:0}
+.convo-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.convo-space{margin-top:3px;font-size:13px;color:#d7dee7}
+.convo-preview{margin-top:6px;line-height:1.35}
+.convo-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.road-chat-scroll-full{max-height:min(42vh,360px);min-height:180px}
+.road-chat-content-detail .road-chat-title{font-size:15px}
+.road-nav-card .road-nav-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px;font-size:13px
+}
+.road-chat-summary{margin:0}
+.road-chat-summary-preview{margin:8px 0;font-size:14px;line-height:1.35}
+.road-quick-compact .road-quick{padding:10px 12px;font-size:13px;font-weight:800}
+.road-chat-dock-body{max-height:min(42vh,320px);overflow:auto}
+.map-convo-ind{
+  position:absolute;right:-6px;top:-4px;min-width:18px;height:18px;border-radius:9px;
+  background:#1a2734;border:1px solid #2b91df;font-size:10px;line-height:16px;padding:0 4px;color:#fff
+}
+.map-convo-ind.active{border-color:#2b91df;box-shadow:0 0 0 1px #2b91df55}
+.map-convo-ind.urgent{border-color:#ff4d5a;background:#3a1518}
+.map-convo-ind.blocked{border-color:#697481;color:#aab5c0}
+.map-convo-badge{font-weight:900}
+.map-convo-preview{
+  margin-top:4px;max-width:140px;margin-left:auto;margin-right:auto;
+  background:#0b1520ee;border:1px solid #2b91df66;border-radius:8px;padding:4px 6px;font-size:10px;white-space:normal
+}
+.map-vehicle-preview{
+  position:absolute;left:12px;bottom:12px;z-index:20;width:min(320px,calc(100% - 24px));
+  background:#0b1520f2;border:1px solid #455568;border-radius:14px;padding:12px;color:#fff
+}
+.map-preview-close{position:absolute;right:8px;top:8px}
+.map-preview-msg{margin:8px 0;font-size:13px}
+.spatial-overlay-bubble .spatial-bubble,
+.spatial-cluster-badge{
+  background:#0b1520f0;border:1px solid #c9a22788;border-radius:10px;padding:6px 8px;font-size:11px;color:#fff;
+  max-width:160px;white-space:normal;line-height:1.3
+}
+.spatial-overlay-bubble.pri-urgent .spatial-bubble{border-color:#ff4d5a}
+.spatial-overlay-bubble.pri-warning .spatial-bubble{border-color:#e0a100}
+.spatial-bubble-tag{display:inline-block;margin-right:4px;font-size:10px;color:#ffc400;font-weight:800}
+.nearby-msg-preview{margin-top:4px}
+@media (max-width:1366px){
+  .road-chat-dock{width:min(300px,calc(100% - 16px));left:8px;bottom:8px}
+  .road-float-overlay{max-height:min(32vh,240px)}
+  .road-float-compose-row{gap:6px}
+  .road-float-plus,.road-float-send{min-height:40px}
+}
+body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));left:8px;bottom:8px}

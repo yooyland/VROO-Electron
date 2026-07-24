@@ -1,6 +1,16 @@
 import {emit} from "../core/events.js";
-import {carInfo, makeDemoUsers, updateDemoUserPositions} from "./data.js";
-import {placesForZoom, normalizePlaceName} from "./places.js";
+import {carInfo, makeDemoUsers, updateDemoUserPositions, MY_USER_ID} from "./data.js";
+import {
+  placesForZoomDetail,
+  normalizePlaceName,
+  normalizePlaceMeta,
+  categorySvg,
+  categoryLabel,
+  kindLabel,
+  PLACE_CATEGORY_SVG,
+  defaultMapLayerPrefs,
+  sanitizeMapLayerPrefs
+} from "./places.js";
 import {
   getGridCellFromLatLng,
   getVisibleGridCells,
@@ -13,6 +23,13 @@ import {
   DEBUG_SPATIAL_GRID
 } from "./spatial-grid.js";
 import {showSystemMessage} from "../core/ui.js";
+import {
+  getVehicleConversationStatus,
+  getActiveSpatialOverlays,
+  pruneSpatialOverlays,
+  openConversationInChat,
+  ensureConversationUi
+} from "./conversation-store.js";
 
 let map;
 let allMap;
@@ -20,6 +37,11 @@ let markerLayer;
 let allLayer;
 let placeLabelLayer;
 let allPlaceLabelLayer;
+/** 공간 메시지 오버레이 레이어 */
+let spatialOverlayLayerNear = null;
+let spatialOverlayLayerAll = null;
+let selectedPreviewUserId = null;
+let selectedPreviewPlaceId = null;
 /** 단일 데모 사용자 목록 — near/all/road가 동일 배열 참조 */
 let users = [];
 let stateRef;
@@ -32,6 +54,8 @@ let programmaticMoveDepth = 0;
 let markerMode = "near";
 /** 직전 DRIVE 뷰 — all↔near 중심/줌 동기화용 */
 let lastMapViewMode = "near";
+let legendOpen = false;
+let legendOutsideBound = false;
 
 let markersNear = new Map();
 const markersAll = new Map();
@@ -103,60 +127,411 @@ function shouldRenderMarkers(location, options) {
   return false;
 }
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function ensureMapLayerPrefs(state = stateRef) {
+  if (!state) return defaultMapLayerPrefs();
+  state.mapLayerPrefs = sanitizeMapLayerPrefs(state.mapLayerPrefs);
+  labelsVisible = state.mapLayerPrefs.labelsVisible !== false;
+  return state.mapLayerPrefs;
+}
+
+function saveMapPrefs() {
+  if (!stateRef) return;
+  ensureMapLayerPrefs(stateRef);
+  emit("state:save");
+}
+
+function zoomDetailLevel(zoom) {
+  if (zoom < 14) return "low";
+  if (zoom < 16) return "mid";
+  return "high";
+}
+
+function zOffsetForKind(kind, selected = false) {
+  if (selected) return 1200;
+  const table = {
+    my_location: 1000,
+    spatial_message: 850,
+    vehicle: 700,
+    landmark: 450,
+    place: 400,
+    road_label: 200,
+    area_label: 180
+  };
+  return table[kind] || 300;
+}
+
+function headingArrow(deg) {
+  if (!Number.isFinite(Number(deg))) return "";
+  const d = ((Number(deg) % 360) + 360) % 360;
+  return `<span class="vroo-marker-heading" style="transform:rotate(${d}deg)" aria-hidden="true">▲</span>`;
+}
+
+function sameDirectionAsMe(user) {
+  const meH = Number(stateRef?.location?.heading ?? stateRef?.heading);
+  const uh = Number(user?.heading);
+  if (!Number.isFinite(meH) || !Number.isFinite(uh)) return false;
+  let diff = Math.abs(meH - uh) % 360;
+  if (diff > 180) diff = 360 - diff;
+  return diff <= 45;
+}
+
+function vehiclePassesFilter(user, prefs) {
+  if (!prefs.showVehicles) return false;
+  if (prefs.filterMode === "place" || prefs.filterMode === "spatial") return false;
+  const vf = prefs.vehicleFilter || "all";
+  if (vf === "online" && user.online === false) return false;
+  if (vf === "same_direction" && !sameDirectionAsMe(user)) return false;
+  if (vf === "friends") {
+    const friends = stateRef?.connections || [];
+    if (!friends.includes(user.id) && !friends.some((c) => c?.id === user.id || c === user.id)) return false;
+  }
+  if (vf === "chatting" && stateRef) {
+    const st = getVehicleConversationStatus(stateRef, user.id);
+    if (!st || st.status === "no_conversation" || st.status === "muted") return false;
+  }
+  return true;
+}
+
+function placePassesFilter(place, prefs) {
+  if (!prefs.labelsVisible) return false;
+  const kind = place.kind;
+  if (prefs.filterMode === "vehicle" || prefs.filterMode === "spatial") return false;
+  if (kind === "landmark" && !prefs.showLandmarks) return false;
+  if (kind === "place" && !prefs.showPlaces) return false;
+  if (kind === "road_label" && !prefs.showRoadLabels) return false;
+  if (kind === "area_label" && !prefs.showAreaLabels) return false;
+  const catF = prefs.placeCategoryFilter || "all";
+  if (catF !== "all" && place.category !== catF && kind !== "road_label" && kind !== "area_label") {
+    return false;
+  }
+  return true;
+}
+
 function iconFor(user, me = false) {
+  if (me) return myLocationIcon();
+  const zoom = map?.getZoom?.() ?? 16;
+  const detail = zoomDetailLevel(zoom);
+  const statusInfo = !stateRef ? null : getVehicleConversationStatus(stateRef, user.id);
+  const selected = selectedPreviewUserId === user.id;
+  const online = user.online !== false;
+  const nick = escapeHtml(user.nickname || "차량");
+  const level = Number(user.level) || 1;
+  const dir = bearingLabel(user.heading);
+  const same = sameDirectionAsMe(user);
+  const carEmoji = carInfo(user.car).emoji;
+  const unreadBadge = convoIndicatorHtml(statusInfo);
+  const preview =
+    selected && statusInfo?.lastMessage
+      ? `<div class="map-convo-preview">${escapeHtml(String(statusInfo.lastMessage).slice(0, 36))}</div>`
+      : "";
+  const meta =
+    detail === "low"
+      ? ""
+      : detail === "mid"
+        ? `<span class="vroo-marker-meta">Lv.${level}</span>`
+        : `<span class="vroo-marker-meta">Lv.${level} · ${escapeHtml(same ? "같은 방향" : dir)}</span>`;
+  const aria = `차량, ${user.nickname || "차량"}, 레벨 ${level}`;
   return L.divIcon({
-    className: "",
-    html: `<div style="text-align:center;filter:drop-shadow(0 4px 5px #000)">
-      <div style="font-size:36px">${carInfo(me ? stateRef.profile.car : user.car).emoji}</div>
-      <div style="background:#07101dea;border:1px solid ${me ? "#ffc400" : "#465465"};border-radius:8px;padding:4px 7px;font-size:11px;white-space:nowrap">
-        <b>${me ? stateRef.profile.nickname : user.nickname}</b><br>
-        Lv.${me ? stateRef.level : user.level}
+    className: "vroo-marker-wrap",
+    html: `<div class="vroo-marker vroo-marker--vehicle ${selected ? "is-selected" : ""} ${online ? "is-online" : "is-offline"}" role="img" aria-label="${escapeHtml(aria)}" aria-selected="${selected}">
+      <div class="vroo-marker-vehicle-icon" aria-hidden="true">
+        ${PLACE_CATEGORY_SVG.vehicle}
+        <span class="vroo-marker-car-emoji">${carEmoji}</span>
+        ${headingArrow(user.heading)}
+        ${unreadBadge}
+        <span class="vroo-marker-online-dot" title="${online ? "온라인" : "오프라인"}"></span>
+      </div>
+      <div class="vroo-marker-vehicle-card">
+        <b>${nick}</b>
+        ${meta}
+      </div>
+      ${preview}
+    </div>`,
+    iconSize: [detail === "low" ? 56 : 132, preview ? 88 : detail === "low" ? 56 : 58],
+    iconAnchor: [detail === "low" ? 28 : 40, preview ? 44 : detail === "low" ? 28 : 48]
+  });
+}
+
+function myLocationIcon() {
+  const nick = escapeHtml(stateRef?.profile?.nickname || "나");
+  return L.divIcon({
+    className: "vroo-marker-wrap",
+    html: `<div class="vroo-marker vroo-marker--me" role="img" aria-label="내 위치, ${nick}">
+      <span class="vroo-me-pulse" aria-hidden="true"></span>
+      <span class="vroo-me-core" aria-hidden="true"></span>
+      <span class="vroo-me-label">내 위치</span>
+    </div>`,
+    iconSize: [72, 56],
+    iconAnchor: [36, 28]
+  });
+}
+
+function bearingLabel(deg) {
+  if (!Number.isFinite(Number(deg))) return "방향 확인 중";
+  const d = ((Number(deg) % 360) + 360) % 360;
+  if (d >= 315 || d < 45) return "북쪽";
+  if (d < 135) return "동쪽";
+  if (d < 225) return "남쪽";
+  return "서쪽";
+}
+
+function showVehiclePreviewCard(user) {
+  if (!stateRef || !user) return;
+  selectedPreviewUserId = user.id;
+  selectedPreviewPlaceId = null;
+  hidePlacePreviewCard();
+  drawUsers(markerMode);
+  refreshLabels();
+  const status = getVehicleConversationStatus(stateRef, user.id);
+  const me = stateRef.location;
+  const dist = me ? Math.round(L.latLng(me.lat, me.lng).distanceTo([user.lat, user.lng])) : null;
+  const host = document.body.dataset.mapView === "all"
+    ? document.querySelector("#allMapPane")
+    : document.querySelector("#mapView");
+  if (!host) return;
+  let el = host.querySelector("#mapVehiclePreview");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "mapVehiclePreview";
+    el.className = "map-vehicle-preview";
+    host.appendChild(el);
+  }
+  const unread = Math.max(0, Number(status.unread) || 0);
+  const srcLabel = status.source === "road" ? "도로 대화" : status.source === "nearby" ? "주변 대화" : status.source === "direct" ? "1:1" : "대화 없음";
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="map-preview-close" aria-label="닫기">✕</button>
+    <div class="map-preview-kind">차량</div>
+    <b>${escapeHtml(user.nickname || "차량")}</b>
+    <div class="muted">Lv.${Number(user.level) || 1} · ${dist != null ? `${dist}m` : "거리 —"} · ${escapeHtml(bearingLabel(user.heading))} · ${user.online === false ? "오프라인" : "온라인"}</div>
+    <div class="muted">${escapeHtml(srcLabel)}${unread ? ` · 읽지 않음 ${unread}` : ""}</div>
+    <div class="map-preview-msg">${status.lastMessage ? `“${escapeHtml(String(status.lastMessage).slice(0, 80))}”` : "최근 공간 메시지 없음"}</div>
+    <div class="convo-actions">
+      <button type="button" class="primary" data-act="chat">대화방에서 열기</button>
+      <button type="button" class="secondary" data-act="direct">1:1 대화</button>
+      <button type="button" class="secondary" data-act="horn">빵빵</button>
+      <button type="button" class="secondary" data-act="gift">선물</button>
+      <button type="button" class="secondary" data-act="report">신고</button>
+      <button type="button" class="secondary" data-act="block">차단</button>
+    </div>`;
+  el.querySelector(".map-preview-close").onclick = () => {
+    selectedPreviewUserId = null;
+    el.hidden = true;
+    drawUsers(markerMode);
+  };
+  el.querySelectorAll("[data-act]").forEach((b) => {
+    b.onclick = () => {
+      const act = b.dataset.act;
+      if (act === "chat") {
+        const cid =
+          status.source === "road"
+            ? stateRef.roadChat?.session?.conversationId || "road-session-current"
+            : status.source === "nearby"
+              ? stateRef.nearbyChat?.session?.conversationId || "nearby-session-current"
+              : user.id;
+        const ui = ensureConversationUi(stateRef);
+        ui.activeConversationId = cid;
+        ui.returnView = document.body.dataset.mapView || "near";
+        emit("state:save");
+        openConversationInChat(cid, { returnView: ui.returnView });
+      } else if (act === "direct") {
+        emit("chat:open", user);
+      } else if (act === "horn") {
+        emit("user:horn", { id: user.id });
+      } else if (act === "gift") {
+        showSystemMessage("선물 기능은 서버 연동 후 이용할 수 있습니다.");
+      } else if (act === "report") {
+        showSystemMessage("신고는 서버 연동 후 처리됩니다. (긴급신고 서비스가 아닙니다)");
+      } else if (act === "block") {
+        if (!Array.isArray(stateRef.blockedUserIds)) stateRef.blockedUserIds = [];
+        if (!stateRef.blockedUserIds.includes(user.id)) stateRef.blockedUserIds.push(user.id);
+        emit("state:save");
+        showSystemMessage("차단 목록에 추가했습니다.");
+        selectedPreviewUserId = null;
+        el.hidden = true;
+        drawUsers(markerMode);
+      }
+    };
+  });
+}
+
+function hidePlacePreviewCard() {
+  document.querySelectorAll("#mapPlacePreview").forEach((el) => {
+    el.hidden = true;
+  });
+}
+
+function showPlacePreviewCard(place) {
+  if (!place) return;
+  selectedPreviewPlaceId = place.id;
+  selectedPreviewUserId = null;
+  document.querySelectorAll("#mapVehiclePreview").forEach((el) => {
+    el.hidden = true;
+  });
+  drawUsers(markerMode);
+  refreshLabels();
+  const host = document.body.dataset.mapView === "all"
+    ? document.querySelector("#allMapPane")
+    : document.querySelector("#mapView");
+  if (!host) return;
+  let el = host.querySelector("#mapPlacePreview");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "mapPlacePreview";
+    el.className = "map-place-preview";
+    host.appendChild(el);
+  }
+  const meta = normalizePlaceMeta(place);
+  const cat = categoryLabel(meta.category);
+  const kind = kindLabel(meta.kind);
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="map-preview-close" aria-label="닫기">✕</button>
+    <div class="map-preview-kind">${escapeHtml(kind)} · ${escapeHtml(cat)}</div>
+    <div class="map-place-preview-icon">${categorySvg(meta.category)}</div>
+    <b>${escapeHtml(normalizePlaceName(meta.name))}</b>
+    <div class="muted">${escapeHtml(meta.subtitle || "등록 장소")}</div>
+    <div class="muted">위도 ${Number(meta.lat).toFixed(5)} · 경도 ${Number(meta.lng).toFixed(5)}</div>
+    <div class="convo-actions">
+      <button type="button" class="primary" data-place-act="route">길찾기</button>
+      <button type="button" class="secondary" data-place-act="favorite">즐겨찾기</button>
+      <button type="button" class="secondary" data-place-act="share">공유</button>
+      <button type="button" class="secondary" data-place-act="detail">상세</button>
+    </div>`;
+  el.querySelector(".map-preview-close").onclick = () => {
+    selectedPreviewPlaceId = null;
+    el.hidden = true;
+    refreshLabels();
+  };
+  el.querySelectorAll("[data-place-act]").forEach((b) => {
+    b.onclick = () => {
+      const act = b.dataset.placeAct;
+      if (act === "route") {
+        showSystemMessage("길찾기는 경로 API 연동 후 이용할 수 있습니다.");
+      } else if (act === "favorite") {
+        showSystemMessage("즐겨찾기는 로컬 저장 연동 준비 중입니다.");
+      } else if (act === "share") {
+        showSystemMessage("공유 기능은 서버 연동 후 이용할 수 있습니다.");
+      } else if (act === "detail") {
+        emit("place:open", { ...meta, name: normalizePlaceName(meta.name) });
+      }
+    };
+  });
+}
+
+function placeMarkerHtml(place, zoom) {
+  const meta = normalizePlaceMeta(place);
+  const detail = zoomDetailLevel(zoom);
+  const selected = selectedPreviewPlaceId === meta.id;
+  const title = escapeHtml(normalizePlaceName(meta.name));
+  const cat = categoryLabel(meta.category);
+  const kind = meta.kind;
+  const svg =
+    kind === "road_label"
+      ? PLACE_CATEGORY_SVG.road
+      : kind === "area_label"
+        ? PLACE_CATEGORY_SVG.area
+        : categorySvg(meta.category);
+
+  if (kind === "road_label") {
+    return {
+      className: "vroo-marker-wrap",
+      html: `<div class="vroo-marker vroo-marker--road ${selected ? "is-selected" : ""}" role="img" aria-label="도로 정보, ${title}">
+        <b>${title}</b>
+      </div>`,
+      size: [110, 28],
+      anchor: [55, 14],
+      interactive: false
+    };
+  }
+  if (kind === "area_label") {
+    return {
+      className: "vroo-marker-wrap",
+      html: `<div class="vroo-marker vroo-marker--area ${selected ? "is-selected" : ""}" role="img" aria-label="지역 정보, ${title}">
+        <b>${title}</b>
+      </div>`,
+      size: [88, 28],
+      anchor: [44, 14],
+      interactive: false
+    };
+  }
+
+  const isLandmark = kind === "landmark";
+  const mod = isLandmark ? "landmark" : "place";
+  const showSub = detail === "high" && meta.subtitle;
+  const showCat = detail !== "low";
+  return {
+    className: "vroo-marker-wrap",
+    html: `<div class="vroo-marker vroo-marker--${mod} cat-${escapeHtml(meta.category)} ${selected ? "is-selected" : ""}" role="button" tabindex="0" aria-label="${escapeHtml(cat)}, ${title}" aria-selected="${selected}">
+      <div class="vroo-marker-pin" aria-hidden="true">${svg}</div>
+      <div class="vroo-marker-sign">
+        ${showCat ? `<span class="vroo-marker-kind">${escapeHtml(isLandmark ? "이정표" : cat)}</span>` : ""}
+        <b>${title}</b>
+        ${showSub ? `<span class="vroo-marker-sub">${escapeHtml(meta.subtitle)}</span>` : ""}
       </div>
     </div>`,
-    iconSize: [120, 70],
-    iconAnchor: [60, 35]
-  });
+    size: [detail === "low" ? 44 : 168, detail === "high" ? 64 : detail === "low" ? 44 : 52],
+    anchor: [detail === "low" ? 22 : 28, detail === "low" ? 40 : 48],
+    interactive: true
+  };
 }
 
-function placeClass(type) {
-  return `vroo-place-label vroo-place-${type || "place"}`;
-}
-
-function placeIcon(place) {
-  const title = normalizePlaceName(place.name);
-  const subtitle = place.subtitle ? `<span>${place.subtitle}</span>` : "";
-  return L.divIcon({
-    className: "",
-    html: `<div class="${placeClass(place.type)}">
-      <i>${place.icon || "📍"}</i>
-      <div><b>${title}</b>${subtitle}</div>
-    </div>`,
-    iconSize: [190, 52],
-    iconAnchor: [95, 26]
-  });
+function collisionOffset(index) {
+  const ring = Math.floor(index / 4) + 1;
+  const corner = index % 4;
+  const step = 0.00012 * ring;
+  const dx = corner === 1 || corner === 2 ? step : corner === 3 ? -step : 0;
+  const dy = corner === 0 || corner === 1 ? step : corner === 2 ? -step : -step * 0.5;
+  return { lat: dy, lng: dx };
 }
 
 function drawPlaceLabels(targetMap, targetLayer) {
   targetLayer.clearLayers();
-  if (!labelsVisible) return;
+  const prefs = ensureMapLayerPrefs();
+  if (!prefs.labelsVisible && prefs.filterMode !== "place") return;
   const zoom = targetMap.getZoom();
   const bounds = targetMap.getBounds().pad(0.3);
-  for (const place of placesForZoom(zoom)) {
-    const latlng = L.latLng(place.lat, place.lng);
+  let idx = 0;
+  for (const raw of placesForZoomDetail(zoom)) {
+    const place = normalizePlaceMeta(raw);
+    if (!placePassesFilter(place, prefs)) continue;
+    let lat = place.lat;
+    let lng = place.lng;
+    const off = collisionOffset(idx);
+    lat += off.lat;
+    lng += off.lng;
+    const latlng = L.latLng(lat, lng);
     if (!bounds.contains(latlng)) continue;
-    L.marker(latlng, {
-      icon: placeIcon(place),
-      interactive: true,
-      keyboard: false,
-      zIndexOffset: 300
-    })
-      .on("click", () => {
-        emit("place:open", {
-          ...place,
-          name: normalizePlaceName(place.name)
-        });
-      })
-      .addTo(targetLayer);
+    const pack = placeMarkerHtml(place, zoom);
+    const selected = selectedPreviewPlaceId === place.id;
+    const marker = L.marker(latlng, {
+      icon: L.divIcon({
+        className: pack.className,
+        html: pack.html,
+        iconSize: pack.size,
+        iconAnchor: pack.anchor
+      }),
+      interactive: pack.interactive,
+      keyboard: pack.interactive,
+      zIndexOffset: zOffsetForKind(place.kind, selected),
+      opacity: place.kind === "road_label" || place.kind === "area_label" ? 0.92 : 1
+    });
+    if (pack.interactive) {
+      marker.on("click", () => {
+        if (place.kind === "road_label" || place.kind === "area_label") return;
+        showPlacePreviewCard(place);
+      });
+    }
+    marker.addTo(targetLayer);
+    idx += 1;
   }
 }
 
@@ -171,6 +546,240 @@ function refreshLabels() {
   } catch (e) {
     warnRare("[VROO map] labels all", e);
   }
+}
+
+function ensureMapLegendUi() {
+  const host = document.querySelector("#mapView");
+  if (!host || host.querySelector("#mapLegend")) return;
+  const wrap = document.createElement("div");
+  wrap.id = "mapLegend";
+  wrap.className = "map-legend";
+  wrap.innerHTML = `
+    <button type="button" class="map-legend-toggle" id="mapLegendToggle" aria-expanded="false" aria-controls="mapLegendPanel">지도 표시</button>
+    <div id="mapLegendPanel" class="map-legend-panel" hidden>
+      <div class="map-legend-title">표시 필터</div>
+      <div class="map-legend-filters" role="group" aria-label="객체 유형 필터">
+        <button type="button" class="secondary" data-map-filter="all" aria-pressed="true">전체</button>
+        <button type="button" class="secondary" data-map-filter="vehicle" aria-pressed="false">차량</button>
+        <button type="button" class="secondary" data-map-filter="place" aria-pressed="false">등록지점</button>
+        <button type="button" class="secondary" data-map-filter="spatial" aria-pressed="false">공간 메시지</button>
+      </div>
+      <div class="map-legend-title">레이어</div>
+      <div class="map-legend-layers">
+        <label><input type="checkbox" data-layer="showVehicles" checked /> 차량</label>
+        <label><input type="checkbox" data-layer="showPlaces" checked /> 등록지점</label>
+        <label><input type="checkbox" data-layer="showLandmarks" checked /> 주요 이정표</label>
+        <label><input type="checkbox" data-layer="showSpatial" checked /> 공간 메시지</label>
+        <label><input type="checkbox" data-layer="showRoadLabels" checked /> 도로 정보</label>
+        <label><input type="checkbox" data-layer="showAreaLabels" checked /> 지역 정보</label>
+      </div>
+      <div class="map-legend-swatches" aria-hidden="true">
+        <span class="sw sw-vehicle">차량</span>
+        <span class="sw sw-place">등록지점</span>
+        <span class="sw sw-landmark">이정표</span>
+        <span class="sw sw-spatial">공간</span>
+        <span class="sw sw-road">도로</span>
+      </div>
+    </div>`;
+  host.appendChild(wrap);
+  const toggle = wrap.querySelector("#mapLegendToggle");
+  const panel = wrap.querySelector("#mapLegendPanel");
+  toggle.onclick = () => {
+    legendOpen = !legendOpen;
+    panel.hidden = !legendOpen;
+    toggle.setAttribute("aria-expanded", String(legendOpen));
+  };
+  wrap.querySelectorAll("[data-map-filter]").forEach((b) => {
+    b.onclick = () => {
+      const prefs = ensureMapLayerPrefs();
+      prefs.filterMode = b.dataset.mapFilter;
+      saveMapPrefs();
+      syncLegendUi();
+      drawUsers(markerMode);
+      refreshLabels();
+      refreshSpatialOverlays();
+    };
+  });
+  wrap.querySelectorAll("[data-layer]").forEach((inp) => {
+    inp.onchange = () => {
+      const prefs = ensureMapLayerPrefs();
+      prefs[inp.dataset.layer] = inp.checked;
+      if (inp.dataset.layer === "showRoadLabels" || inp.dataset.layer === "showAreaLabels" || inp.dataset.layer === "showPlaces" || inp.dataset.layer === "showLandmarks") {
+        prefs.labelsVisible = prefs.showPlaces || prefs.showLandmarks || prefs.showRoadLabels || prefs.showAreaLabels;
+        labelsVisible = prefs.labelsVisible;
+        const labelButton = document.querySelector("#labelToggleButton");
+        if (labelButton) {
+          labelButton.classList.toggle("active", labelsVisible);
+          labelButton.textContent = labelsVisible ? "지명 ON" : "지명 OFF";
+        }
+      }
+      saveMapPrefs();
+      drawUsers(markerMode);
+      refreshLabels();
+      refreshSpatialOverlays();
+    };
+  });
+  if (!legendOutsideBound) {
+    legendOutsideBound = true;
+    document.addEventListener("pointerdown", (e) => {
+      if (!legendOpen) return;
+      const box = document.querySelector("#mapLegend");
+      if (box && !box.contains(e.target)) {
+        legendOpen = false;
+        const p = box.querySelector("#mapLegendPanel");
+        const t = box.querySelector("#mapLegendToggle");
+        if (p) p.hidden = true;
+        if (t) t.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+  syncLegendUi();
+}
+
+function syncLegendUi() {
+  const prefs = ensureMapLayerPrefs();
+  const wrap = document.querySelector("#mapLegend");
+  if (!wrap) return;
+  wrap.querySelectorAll("[data-map-filter]").forEach((b) => {
+    const on = b.dataset.mapFilter === prefs.filterMode;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  wrap.querySelectorAll("[data-layer]").forEach((inp) => {
+    inp.checked = prefs[inp.dataset.layer] !== false;
+  });
+}
+
+function syncSpatialOverlays(targetMap, layer) {
+  if (!targetMap || !layer || !stateRef) return;
+  layer.clearLayers();
+  const prefs = ensureMapLayerPrefs();
+  if (!prefs.showSpatial || prefs.filterMode === "vehicle" || prefs.filterMode === "place") return;
+  pruneSpatialOverlays(stateRef);
+  const zoom = targetMap.getZoom();
+  const pack = getActiveSpatialOverlays(stateRef, zoom);
+  const me = stateRef.location;
+  if (pack.mode === "situation_cluster" || pack.mode === "cluster") {
+    const clusters = Array.isArray(pack.situationClusters) ? pack.situationClusters : [];
+    if (clusters.length && me) {
+      let offset = 0;
+      for (const c of clusters.slice(0, 6)) {
+        const ago = c.lastReportedAt
+          ? Math.max(0, Math.round((Date.now() - Number(c.lastReportedAt)) / 60000))
+          : null;
+        const agoLabel = ago == null ? "" : ago < 1 ? "방금" : `${ago}분 전`;
+        const sev = c.severity || "warning";
+        L.marker([me.lat + offset * 0.00018, me.lng + offset * 0.00012], {
+          icon: L.divIcon({
+            className: `vroo-marker-wrap spatial-overlay-cluster sev-${sev}`,
+            html: `<div class="vroo-marker vroo-marker--spatial-message spatial-cluster-badge" aria-label="공간 메시지, ${escapeHtml(c.label || c.category)} ${c.confirmationCount}명 확인">
+              <b>${escapeHtml(c.label || c.category)}</b>
+              <span>${c.confirmationCount}명 확인</span>
+              ${agoLabel ? `<span class="muted">${escapeHtml(agoLabel)}</span>` : ""}
+            </div>`,
+            iconSize: [130, 48],
+            iconAnchor: [65, 24]
+          }),
+          interactive: true,
+          zIndexOffset: zOffsetForKind("spatial_message") + offset
+        })
+          .on("click", () =>
+            openConversationInChat(stateRef.roadChat?.session?.conversationId || "road-session-current")
+          )
+          .addTo(layer);
+        offset += 1;
+      }
+      return;
+    }
+    if (pack.count > 0 && me) {
+      L.marker([me.lat, me.lng], {
+        icon: L.divIcon({
+          className: "vroo-marker-wrap spatial-overlay-cluster",
+          html: `<div class="vroo-marker vroo-marker--spatial-message spatial-cluster-badge">최근 공간 메시지 ${pack.count}</div>`,
+          iconSize: [140, 28],
+          iconAnchor: [70, 14]
+        }),
+        interactive: true,
+        zIndexOffset: zOffsetForKind("spatial_message")
+      })
+        .on("click", () =>
+          openConversationInChat(stateRef.roadChat?.session?.conversationId || "road-session-current")
+        )
+        .addTo(layer);
+    }
+    return;
+  }
+  const clusters = Array.isArray(pack.situationClusters) ? pack.situationClusters : [];
+  if (clusters.length && me && clusters.some((c) => c.confirmationCount >= 2)) {
+    const top = [...clusters].sort((a, b) => b.confirmationCount - a.confirmationCount)[0];
+    L.marker([me.lat + 0.00025, me.lng], {
+      icon: L.divIcon({
+        className: "vroo-marker-wrap spatial-overlay-cluster",
+        html: `<div class="vroo-marker vroo-marker--spatial-message spatial-cluster-badge"><b>${escapeHtml(top.label)}</b> ${top.confirmationCount}명 확인</div>`,
+        iconSize: [130, 36],
+        iconAnchor: [65, 18]
+      }),
+      interactive: true,
+      zIndexOffset: zOffsetForKind("spatial_message") + 20
+    })
+      .on("click", () =>
+        openConversationInChat(stateRef.roadChat?.session?.conversationId || "road-session-current")
+      )
+      .addTo(layer);
+  }
+  for (const item of pack.items) {
+    const uid = item.anchorVehicleId;
+    const u = users.find((x) => String(x.id) === String(uid));
+    let lat = stateRef.location?.lat;
+    let lng = stateRef.location?.lng;
+    if (u) {
+      lat = u.lat;
+      lng = u.lng;
+    } else if (String(uid) === String(MY_USER_ID)) {
+      lat = stateRef.location?.lat;
+      lng = stateRef.location?.lng;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const pri = item.spatialPriority || "normal";
+    L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: `vroo-marker-wrap spatial-overlay-bubble pri-${pri}`,
+        html: `<div class="vroo-marker vroo-marker--spatial-message spatial-bubble"><span class="spatial-bubble-tag">${pri === "urgent" ? "주의" : pri === "warning" ? "안내" : "공간"}</span>${escapeHtml(item.body)}</div>`,
+        iconSize: [160, 44],
+        iconAnchor: [80, 48]
+      }),
+      interactive: true,
+      zIndexOffset: zOffsetForKind("spatial_message")
+    })
+      .on("click", () => openConversationInChat(item.conversationId || "road-session-current"))
+      .addTo(layer);
+  }
+}
+
+function refreshSpatialOverlays() {
+  try {
+    if (map && spatialOverlayLayerNear) syncSpatialOverlays(map, spatialOverlayLayerNear);
+  } catch (e) {
+    warnRare("[VROO map] spatial near", e);
+  }
+  try {
+    if (allMap && spatialOverlayLayerAll) syncSpatialOverlays(allMap, spatialOverlayLayerAll);
+  } catch (e) {
+    warnRare("[VROO map] spatial all", e);
+  }
+}
+
+function convoIndicatorHtml(statusInfo) {
+  const st = statusInfo?.status || "no_conversation";
+  if (st === "no_conversation" || st === "muted") return "";
+  if (st === "blocked") {
+    return `<span class="map-convo-ind blocked" title="차단">✕</span>`;
+  }
+  const unread = Math.max(0, Number(statusInfo.unread) || 0);
+  const urgent = st === "urgent" ? " urgent" : "";
+  const active = st === "active" || st === "unread" || st === "urgent" ? " active" : "";
+  const badge = unread > 0 ? `<span class="map-convo-badge">${unread > 9 ? "9+" : unread}</span>` : "";
+  return `<span class="map-convo-ind${active}${urgent}" aria-hidden="true">${badge || "·"}</span>`;
 }
 
 function createBasemap(targetMap) {
@@ -200,18 +809,28 @@ function bindUserInteraction(targetMap) {
 }
 
 function syncUserMarkerMap(store, layer, list) {
+  const prefs = ensureMapLayerPrefs();
   const seen = new Set();
   for (const user of list) {
+    if (!vehiclePassesFilter(user, prefs)) continue;
     seen.add(user.id);
+    const selected = selectedPreviewUserId === user.id;
     let marker = store.get(user.id);
     if (!marker) {
-      marker = L.marker([user.lat, user.lng], {icon: iconFor(user)})
-        .on("click", () => emit("user:open", {id: user.id}))
+      marker = L.marker([user.lat, user.lng], {
+        icon: iconFor(user),
+        zIndexOffset: zOffsetForKind("vehicle", selected)
+      })
+        .on("click", () => {
+          const fresh = users.find((u) => u.id === user.id) || user;
+          showVehiclePreviewCard(fresh);
+        })
         .addTo(layer);
       store.set(user.id, marker);
     } else {
       marker.setLatLng([user.lat, user.lng]);
       marker.setIcon(iconFor(user));
+      marker.setZIndexOffset(zOffsetForKind("vehicle", selected));
     }
   }
   for (const [id, marker] of store) {
@@ -223,20 +842,22 @@ function syncUserMarkerMap(store, layer, list) {
 
 function syncMeMarker(which) {
   const latlng = [stateRef.location.lat, stateRef.location.lng];
-  const icon = iconFor({}, true);
+  const icon = myLocationIcon();
   if (which === "near") {
     if (!meMarkerNear) {
-      meMarkerNear = L.marker(latlng, {icon, zIndexOffset: 1000}).addTo(markerLayer);
+      meMarkerNear = L.marker(latlng, { icon, zIndexOffset: zOffsetForKind("my_location") }).addTo(markerLayer);
     } else {
       meMarkerNear.setLatLng(latlng);
       meMarkerNear.setIcon(icon);
+      meMarkerNear.setZIndexOffset(zOffsetForKind("my_location"));
     }
   } else {
     if (!meMarkerAll) {
-      meMarkerAll = L.marker(latlng, {icon, zIndexOffset: 1000}).addTo(allLayer);
+      meMarkerAll = L.marker(latlng, { icon, zIndexOffset: zOffsetForKind("my_location") }).addTo(allLayer);
     } else {
       meMarkerAll.setLatLng(latlng);
       meMarkerAll.setIcon(icon);
+      meMarkerAll.setZIndexOffset(zOffsetForKind("my_location"));
     }
   }
 }
@@ -668,6 +1289,7 @@ export function initMap(state) {
   createBasemap(map);
   markerLayer = L.layerGroup().addTo(map);
   placeLabelLayer = L.layerGroup().addTo(map);
+  spatialOverlayLayerNear = L.layerGroup().addTo(map);
 
   allMap = L.map("allMap", {
     zoomControl: false,
@@ -677,9 +1299,18 @@ export function initMap(state) {
   createBasemap(allMap);
   allLayer = L.layerGroup().addTo(allMap);
   allPlaceLabelLayer = L.layerGroup().addTo(allMap);
+  spatialOverlayLayerAll = L.layerGroup().addTo(allMap);
 
-  map.on("zoomend moveend", refreshLabels);
-  allMap.on("zoomend moveend", refreshLabels);
+  map.on("zoomend moveend", () => {
+    refreshLabels();
+    refreshSpatialOverlays();
+    drawUsers(markerMode);
+  });
+  allMap.on("zoomend moveend", () => {
+    refreshLabels();
+    refreshSpatialOverlays();
+    drawUsers(markerMode);
+  });
   bindUserInteraction(map);
   bindUserInteraction(allMap);
 
@@ -692,13 +1323,22 @@ export function initMap(state) {
 
   const labelButton = document.querySelector("#labelToggleButton");
   if (labelButton) {
+    const prefs = ensureMapLayerPrefs(state);
+    labelsVisible = prefs.labelsVisible !== false;
+    labelButton.classList.toggle("active", labelsVisible);
+    labelButton.textContent = labelsVisible ? "지명 ON" : "지명 OFF";
     labelButton.onclick = () => {
-      labelsVisible = !labelsVisible;
+      const p = ensureMapLayerPrefs(state);
+      p.labelsVisible = !p.labelsVisible;
+      labelsVisible = p.labelsVisible;
       labelButton.classList.toggle("active", labelsVisible);
       labelButton.textContent = labelsVisible ? "지명 ON" : "지명 OFF";
+      saveMapPrefs();
       refreshLabels();
     };
   }
+
+  ensureMapLegendUi();
 
   mapReady = true;
   users = makeDemoUsers(state.location);
@@ -803,6 +1443,8 @@ export function drawUsers(mode = "near") {
   } catch (e) {
     warnRare("[VROO map] markers all", e);
   }
+
+  refreshSpatialOverlays();
 }
 
 export function setMapView(mode) {

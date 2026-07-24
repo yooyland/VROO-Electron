@@ -802,6 +802,15 @@ function tick() {
     const speed = 38 + Math.round(Math.sin(now / 2500) * 3);
     const speedEl = document.querySelector("#roadSpeed");
     if (speedEl) speedEl.textContent = String(speed);
+    if (stateRef?.navigation) {
+      stateRef.navigation.demoSpeedKmh = speed;
+      stateRef.navigation.demoForwardVehicles = carEntries.size;
+      stateRef.navigation.speedKmh = null;
+      stateRef.navigation.speedLimitKmh = null;
+      if (!stateRef.navigation.destination && !stateRef.navigation.routeId) {
+        stateRef.navigation.navigationMode = "idle";
+      }
+    }
 
     let min = 999;
     for (const entry of carEntries.values()) {
@@ -815,10 +824,14 @@ function tick() {
     updateBubblePositions();
 
     const safetyEl = document.querySelector("#roadSafety");
-    if (safetyEl) safetyEl.textContent = min < 22 ? "안전거리 주의" : "안전거리 정상";
+    const safetyText = min < 22 ? "안전거리 주의 (데모)" : "안전거리 정상 (데모)";
+    if (safetyEl) safetyEl.textContent = safetyText;
+    if (stateRef?.navigation) stateRef.navigation.demoSafety = min < 22 ? "caution" : "ok";
+    const countEl = document.querySelector("#roadCount");
+    if (countEl) countEl.textContent = String(carEntries.size);
     const metaEl = document.querySelector("#roadMeta");
     if (metaEl) {
-      metaEl.textContent = `${environment} · 안정 주행 · 전방 ${carEntries.size}대`;
+      metaEl.textContent = `${environment} · 로컬 데모 속도 · 전방 ${carEntries.size}대 · ETA/경로 미연동`;
     }
     renderer.render(scene, camera);
   } catch (e) {

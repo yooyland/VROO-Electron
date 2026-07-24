@@ -1,13 +1,21 @@
-import { DEMO_ROLE_OPTIONS } from "../../../shared/config/roles.js";
+import { getRole } from "../../../shared/config/roles.js";
 import { CONSOLE_NAV_GROUPS } from "../../../shared/config/console-navigation.js";
 import { getVisibleNavItems } from "../../../shared/config/console-navigation.js";
 import { filterNavByPermissions } from "../../../shared/utils/permission.js";
 import { escapeHtml } from "../../../shared/utils/format.js";
+import { getDevelopmentAccounts } from "../../../shared/data/demo-accounts.js";
 import {
-  loadSession, saveSession, logout, loadSavedRoute,
-  loadNavCollapse, saveNavCollapse
+  loadSession,
+  saveSessionForAccount,
+  switchActiveRole,
+  logout,
+  loadSavedRoute,
+  loadNavCollapse,
+  saveNavCollapse,
+  getAssignedRoleOptions
 } from "./console-auth.js";
-import { bindModalChrome, toast, openModal, closeModal, formatDateTimeKo } from "./console-ui.js";
+import { resetAccountsToSeed } from "./account-store.js";
+import { bindModalChrome, toast, openModal, closeModal, formatDateTimeKo, confirmDialog } from "./console-ui.js";
 import { navigate } from "./console-router.js";
 import { iconSvg } from "./console-icons.js";
 import { getNavItemByRoute } from "../../../shared/config/console-navigation.js";
@@ -32,12 +40,21 @@ const PAGE_META = {
   incidents: { title: "사고 접수", crumb: "고객지원" },
   analytics: { title: "통계", crumb: "분석" },
   system: { title: "시스템 상태", crumb: "시스템" },
-  permissions: { title: "권한 관리", crumb: "시스템" }
+  accounts: { title: "계정·역할 관리", crumb: "시스템" },
+  permissions: { title: "권한 정보", crumb: "시스템" }
 };
+
+function loginAsAccount(accountId) {
+  ctx.session = saveSessionForAccount(accountId);
+  mountShell();
+  go(ctx.session.defaultRoute);
+  toast(`${ctx.session.displayName} 접속`);
+}
 
 function showLogin() {
   document.body.dataset.consoleView = "login";
   const app = document.getElementById("consoleApp");
+  const devAccounts = getDevelopmentAccounts();
   app.innerHTML = `
     <section class="login-screen" aria-label="로그인">
       <div class="login-layout">
@@ -64,15 +81,16 @@ function showLogin() {
             <button type="button" class="btn primary" id="loginSubmit">로그인</button>
           </div>
           <p class="login-note" id="loginError" hidden></p>
-          <p class="login-note">서버 인증 연동 전입니다. 비밀번호 검증은 수행되지 않습니다. 아래 Development access로 테스트 계정에 접속하세요.</p>
+          <p class="login-note">서버 인증 연동 전입니다. 비밀번호 검증은 수행되지 않습니다. 아래 Development access에서 테스트 계정을 선택하세요.</p>
         </div>
         <details class="dev-access">
           <summary>Development access</summary>
+          <p class="muted" style="margin:8px 0 10px;font-size:12px">테스트 계정을 선택합니다. 역할이 아니라 계정 단위로 접속합니다.</p>
           <div class="dev-role-list">
-            ${DEMO_ROLE_OPTIONS.map((r) => `
-              <button type="button" class="dev-role-btn" data-role="${escapeHtml(r.id)}">
-                <b>${escapeHtml(r.label)}</b>
-                <span>${escapeHtml(r.description)}</span>
+            ${devAccounts.map((a) => `
+              <button type="button" class="dev-role-btn" data-account="${escapeHtml(a.id)}">
+                <b>${escapeHtml(a.displayName)}</b>
+                <span>${escapeHtml(a.devLabel)} · ${escapeHtml(a.email)}</span>
               </button>`).join("")}
           </div>
         </details>
@@ -82,16 +100,13 @@ function showLogin() {
   document.getElementById("loginSubmit").onclick = () => {
     const err = document.getElementById("loginError");
     err.hidden = false;
-    err.textContent = "서버 인증이 연결되지 않았습니다. Development access에서 테스트 역할을 선택하세요.";
+    err.textContent = "서버 인증이 연결되지 않았습니다. Development access에서 테스트 계정을 선택하세요.";
   };
 
-  app.querySelectorAll("[data-role]").forEach((btn) => {
+  app.querySelectorAll("[data-account]").forEach((btn) => {
     btn.onclick = () => {
       try {
-        ctx.session = saveSession(btn.dataset.role);
-        mountShell();
-        go(ctx.session.defaultRoute);
-        toast(`${ctx.session.displayName} 접속`);
+        loginAsAccount(btn.dataset.account);
       } catch (e) {
         toast(e.message || "접속 실패", "error");
       }
@@ -163,6 +178,51 @@ function bindNav(nav) {
   });
 }
 
+function openRoleSwitchModal() {
+  const s = ctx.session;
+  const options = getAssignedRoleOptions(s);
+  openModal({
+    title: "역할 전환",
+    bodyHtml: `
+      <p class="muted">현재 계정에 부여된 역할만 선택할 수 있습니다.</p>
+      <div class="role-switch-list" role="listbox" aria-label="보유 역할">
+        ${options.map((r) => `
+          <button type="button" class="role-switch-item ${r.active ? "is-active" : ""}" data-role-pick="${escapeHtml(r.id)}" ${r.active ? "disabled" : ""}>
+            <div class="rsi-top">
+              <b>${escapeHtml(r.label)}</b>
+              ${r.active ? `<span class="status-badge status-ok">사용 중</span>` : ""}
+            </div>
+            <div class="rsi-desc">${escapeHtml(r.description || "")}</div>
+            <div class="rsi-org muted">${escapeHtml(r.organizationName || s.organizationName || "")}</div>
+          </button>`).join("")}
+      </div>`,
+    actions: [{ label: "닫기", onClick: closeModal }]
+  });
+
+  document.querySelectorAll("[data-role-pick]").forEach((btn) => {
+    btn.onclick = () => {
+      const nextId = btn.dataset.rolePick;
+      const nextLabel = getRole(nextId)?.label || nextId;
+      closeModal();
+      confirmDialog({
+        title: "역할 전환 확인",
+        message: `활성 역할을 ${nextLabel}(으)로 전환하시겠습니까?\n메뉴와 접근 권한이 해당 역할 기준으로 변경됩니다.`,
+        onConfirm: () => {
+          const res = switchActiveRole(ctx.session, nextId);
+          if (!res.ok) {
+            toast(res.message || "전환할 수 없습니다.", "error");
+            return;
+          }
+          ctx.session = res.session;
+          mountShell();
+          go(ctx.session.defaultRoute);
+          toast(`${ctx.session.label} 역할로 전환되었습니다.`);
+        }
+      });
+    };
+  });
+}
+
 let shellDocHandlersBound = false;
 
 function mountShell() {
@@ -172,6 +232,7 @@ function mountShell() {
   const initial = (s.displayName || "?").slice(0, 1);
   const isDev = s.environment === "development";
   const lastLogin = formatDateTimeKo(s.lastLoginAt);
+  const canSwitchRole = (s.assignedRoles || []).length >= 2;
   const app = document.getElementById("consoleApp");
   app.innerHTML = `
     <div class="console-shell">
@@ -195,19 +256,20 @@ function mountShell() {
             <div class="account-menu" id="accountMenu" role="menu" hidden>
               <div class="account-menu-head">
                 <b>${escapeHtml(s.displayName)}</b>
-                <span>${escapeHtml(s.label)}</span>
+                <span>현재 역할: ${escapeHtml(s.label)}</span>
                 <span>${escapeHtml(s.organizationName)}</span>
-                <span class="muted">${escapeHtml(s.department || "")}</span>
-                <span class="muted">최근 접속 ${escapeHtml(lastLogin)}</span>
               </div>
               <button type="button" data-acc="profile" role="menuitem">내 정보</button>
               <button type="button" data-acc="perms" role="menuitem">권한 정보</button>
               <button type="button" data-acc="env" role="menuitem">운영 환경</button>
               <div class="sep"></div>
+              <div class="account-menu-note muted">현재 역할 · ${escapeHtml(s.label)}</div>
+              ${canSwitchRole ? `<button type="button" data-acc="role-switch" role="menuitem">역할 전환</button>` : ""}
+              <div class="sep"></div>
               ${isDev ? `
               <div class="dev-block" role="group" aria-label="개발 도구">
-                <div class="dev-label">개발 도구</div>
-                <button type="button" data-acc="dev-switch" role="menuitem">테스트 역할 전환</button>
+                <div class="dev-label">Development</div>
+                <button type="button" data-acc="dev-accounts" role="menuitem">테스트 계정 전환</button>
                 <button type="button" data-acc="dev-reset" role="menuitem">데이터 초기화</button>
               </div>
               <div class="sep"></div>` : ""}
@@ -295,16 +357,23 @@ function mountShell() {
       go("permissions");
       return;
     }
+    if (act === "role-switch") {
+      openRoleSwitchModal();
+      return;
+    }
     if (act === "profile") {
       openModal({
         title: "내 정보",
         bodyHtml: `
           <dl class="info-dl">
-            <dt>이름</dt><dd>${escapeHtml(s.displayName)}</dd>
-            <dt>역할</dt><dd>${escapeHtml(s.label)}</dd>
+            <dt>대화명</dt><dd>${escapeHtml(s.displayName)}</dd>
+            <dt>이름</dt><dd>${escapeHtml(s.legalName || "—")}</dd>
+            <dt>이메일</dt><dd>${escapeHtml(s.email || "—")}</dd>
+            <dt>계정 유형</dt><dd>${escapeHtml(s.accountTypeLabel || s.accountType)}</dd>
+            <dt>현재 역할</dt><dd>${escapeHtml(s.label)}</dd>
+            <dt>보유 역할</dt><dd>${escapeHtml((s.assignedRoles || []).map((id) => getRole(id)?.label || id).join(", "))}</dd>
             <dt>조직</dt><dd>${escapeHtml(s.organizationName)}</dd>
             <dt>부서</dt><dd>${escapeHtml(s.department || "—")}</dd>
-            <dt>이메일</dt><dd>${escapeHtml(s.email || "—")}</dd>
             <dt>최근 접속</dt><dd>${escapeHtml(lastLogin)}</dd>
           </dl>
           <p class="muted">서버 프로필 연동 전 로컬 계정입니다.</p>`,
@@ -320,7 +389,9 @@ function mountShell() {
             <dt>환경</dt><dd>${escapeHtml(s.environment || "development")}</dd>
             <dt>데이터 소스</dt><dd>Local seed</dd>
             <dt>인증</dt><dd>연동 전</dd>
+            <dt>계정 ID</dt><dd><code>${escapeHtml(s.accountId)}</code></dd>
             <dt>조직 ID</dt><dd><code>${escapeHtml(s.organizationId || "—")}</code></dd>
+            <dt>partnerId</dt><dd><code>${escapeHtml(s.partnerId || "없음")}</code></dd>
           </dl>
           <p class="muted">상세 연동 상태는 System 메뉴에서 확인하세요.</p>`,
         actions: [
@@ -333,7 +404,7 @@ function mountShell() {
     if (act === "dev-reset" && isDev) {
       openModal({
         title: "데이터 초기화",
-        bodyHtml: `<p>로컬 콘솔 세션·경로·메뉴 접힘 상태를 초기화합니다. User App 데이터는 변경되지 않습니다.</p>`,
+        bodyHtml: `<p>로컬 콘솔 세션·계정 오버레이·감사 로그·경로 상태를 초기화합니다. User App 데이터는 변경되지 않습니다.</p>`,
         actions: [
           { label: "취소", onClick: closeModal },
           {
@@ -341,6 +412,7 @@ function mountShell() {
             className: "primary",
             onClick: () => {
               try {
+                resetAccountsToSeed();
                 localStorage.removeItem("vroo.console.session");
                 localStorage.removeItem("vroo.console.role");
                 localStorage.removeItem("vroo.console.route");
@@ -357,26 +429,28 @@ function mountShell() {
       });
       return;
     }
-    if (act === "dev-switch" && isDev) {
+    if (act === "dev-accounts" && isDev) {
+      const list = getDevelopmentAccounts();
       openModal({
-        title: "테스트 역할 전환",
-        bodyHtml: `<p class="muted">개발 전용입니다. 일반 운영 UI가 아닙니다.</p>
+        title: "테스트 계정 전환",
+        bodyHtml: `<p class="muted">Development 전용입니다. 계정 단위로 전환합니다.</p>
           <div class="dev-role-list" style="margin-top:10px">
-            ${DEMO_ROLE_OPTIONS.map((r) => `
-              <button type="button" class="dev-role-btn" data-switch="${escapeHtml(r.id)}">
-                <b>${escapeHtml(r.label)}</b>
-                <span>${escapeHtml(r.id)}</span>
+            ${list.map((a) => `
+              <button type="button" class="dev-role-btn" data-switch-acc="${escapeHtml(a.id)}">
+                <b>${escapeHtml(a.displayName)}</b>
+                <span>${escapeHtml(a.devLabel)} · ${escapeHtml(a.email)}</span>
               </button>`).join("")}
           </div>`,
         actions: [{ label: "닫기", onClick: closeModal }]
       });
-      document.querySelectorAll("[data-switch]").forEach((b) => {
+      document.querySelectorAll("[data-switch-acc]").forEach((b) => {
         b.onclick = () => {
-          ctx.session = saveSession(b.dataset.switch);
-          closeModal();
-          mountShell();
-          go(ctx.session.defaultRoute);
-          toast(`역할 전환: ${ctx.session.label}`);
+          try {
+            closeModal();
+            loginAsAccount(b.dataset.switchAcc);
+          } catch (err) {
+            toast(err.message || "전환 실패", "error");
+          }
         };
       });
     }

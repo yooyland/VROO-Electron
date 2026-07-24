@@ -8,6 +8,7 @@ import {
   DEMO_AUDIT_LOGS,
   activityFromAudit
 } from "../../../shared/data/demo-activity.js";
+import { listLocalAudit } from "./account-store.js";
 import { DEMO_SETTLEMENTS } from "../../../shared/data/demo-products.js";
 import {
   pageHeader,
@@ -110,7 +111,28 @@ function actionQueueHtml(items) {
 }
 
 function activityTable() {
-  const rows = activityFromAudit(DEMO_AUDIT_LOGS);
+  const seedRows = activityFromAudit(DEMO_AUDIT_LOGS);
+  const localRows = listLocalAudit(20)
+    .filter((a) => a.action === "session.role_switched")
+    .map((a) => {
+      const d = new Date(a.timestamp);
+      const time = Number.isNaN(d.getTime())
+        ? "—"
+        : d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return {
+        id: a.id,
+        time,
+        area: "세션",
+        action: "역할 전환",
+        target: `${a.previousRole || "—"} → ${a.nextRole || "—"}`,
+        actor: a.actorDisplayName || "—",
+        result: "완료",
+        resultKey: "success",
+        reason: a.reason,
+        auditId: a.id
+      };
+    });
+  const rows = [...localRows, ...seedRows].slice(0, 12);
   return `
     <div class="section-card elevated">
       <h3>최근 운영 활동</h3>
@@ -403,8 +425,8 @@ function renderDeveloper(root, ctx) {
     ${pageHeader({ title: "Dashboard", subtitle: "플랫폼 상태와 연동 정보를 확인합니다." })}
     ${dataContextBar(Date.now())}
     <div class="metric-grid">
-      ${metricCard({ label: "환경", value: ctx.session.environment || "development", hint: "System에서 확인" })}
-      ${metricCard({ label: "세션 역할", value: ctx.session.roleId, hint: "로컬 세션" })}
+      ${metricCard({ label: "세션 역할", value: ctx.session.activeRole || ctx.session.roleId, hint: "activeRole" })}
+      ${metricCard({ label: "계정", value: ctx.session.displayName, hint: ctx.session.accountId })}
       ${metricCard({ label: "데이터 소스", value: "Local seed", hint: "서버 미연결" })}
       ${metricCard({ label: "인증", value: "연동 전", hint: "서버 인증 없음" })}
     </div>

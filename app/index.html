@@ -63,8 +63,20 @@
             <div id="roadView" class="view-layer">
               <div id="roadStage" class="road-stage">
                 <div id="threeHost" class="three-host"></div>
-                <div class="road-hud"><b>MY ROAD</b> <strong id="roadSpeed">0</strong><span>km/h</span><small id="roadMeta">주행 환경 준비 중</small></div>
-                <div class="road-side">주변 차량 <b id="roadCount">0</b>대<br><span id="roadSafety">안전거리 정상</span></div>
+                <div class="road-hud">
+                  <b>주행 안내</b>
+                  <strong id="roadSpeed">0</strong><span>km/h</span>
+                  <small id="roadMeta">로컬 데모 속도 · 내비게이션 미연동</small>
+                  <div class="road-nav-strip">
+                    <span id="roadNavMode">대기 · 경로 미설정</span>
+                    · <span id="roadNavName">현재 도로 확인 중</span>
+                    · <span id="roadNavDir">진행 방향 확인 중</span>
+                  </div>
+                  <div class="road-nav-strip muted" id="roadNavDest">목적지 미설정 · 경로 API 미연동</div>
+                  <div class="road-nav-strip muted" id="roadNavNext">다음 안내 없음 (로컬)</div>
+                  <div class="road-nav-strip muted" id="roadNavNote">로컬·데모 정보만 표시합니다.</div>
+                </div>
+                <div class="road-side">전방 차량 <b id="roadCount">0</b>대<br><span id="roadSafety">안전거리 정상</span><br><span class="muted">데모 · 실제 센서 아님</span></div>
               </div>
             </div>
             <div id="allView" class="view-layer all-live-layout">

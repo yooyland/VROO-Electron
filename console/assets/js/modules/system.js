@@ -3,6 +3,7 @@ import { FEATURE_STATUS_SUMMARY } from "../../../../shared/config/feature-status
 import { DEMO_AUDIT_LOGS } from "../../../../shared/data/demo-activity.js";
 import { APP_ENVIRONMENT } from "../../../../shared/data/demo-accounts.js";
 import { pageHeader, statusBadge, escapeHtml, formatDate } from "../console-ui.js";
+import { listLocalAudit } from "../account-store.js";
 
 export function renderSystem(root, ctx) {
   const electron = window.vrooDesktop?.versions?.electron || "확인 불가";
@@ -54,17 +55,26 @@ export function renderSystem(root, ctx) {
       </div>
       <div class="col-12">
         <div class="section-card">
-          <h3>감사 로그 (seed)</h3>
+          <h3>감사 로그 (seed + 로컬)</h3>
           <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th>시간</th><th>행위자</th><th>작업</th><th>대상</th><th>결과</th><th>사유</th></tr></thead>
               <tbody>
-                ${DEMO_AUDIT_LOGS.map((a) => `
+                ${[...listLocalAudit(20).map((a) => ({
+                  timestamp: a.timestamp,
+                  actorName: a.actorDisplayName || "—",
+                  actorRole: "",
+                  action: a.action,
+                  resourceType: a.targetAccountId || "",
+                  resourceId: a.nextRole || a.previousRole || "",
+                  result: a.result,
+                  reason: a.reason
+                })), ...DEMO_AUDIT_LOGS].slice(0, 30).map((a) => `
                   <tr>
                     <td>${escapeHtml(formatDate(a.timestamp))}</td>
-                    <td>${escapeHtml(a.actorName)} <span class="muted">(${escapeHtml(a.actorRole)})</span></td>
+                    <td>${escapeHtml(a.actorName)}${a.actorRole ? ` <span class="muted">(${escapeHtml(a.actorRole)})</span>` : ""}</td>
                     <td><code>${escapeHtml(a.action)}</code></td>
-                    <td>${escapeHtml(a.resourceType)}/${escapeHtml(a.resourceId)}</td>
+                    <td>${escapeHtml(a.resourceType)}${a.resourceId ? `/${escapeHtml(a.resourceId)}` : ""}</td>
                     <td>${escapeHtml(a.result)}</td>
                     <td>${escapeHtml(a.reason || "—")}</td>
                   </tr>`).join("")}
@@ -77,15 +87,21 @@ export function renderSystem(root, ctx) {
 }
 
 export function renderPermissionsTool(root, ctx) {
+  const s = ctx.session;
+  const rolePerms = (s.permissions || []).filter((p) => p !== "*");
+  const hasStar = (s.permissions || []).includes("*");
   root.innerHTML = `
-    ${pageHeader({ title: "권한 관리", subtitle: "현재 계정의 역할과 권한 목록입니다." })}
-    <div class="section-card">
-      <p><b>${escapeHtml(ctx.session.displayName)}</b> · ${escapeHtml(ctx.session.label)}</p>
-      <p class="muted">${escapeHtml(ctx.session.organizationName)} · ${escapeHtml(ctx.session.department || "")}</p>
-      <p class="muted">userId: <code>${escapeHtml(ctx.session.userId)}</code>
-        ${ctx.session.partnerId ? ` · partnerId: <code>${escapeHtml(ctx.session.partnerId)}</code>` : ""}</p>
-      <h3 style="margin-top:16px">permissions</h3>
-      <ul class="simple-list">${ctx.session.permissions.map((p) =>
+    ${pageHeader({ title: "권한 정보", subtitle: "현재 계정의 활성 역할과 계산된 권한입니다." })}
+    <div class="section-card elevated">
+      <p><b>${escapeHtml(s.displayName)}</b> · 현재 역할: ${escapeHtml(s.label)}</p>
+      <p class="muted">${escapeHtml(s.organizationName)} · ${escapeHtml(s.department || "")}</p>
+      <p class="muted">계정 유형: ${escapeHtml(s.accountTypeLabel || s.accountType)}
+        · accountId: <code>${escapeHtml(s.accountId || s.userId)}</code>
+        ${s.partnerId ? ` · partnerId: <code>${escapeHtml(s.partnerId)}</code>` : ""}</p>
+      <p class="muted">보유 역할: ${escapeHtml((s.assignedRoles || []).join(", "))}</p>
+      <h3 style="margin-top:16px">최종 계산 권한</h3>
+      ${hasStar ? `<p class="muted">역할 와일드카드(*) — 최종 권한 관리자 전용 권한은 포함되지 않습니다.</p>` : ""}
+      <ul class="simple-list">${(hasStar ? ["*", ...rolePerms] : rolePerms).map((p) =>
         `<li><code>${escapeHtml(p)}</code></li>`).join("")}</ul>
     </div>`;
 }

@@ -35,10 +35,29 @@ export const PERMISSIONS = Object.freeze([
   "system.view",
   "system.manage",
   "logs.view",
-  "developers.manage"
+  "developers.manage",
+  /* Account authority — not included in super_admin * */
+  "accounts.view",
+  "accounts.manage",
+  "roles.assign",
+  "roles.revoke",
+  "permissions.assign",
+  "permissions.revoke",
+  "root_authority.manage"
 ]);
 
-/** 역할별 기본 권한 (super_admin은 * ) */
+/** Permissions never granted by role wildcard * — only root_authority account */
+export const ROOT_SCOPED_PERMISSIONS = Object.freeze([
+  "accounts.view",
+  "accounts.manage",
+  "roles.assign",
+  "roles.revoke",
+  "permissions.assign",
+  "permissions.revoke",
+  "root_authority.manage"
+]);
+
+/** 역할별 기본 권한 (super_admin은 * — root_scoped 제외) */
 export const ROLE_PERMISSION_MAP = Object.freeze({
   super_admin: ["*"],
   operator: [
