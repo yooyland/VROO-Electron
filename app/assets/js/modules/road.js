@@ -24,6 +24,8 @@ let roadReady = false;
 let resizeBound = false;
 let usersListenerBound = false;
 let chatListenerBound = false;
+/** @type {ResizeObserver|null} */
+let hostResizeObserver = null;
 
 /** @type {Map<string, {mesh:THREE.Object3D, material:THREE.Material, userId:string}>} */
 const roadConversationBeams = new Map();
@@ -689,6 +691,11 @@ function ensureChatListeners() {
 export function initRoad(state, users) {
   stateRef = state;
   usersRef = users || [];
+  if (roadReady) {
+    usersRef = users || usersRef;
+    syncRoadUsers(usersRef);
+    return;
+  }
   if (!window.THREE) throw new Error("Three.js를 불러오지 못했습니다.");
   const host = document.querySelector("#threeHost");
   if (!host) throw new Error("도로 모드 영역을 찾을 수 없습니다.");
@@ -725,9 +732,10 @@ export function initRoad(state, users) {
   syncRoadUsers(usersRef);
 
   if (!resizeBound) {
-    window.addEventListener("resize", resize);
+    window.addEventListener("resize", resizeRoad);
     resizeBound = true;
   }
+  bindHostResizeObserver();
   ensureUsersListener();
   ensureChatListeners();
   roadReady = true;
@@ -737,7 +745,18 @@ function getRoadHost() {
   return document.querySelector("#threeHost");
 }
 
-function resize() {
+function bindHostResizeObserver() {
+  const host = getRoadHost();
+  if (!host || typeof ResizeObserver === "undefined") return;
+  if (hostResizeObserver) hostResizeObserver.disconnect();
+  hostResizeObserver = new ResizeObserver(() => {
+    resizeRoad();
+  });
+  hostResizeObserver.observe(host);
+}
+
+/** camera aspect · renderer size — 단일 진입점 */
+export function resizeRoad() {
   if (!renderer || !camera) return;
   const host = getRoadHost();
   if (!host) return;
@@ -746,11 +765,11 @@ function resize() {
   if (w < 2 || h < 2) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
+  renderer.setSize(w, h, false);
 }
 
 /**
- * 방식 A: 단일 renderer DOM을 road 전체폭 / 전체 우측 pane으로 이동.
+ * 단일 renderer DOM을 road 전체폭 / 전체 우측 pane으로 이동.
  * scene·loop·차량 상태는 공유. canvas 재생성 없음.
  */
 export function mountRoadStage(target) {
@@ -764,9 +783,10 @@ export function mountRoadStage(target) {
       : roadView;
   if (!dest) return;
   if (stage.parentElement !== dest) dest.appendChild(stage);
+  bindHostResizeObserver();
   requestAnimationFrame(() => {
-    resize();
-    requestAnimationFrame(resize);
+    resizeRoad();
+    requestAnimationFrame(resizeRoad);
   });
 }
 
@@ -808,7 +828,7 @@ function tick() {
 
 export function startRoad() {
   if (!roadReady || !clock) return;
-  resize();
+  resizeRoad();
   if (running) return;
   running = true;
   clock.start();
@@ -823,6 +843,16 @@ export function stopRoad() {
     frameId = 0;
   }
   hideAllBubbles();
+}
+
+/** Content Workspace 전환 시 — destroy 없이 loop만 중단 */
+export function pauseRoad() {
+  stopRoad();
+}
+
+/** Spatial Workspace 복귀 시 — 기존 renderer 재개 */
+export function resumeRoad() {
+  startRoad();
 }
 
 export function setEnvironment(env) {

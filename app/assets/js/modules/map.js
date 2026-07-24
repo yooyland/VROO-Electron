@@ -30,6 +30,8 @@ let userMovedMap = false;
 let programmaticMoveDepth = 0;
 /** setMapView와 GPS 갱신이 공유하는 마커 표시 모드 */
 let markerMode = "near";
+/** 직전 DRIVE 뷰 — all↔near 중심/줌 동기화용 */
+let lastMapViewMode = "near";
 
 let markersNear = new Map();
 const markersAll = new Map();
@@ -652,6 +654,8 @@ export function isMapReady() {
 export function initMap(state) {
   stateRef = state;
 
+  if (mapReady) return;
+
   if (!window.L) {
     throw new Error("Leaflet을 불러오지 못했습니다.");
   }
@@ -820,14 +824,17 @@ export function setMapView(mode) {
         const c = map.getCenter();
         const z = map.getZoom();
         allMap.setView([c.lat, c.lng], z, {animate: false});
-      } else if (mode === "near") {
-        /* 주변 지도 상태 유지 — 강제 리센터 없음 */
+      } else if (lastMapViewMode === "all" && allMap && (mode === "near" || mode === "road")) {
+        const c = allMap.getCenter();
+        const z = allMap.getZoom();
+        map.setView([c.lat, c.lng], z, {animate: false});
       }
     } catch (e) {
       warnRare("[VROO map] setMapView", e);
     }
   });
 
+  lastMapViewMode = mode;
   refreshLabels();
 }
 
@@ -849,6 +856,7 @@ export function invalidateMaps() {
   requestAnimationFrame(() => {
     run();
     setTimeout(run, 50);
+    setTimeout(run, 200);
   });
 }
 

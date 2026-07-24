@@ -2,22 +2,161 @@ import {loadState,saveState,formatCredits} from "./core/storage.js";
 import {on} from "./core/events.js";
 import {showSystemMessage,openModal,closeModal} from "./core/ui.js";
 import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers,setSpatialGridVisible} from "./modules/map.js";
-import {initRoad,startRoad,stopRoad,setEnvironment,mountRoadStage} from "./modules/road.js";
+import {initRoad,startRoad,stopRoad,pauseRoad,resumeRoad,setEnvironment,mountRoadStage,resizeRoad} from "./modules/road.js";
 import {renderNearby,openUserDetail} from "./modules/nearby.js";
 import {renderGrid, beginCreateGrid, syncGridHeader, openSpatialGridDetail} from "./modules/grid.js";
 import {renderRooms,openChatWith,openGridChat,refreshChatBadge} from "./modules/chat.js";
 import {renderGrowth} from "./modules/growth.js";
 import {renderShop} from "./modules/shop.js";
 import {renderCommunity} from "./modules/community.js";
-import {openMyPage} from "./modules/profile.js";
-const state=loadState(),panel=document.querySelector("#panelContent");
-let currentScreen=state.currentScreen||"nearby",currentView=state.currentView||"near";
+import {renderMyPage} from "./modules/profile.js";
+
+const state=loadState();
+const spatialPanel=document.querySelector("#panelContent");
+const contentPanel=document.querySelector("#contentPanel");
+const spatialWs=document.querySelector("#spatialWorkspace");
+const contentWs=document.querySelector("#contentWorkspace");
+
+/** Spatial: 지도 사용 / Content: 전체 화면 서비스 */
+const SPATIAL_SCREENS=new Set(["nearby","grid"]);
+const CONTENT_SCREENS=new Set(["shop","growth","community","chat","my"]);
+const CONTENT_TITLES={
+  shop:["상점","STORE · 차량·혜택 상품"],
+  growth:["성장","PLAY · 레벨·크레딧"],
+  community:["커뮤니티","SOCIAL · 게시판"],
+  chat:["대화방","SOCIAL · 1:1 · GRID 채팅"],
+  my:["MY","내 차량 · 프로필"]
+};
+
+let currentScreen=state.currentScreen||"nearby";
+let currentView=state.currentView||"near";
+let currentWorkspace=SPATIAL_SCREENS.has(currentScreen)?"spatial":"content";
+if(currentScreen==="my")currentWorkspace="content";
+if(!SPATIAL_SCREENS.has(currentScreen)&&!CONTENT_SCREENS.has(currentScreen)){
+  currentScreen="nearby";
+  currentWorkspace="spatial";
+}
+
 function save(){state.currentScreen=currentScreen;state.currentView=currentView;saveState(state);syncHeader()}
 function syncHeader(){document.querySelector("#creditText").textContent=formatCredits(state.credits);document.querySelector("#levelText").textContent=state.level;syncGridHeader(state)}
-function setScreen(name){currentScreen=name;document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen===name));try{setSpatialGridVisible(name==="grid")}catch(e){console.warn("[VROO] spatial grid visibility",e)}const r={nearby:()=>renderNearby(panel,state),grid:()=>renderGrid(panel,state),chat:()=>renderRooms(panel,state),growth:()=>renderGrowth(panel,state),shop:()=>renderShop(panel,state),community:()=>renderCommunity(panel,state)};try{r[name]?.()}catch(e){console.error(e);showSystemMessage("화면을 표시하지 못했습니다.");panel.innerHTML='<div class="card">화면을 다시 선택해 주세요.</div>'}save()}
-function setView(name){currentView=name;document.body.dataset.mapView=name;document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===name));document.querySelectorAll(".view-layer").forEach(x=>x.classList.remove("active"));document.querySelector(name==="near"?"#mapView":name==="road"?"#roadView":"#allView").classList.add("active");if(name==="road"||name==="all"){mountRoadStage(name==="all"?"all":"road");startRoad()}else{stopRoad();mountRoadStage("road")}setMapView(name);invalidateMaps();save()}
+
+function setWorkspace(mode){
+  const next=mode==="content"?"content":"spatial";
+  const prev=currentWorkspace;
+  currentWorkspace=next;
+  document.body.dataset.workspace=next;
+
+  if(next==="spatial"){
+    spatialWs?.classList.remove("workspace-hidden");
+    contentWs?.classList.add("workspace-hidden");
+    spatialWs?.setAttribute("aria-hidden","false");
+    contentWs?.setAttribute("aria-hidden","true");
+  }else{
+    contentWs?.classList.remove("workspace-hidden");
+    spatialWs?.classList.add("workspace-hidden");
+    contentWs?.setAttribute("aria-hidden","false");
+    spatialWs?.setAttribute("aria-hidden","true");
+  }
+
+  if(next==="content"){
+    pauseRoad();
+  }else if(prev==="content"){
+    /* 지도·renderer 재생성 없이 표시만 복구 */
+    requestAnimationFrame(()=>{
+      try{
+        invalidateMaps();
+        if(currentView==="road"||currentView==="all"){
+          mountRoadStage(currentView==="all"?"all":"road");
+          resumeRoad();
+        }else{
+          mountRoadStage("road");
+          pauseRoad();
+        }
+        resizeRoad();
+      }catch(e){console.warn("[VROO] workspace restore",e)}
+    });
+  }
+}
+
+function setContentTitle(name){
+  const pair=CONTENT_TITLES[name];
+  const titleEl=document.querySelector("#contentWorkspaceTitle");
+  const subEl=document.querySelector("#contentWorkspaceSub");
+  if(titleEl)titleEl.textContent=pair?pair[0]:"서비스";
+  if(subEl)subEl.textContent=pair?pair[1]:"";
+}
+
+function setScreen(name){
+  if(CONTENT_SCREENS.has(name)){
+    setWorkspace("content");
+    setContentTitle(name);
+  }else{
+    if(!SPATIAL_SCREENS.has(name))name="nearby";
+    setWorkspace("spatial");
+  }
+
+  currentScreen=name;
+  document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen===name));
+  /* MY는 상단 메뉴 버튼이 없으므로 메뉴 active 해제 */
+  if(name==="my"){
+    document.querySelectorAll("[data-screen]").forEach(b=>b.classList.remove("active"));
+  }
+
+  try{setSpatialGridVisible(name==="grid"&&currentWorkspace==="spatial")}catch(e){console.warn("[VROO] spatial grid visibility",e)}
+
+  const r={
+    nearby:()=>renderNearby(spatialPanel,state),
+    grid:()=>renderGrid(spatialPanel,state),
+    chat:()=>renderRooms(contentPanel,state),
+    growth:()=>renderGrowth(contentPanel,state),
+    shop:()=>renderShop(contentPanel,state),
+    community:()=>renderCommunity(contentPanel,state),
+    my:()=>renderMyPage(contentPanel,state)
+  };
+  try{
+    r[name]?.();
+  }catch(e){
+    console.error(e);
+    showSystemMessage("화면을 표시하지 못했습니다.");
+    const fallback=CONTENT_SCREENS.has(name)?contentPanel:spatialPanel;
+    if(fallback)fallback.innerHTML='<div class="card">화면을 다시 선택해 주세요.</div>';
+  }
+  save();
+}
+
+function setView(name){
+  currentView=name;
+  document.body.dataset.mapView=name;
+  document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
+  document.querySelectorAll(".view-layer").forEach(x=>x.classList.remove("active"));
+  document.querySelector(name==="near"?"#mapView":name==="road"?"#roadView":"#allView").classList.add("active");
+  if(currentWorkspace!=="spatial"){
+    /* Content 중에는 loop만 멈추고 view 상태만 기록 */
+    pauseRoad();
+    setMapView(name);
+    save();
+    return;
+  }
+  if(name==="road"||name==="all"){
+    mountRoadStage(name==="all"?"all":"road");
+    startRoad();
+  }else{
+    stopRoad();
+    mountRoadStage("road");
+  }
+  setMapView(name);
+  invalidateMaps();
+  requestAnimationFrame(()=>{try{resizeRoad()}catch(e){}});
+  save();
+}
+
 function createPost(){openModal("새 게시글",`<label>게시판</label><select id="postCat"><option>공지</option><option>자유</option><option>뽐내기</option><option>Q&A</option><option>고객센터</option></select><label>제목</label><input id="postTitle"><label>내용</label><textarea id="postBody" style="min-height:150px"></textarea><label>공개 범위</label><select id="postScope"><option value="all">전체 공개</option><option value="grid">내 GRID</option><option value="500m">주변 500m</option><option value="1km">주변 1km</option><option value="5km">주변 5km</option><option value="private">나만 보기</option></select>`,[{label:"취소",onClick:closeModal},{label:"게시하기",className:"primary",onClick:()=>{const title=document.querySelector("#postTitle").value.trim(),body=document.querySelector("#postBody").value.trim();if(!title||!body)return;state.posts.unshift({id:"p"+Date.now(),category:document.querySelector("#postCat").value,title,body,author:state.profile.nickname,scope:document.querySelector("#postScope").value,createdAt:Date.now(),likes:0,comments:[]});state.communityCategory=document.querySelector("#postCat").value;closeModal();save();setScreen("community")}}])}
-on("state:save",save);on("user:open",payload=>openUserDetail(state,payload));on("user:profile",payload=>openUserDetail(state,payload));on("mypage:open",()=>openMyPage(state));
+
+on("state:save",save);
+on("user:open",payload=>openUserDetail(state,payload));
+on("user:profile",payload=>openUserDetail(state,payload));
+on("mypage:open",()=>setScreen("my"));
+on("workspace:spatialHome",()=>{setScreen("nearby");setView(currentView||"near")});
 on("place:open", place => openModal(
   place.name,
   `<div class="card">
@@ -28,8 +167,25 @@ on("place:open", place => openModal(
     <div class="muted">위도 ${place.lat.toFixed(5)} · 경도 ${place.lng.toFixed(5)}</div>
   </div>`,
   [{label:"닫기",onClick:closeModal}]
-));on("chat:open",payload=>{setScreen("chat");openChatWith(panel,state,payload)});on("grid:chatOpen",({gridId})=>{setScreen("chat");openGridChat(panel,state,gridId)});on("grid:spatialOpen",({gridId})=>{setScreen("grid");openSpatialGridDetail(panel,state,gridId)});on("grid:create",()=>beginCreateGrid(panel,state));on("post:create",createPost);on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});on("map:north",()=>{state.mapBearing=0;rotateMap(0);save()});
-document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.dataset.screen));document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>setView(b.dataset.view));document.querySelector("#homeButton").onclick=()=>{setScreen("nearby");setView("near")};document.querySelector("#myPageButton").onclick=()=>openMyPage(state);document.querySelector("#modalClose").onclick=closeModal;document.querySelector("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};document.querySelector("#environmentSelect").onchange=e=>setEnvironment(e.target.value);document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
+));
+on("chat:open",payload=>{setScreen("chat");openChatWith(contentPanel,state,payload)});
+on("grid:chatOpen",({gridId})=>{setScreen("chat");openGridChat(contentPanel,state,gridId)});
+on("grid:spatialOpen",({gridId})=>{setScreen("grid");openSpatialGridDetail(spatialPanel,state,gridId)});
+on("grid:create",()=>beginCreateGrid(spatialPanel,state));
+on("post:create",createPost);
+on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));
+on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});
+on("map:north",()=>{state.mapBearing=0;rotateMap(0);save()});
+
+document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.dataset.screen));
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>setView(b.dataset.view));
+document.querySelector("#homeButton").onclick=()=>{setScreen("nearby");setView("near")};
+document.querySelector("#myPageButton").onclick=()=>setScreen("my");
+document.querySelector("#modalClose").onclick=closeModal;
+document.querySelector("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};
+document.querySelector("#environmentSelect").onchange=e=>setEnvironment(e.target.value);
+document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
+
 (function boot(){
   try{
     try{initMap(state)}catch(e){console.error(e);showSystemMessage(e.message||"지도를 불러오지 못했습니다. 나머지 기능은 사용할 수 있습니다.")}
@@ -38,7 +194,11 @@ document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.
     syncHeader();
     refreshChatBadge(state);
     setScreen(currentScreen);
-    setView(currentView);
+    if(currentWorkspace==="spatial")setView(currentView);
+    else{
+      document.body.dataset.mapView=currentView;
+      pauseRoad();
+    }
     if(navigator.geolocation){
       navigator.geolocation.watchPosition(
         p=>{

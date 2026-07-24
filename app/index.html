@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="./assets/css/app.css">
 </head>
-<body>
+<body data-workspace="spatial">
 <div id="boot" class="boot"><div class="boot-card"><div class="boot-logo">VROO</div><b>Desktop 1.1.0-beta.1</b><small>모듈을 준비하고 있습니다.</small></div></div>
 <div id="systemMessage" class="system-message"></div>
 <header class="topbar">
@@ -19,58 +19,75 @@
 <div class="account-area"><span class="credit">🪙 <b id="creditText">0</b></span><button id="myPageButton" class="mycar">MY CAR Lv.<b id="levelText">1</b></button></div>
 </header>
 <main class="layout">
-<section class="stage">
-<div class="stage-head">
-  <div class="stage-head-left">
-    <button id="gridSelector" class="grid-selector">MY GRID ▼</button>
-    <span id="gpsStatus" class="status">GPS 확인 중</span><span class="status" style="color:#ffc400">DESKTOP</span>
+  <div id="mainWorkspace" class="workspace">
+    <!-- Spatial Workspace: 지도 · 도로 · GRID -->
+    <div id="spatialWorkspace" class="spatial-workspace" aria-hidden="false">
+      <section class="stage">
+        <div class="stage-head">
+          <div class="stage-head-left">
+            <button id="gridSelector" class="grid-selector">MY GRID ▼</button>
+            <span id="gpsStatus" class="status">GPS 확인 중</span><span class="status" style="color:#ffc400">DESKTOP</span>
+          </div>
+          <div class="stage-head-right"></div>
+        </div>
+        <div class="stage-body view-shell">
+          <div class="view-guidebar" id="viewGuidebar">
+            <div class="view-guidebar-left">
+              <div class="map-tools map-rotation-controls" id="mapRotationControls">
+                <button type="button" id="compassLeft" aria-label="좌회전">↺</button>
+                <button type="button" id="northButton" aria-label="북쪽">N</button>
+                <button type="button" id="compassRight" aria-label="우회전">↻</button>
+                <button type="button" id="labelToggleButton" class="label-toggle active">지명 ON</button>
+              </div>
+              <span class="guidebar-road-status">도로 모드</span>
+            </div>
+            <div class="view-guidebar-center">
+              <div id="viewTabs" class="header-view-tabs map-view-tabs">
+                <button type="button" data-view="near" class="active">주변</button>
+                <button type="button" data-view="road">도로</button>
+                <button type="button" data-view="all">전체</button>
+              </div>
+            </div>
+            <div class="view-guidebar-right">
+              <select id="environmentSelect" class="environment-select" aria-label="도로환경">
+                <option value="auto">자동 환경</option>
+                <option value="urban">도심</option>
+                <option value="residential">주거</option>
+                <option value="highway">고속도로</option>
+                <option value="coast">해안</option>
+              </select>
+            </div>
+          </div>
+          <div class="view-content stage-views">
+            <div id="mapView" class="view-layer active"><div id="map"></div><button id="locateButton" class="floating locate">📍 내 위치</button></div>
+            <div id="roadView" class="view-layer">
+              <div id="roadStage" class="road-stage">
+                <div id="threeHost" class="three-host"></div>
+                <div class="road-hud"><b>MY ROAD</b> <strong id="roadSpeed">0</strong><span>km/h</span><small id="roadMeta">주행 환경 준비 중</small></div>
+                <div class="road-side">주변 차량 <b id="roadCount">0</b>대<br><span id="roadSafety">안전거리 정상</span></div>
+              </div>
+            </div>
+            <div id="allView" class="view-layer all-live-layout">
+              <section class="all-live-map-pane" id="allMapPane"><div id="allMap"></div></section>
+              <section class="all-live-road-pane" id="allRoadPane"></section>
+            </div>
+          </div>
+        </div>
+      </section>
+      <aside class="side-panel spatial-side" id="spatialSide">
+        <div id="panelContent" class="panel-content"></div>
+      </aside>
+    </div>
+
+    <!-- Content Workspace: 상점 · 성장 · 커뮤니티 · 대화방 · MY -->
+    <div id="contentWorkspace" class="content-workspace workspace-hidden" aria-hidden="true">
+      <header class="content-workspace-head">
+        <h2 id="contentWorkspaceTitle">서비스</h2>
+        <p id="contentWorkspaceSub" class="muted">지도 없이 전체 화면으로 이용합니다.</p>
+      </header>
+      <div id="contentPanel" class="panel-content content-panel"></div>
+    </div>
   </div>
-  <div class="stage-head-right"></div>
-</div>
-<div class="stage-body view-shell">
-  <div class="view-guidebar" id="viewGuidebar">
-    <div class="view-guidebar-left">
-      <div class="map-tools map-rotation-controls" id="mapRotationControls">
-        <button type="button" id="compassLeft" aria-label="좌회전">↺</button>
-        <button type="button" id="northButton" aria-label="북쪽">N</button>
-        <button type="button" id="compassRight" aria-label="우회전">↻</button>
-        <button type="button" id="labelToggleButton" class="label-toggle active">지명 ON</button>
-      </div>
-      <span class="guidebar-road-status">도로 모드</span>
-    </div>
-    <div class="view-guidebar-center">
-      <div id="viewTabs" class="header-view-tabs map-view-tabs">
-        <button type="button" data-view="near" class="active">🚘 주변</button>
-        <button type="button" data-view="road">🛣️ 도로</button>
-        <button type="button" data-view="all">🗺️ 전체</button>
-      </div>
-    </div>
-    <div class="view-guidebar-right">
-      <select id="environmentSelect" class="environment-select" aria-label="도로환경">
-        <option value="auto">자동 환경</option>
-        <option value="urban">도심</option>
-        <option value="residential">주거</option>
-        <option value="highway">고속도로</option>
-        <option value="coast">해안</option>
-      </select>
-    </div>
-  </div>
-  <div class="view-content stage-views">
-    <div id="mapView" class="view-layer active"><div id="map"></div><button id="locateButton" class="floating locate">📍 내 위치</button></div>
-    <div id="roadView" class="view-layer">
-      <div id="roadStage" class="road-stage">
-        <div id="threeHost" class="three-host"></div>
-        <div class="road-hud"><b>MY ROAD</b> <strong id="roadSpeed">0</strong><span>km/h</span><small id="roadMeta">주행 환경 준비 중</small></div>
-        <div class="road-side">주변 차량 <b id="roadCount">0</b>대<br><span id="roadSafety">안전거리 정상</span></div>
-      </div>
-    </div>
-    <div id="allView" class="view-layer all-live-layout">
-      <section class="all-live-map-pane" id="allMapPane"><div id="allMap"></div></section>
-      <section class="all-live-road-pane" id="allRoadPane"></section>
-    </div>
-  </div>
-</div></section>
-<aside class="side-panel"><div id="panelContent" class="panel-content"></div></aside>
 </main>
 <div id="modal" class="modal-backdrop" aria-hidden="true"><div class="modal-card"><div class="modal-head"><h2 id="modalTitle"></h2><button id="modalClose">✕</button></div><div id="modalBody" class="modal-body"></div><div id="modalActions" class="modal-actions"></div></div></div>
 <script>window.__VROO_BOOT_OK=false;</script>
