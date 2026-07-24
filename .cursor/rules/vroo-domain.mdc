@@ -1,0 +1,15 @@
+---
+description: VROO 도메인 — ID, GRID, 상업화 스키마, 금지 사항
+alwaysApply: true
+---
+
+# 도메인·상업화
+
+- 사용자 `user.id` / GRID `grid.id` / location·current·selected GridId 구분
+- Spatial GRID: L1/L2/L3, viewport만, 그리드 메뉴에서만 표시
+- config: `product-navigation.js`, `feature-status.js`
+- data: benefit-products, partners, insurance-products, membership-plans
+- UI 용어: 광고보다 **혜택** 우선
+- 금지: 실결제, 실보험 확정, 외부 사고 전송, 민감정보 필드, 서버 임의 추가
+- 현재 메뉴 유지; 8축은 설정만. CARE/BENEFITS/LOCAL은 planned
+- 디자인: Black & Gold, 버튼 최소화

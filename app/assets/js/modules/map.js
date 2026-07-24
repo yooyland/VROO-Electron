@@ -816,10 +816,12 @@ export function setMapView(mode) {
 
   runProgrammatic(() => {
     try {
-      if (mode === "all") {
-        map.setZoom(13);
-      } else if (mode !== "road") {
-        map.setView([stateRef.location.lat, stateRef.location.lng], 16);
+      if (mode === "all" && allMap) {
+        const c = map.getCenter();
+        const z = map.getZoom();
+        allMap.setView([c.lat, c.lng], z, {animate: false});
+      } else if (mode === "near") {
+        /* 주변 지도 상태 유지 — 강제 리센터 없음 */
       }
     } catch (e) {
       warnRare("[VROO map] setMapView", e);
@@ -830,20 +832,24 @@ export function setMapView(mode) {
 }
 
 export function invalidateMaps() {
-  setTimeout(() => {
+  const run = () => {
     try {
-      map?.invalidateSize();
+      map?.invalidateSize({pan: false});
     } catch (e) {
       warnRare("[VROO map] invalidate near", e);
     }
     try {
-      allMap?.invalidateSize();
+      allMap?.invalidateSize({pan: false});
     } catch (e) {
       warnRare("[VROO map] invalidate all", e);
     }
     refreshLabels();
     scheduleSpatialRefresh();
-  }, 50);
+  };
+  requestAnimationFrame(() => {
+    run();
+    setTimeout(run, 50);
+  });
 }
 
 /**

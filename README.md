@@ -1,42 +1,68 @@
 # VROO Desktop
 
-**Drive Together** — 위치 기반 자동차 SNS · 게임형 데스크톱 클라이언트
+**운전의 모든 순간을 연결하다.**  
+*Drive Together, Live Better.*
 
 | | |
 |---|---|
+| **제품** | Mobility Lifestyle Platform |
 | **버전** | `1.1.0-beta.1` |
 | **플랫폼** | Windows (Electron) |
 | **라이선스** | UNLICENSED (private) |
+| **단계** | Phase 1 — 프로토타입 안정화 |
 
-VROO는 주변 지도, Spatial GRID, 3D 도로 주행, 1:1·GRID 단체 대화, 성장·상점·커뮤니티를 한 화면에서 연결하는 Electron 앱입니다.  
-로컬 정적 서버나 PowerShell 호스팅 없이 `file://` 기반 Electron 창에서 바로 실행됩니다.
+VROO는 **운전자의 모든 생활을 하나로 연결하는** 위치 기반 모빌리티 라이프스타일 플랫폼입니다.  
+차량을 아바타로 사용하는 소셜·GRID 커뮤니티·성장과 함께, 향후 혜택·커머스·보험·사고처리·지역 제휴·운영 콘솔로 확장합니다.
+
+현재 빌드는 **서버 없는 Electron 로컬 프로토타입**입니다.  
+미구현 기능을 완료된 것처럼 표시하지 않습니다. 상태: `implemented` · `prototype` · `planned`  
+→ [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md)
 
 ---
 
-## 주요 기능
+## 제품 문서
 
-### 지도 · 위치
-- **주변 / 도로 / 전체** 뷰 전환 (상단 guidebar)
-- Leaflet 기반 지도 + VROO 자체 지명 레이어 (베이스맵 글자 타일 비의존)
-- GPS 위치, 내 위치 버튼, 지도 회전(↺ N ↻), 지명 ON/OFF
-- **전체** 화면: 왼쪽 실제 주변 지도 + 오른쪽 실제 Three.js 도로 (동일 road scene 재사용)
+| 문서 | 내용 |
+|------|------|
+| [docs/PRODUCT_VISION.md](./docs/PRODUCT_VISION.md) | 비전, 8개 서비스 축, 수익·차별점 |
+| [docs/COMMERCIAL_ROADMAP.md](./docs/COMMERCIAL_ROADMAP.md) | Phase 1–6 상업화 로드맵 |
+| [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md) | 기능별 상태표 |
+| [docs/ADMIN_CONSOLE_PLAN.md](./docs/ADMIN_CONSOLE_PLAN.md) | 관리자 콘솔 설계 |
+| [docs/PARTNER_PLATFORM_PLAN.md](./docs/PARTNER_PLATFORM_PLAN.md) | 제휴·혜택 노출 |
+| [docs/COMMERCE_ARCHITECTURE.md](./docs/COMMERCE_ARCHITECTURE.md) | 주문·결제·정산 (미구현) |
+| [docs/PRIVACY_AND_SAFETY_PLAN.md](./docs/PRIVACY_AND_SAFETY_PLAN.md) | 동의·안전 체크리스트 |
 
-### Spatial GRID
-- Web Mercator 기반 셀 (`KR:L{n}:ix:iy`)
-- L1 50km / L2 10km / L3 2km — 참여·채팅은 **L3(LOCAL)** 기준
-- `locationGridId` · `currentGridId` · `selectedGridId` 분리 (셀 클릭만으로 참여 GRID 변경 금지)
-- 선택 GRID 상세: 현재 공간 차량 / 가입자, 참여·내 GRID 설정·단체 대화
-- 상단 **그리드** 메뉴일 때만 지도에 Spatial GRID 오버레이 표시
+---
 
-### 도로 (Three.js)
-- 레벨별 차량 Group, 환경(도심·주거·고속도로·해안 등)
-- Direct / GRID 채팅 연동 대화 광선 · 차량 말풍선
-- 단일 WebGL renderer · 단일 animation loop (전체 화면에서도 DOM 마운트만 이동)
+## 여덟 개 서비스 축
 
-### 소셜 · 기타
-- 주변 차량, 1:1 채팅, GRID 단체방 (`grid:KR:L3:…`)
-- 성장, 상점, MY PAGE, 커뮤니티 게시판 (게시판·정렬·내 글 드롭다운 필터)
-- 크레딧 · 레벨 — `localStorage`에 가입/프로필 등 로컬 상태 저장
+| 축 | 요약 | 현재 |
+|----|------|------|
+| **DRIVE** | 주변 · 도로 · 전체 · 위치 차량 | prototype |
+| **SOCIAL** | 채팅 · GRID · 커뮤니티 | prototype |
+| **STORE** | 차량 아이템 · 혜택 상품 | prototype / planned |
+| **BENEFITS** | 주유·커피·멤버십 혜택 | planned |
+| **CARE** | 보험 · 사고 · 긴급출동 | planned |
+| **LOCAL** | GRID 지역 혜택 · POI | planned (+ 지명 prototype) |
+| **PLAY** | 성장 · 미션 · 시즌 | prototype / planned |
+| **MY** | 내 차량 · 쿠폰 · 설정 | prototype / planned |
+
+확장 메뉴 정의(기존 UI 미교체): `app/assets/js/config/product-navigation.js`
+
+---
+
+## 현재 구현(프로토타입) 기능
+
+- **지도**: 주변 / 도로 / 전체(좌우 50:50), GPS, 지명 레이어, 회전
+- **Spatial GRID**: L1 50km / L2 10km / L3 2km, `locationGridId` · `currentGridId` · `selectedGridId`
+- **도로**: Three.js, 레벨별 차량, 대화 광선·말풍선, 단일 renderer·loop
+- **소셜**: 1:1·GRID 채팅, unread, 음성 입력, 커뮤니티
+- **PLAY/STORE**: 성장·크레딧, 상점 기본(차량 선택), MY CAR
+- **상태**: `localStorage` (`core/storage.js`)
+
+### 상업화 목표 (미구현 · planned)
+
+주유·커피 등 혜택, 멤버십, 보험 상담, 사고 접수, 긴급출동, Admin/Partner, 결제·정산, 실시간 서버, 신고·알림
 
 ---
 
@@ -48,12 +74,13 @@ VROO는 주변 지도, Spatial GRID, 3D 도로 주행, 1:1·GRID 단체 대화, 
 | UI | HTML / CSS / ES Modules |
 | 지도 | Leaflet 1.9 (CDN) |
 | 3D | Three.js r160 (CDN) |
-| 상태 | `localStorage` (`app/assets/js/core/storage.js`) |
-| 이벤트 | 경량 pub/sub (`core/events.js`) |
+| 상태 | `localStorage` |
+| 이벤트 | `core/events.js` |
+| 제품 설정 | `app/assets/js/config/*` |
+| 도메인 시드 | `app/assets/js/data/*` |
 | 빌드 | electron-builder (NSIS + Portable) |
 
-> 현재 지도·Three.js는 CDN을 사용하므로 **인터넷 연결**이 필요합니다.  
-> 백엔드 서버·WebSocket·Firebase 없이 클라이언트 단독으로 동작합니다.
+CDN 의존으로 **인터넷 연결**이 필요합니다. 백엔드·WebSocket·Firebase 없음.
 
 ---
 
@@ -67,8 +94,7 @@ VROO는 주변 지도, Spatial GRID, 3D 도로 주행, 1:1·GRID 단체 대화, 
 
 **방법 A — 배치 파일**
 
-1. 처음 한 번: `01_INSTALL_AND_RUN.cmd`  
-   (`npm install` 후 앱 실행)
+1. 처음: `01_INSTALL_AND_RUN.cmd`
 2. 이후: `02_RUN_VROO.cmd`
 
 **방법 B — npm**
@@ -78,16 +104,13 @@ npm install
 npm start
 ```
 
-### Windows 실행 파일 빌드
+### Windows 빌드
 
 ```bash
-# 또는 03_BUILD_EXE.cmd
 npm run build:win
 ```
 
-결과물: `dist/`  
-- NSIS 설치 파일  
-- Portable `VROO-{version}-x64.exe`
+결과: `dist/` (NSIS · Portable)
 
 ---
 
@@ -95,87 +118,83 @@ npm run build:win
 
 ```
 VROO_Electron/
-├── main.js                 # Electron 메인 프로세스
-├── preload.js              # Preload (contextIsolation)
-├── package.json
+├── main.js / preload.js / package.json
+├── docs/                         # 제품·상업화·운영 문서
 ├── app/
-│   ├── index.html          # 셸 UI · guidebar · view layers
+│   ├── index.html
 │   └── assets/
 │       ├── css/app.css
 │       └── js/
-│           ├── app.js      # 화면 연결 · setView / setScreen
-│           ├── core/       # storage, events, ui
-│           └── modules/    # map, road, grid, spatial-grid, chat, …
-├── assets/                 # 아이콘 등 빌드 리소스
-├── 01_INSTALL_AND_RUN.cmd
-├── 02_RUN_VROO.cmd
-└── 03_BUILD_EXE.cmd
+│           ├── app.js            # 화면 연결만
+│           ├── config/           # 네비·기능 상태
+│           ├── data/             # 혜택·제휴·보험·멤버십 시드
+│           ├── core/             # storage, events, ui
+│           └── modules/          # map, road, grid, chat, …
+├── assets/
+└── *.cmd
 ```
 
-### 모듈 역할 (요약)
+### 모듈 역할
 
 | 모듈 | 역할 |
 |------|------|
-| `map.js` | Leaflet 주변/전체 지도, 마커, 지명, Spatial 오버레이 |
-| `spatial-grid.js` | GRID ID·경계·줌 레벨 계산 |
-| `grid.js` | GRID 목록·상세·참여·단체 대화 진입 |
-| `road.js` | Three.js 도로, 차량, 광선, 말풍선, mount/resize |
-| `chat.js` | 1:1 · GRID 단체방 |
-| `nearby.js` / `community.js` / … | 패널 화면 |
+| `map.js` | Leaflet, 마커, Spatial 오버레이 |
+| `spatial-grid.js` | GRID ID·경계 |
+| `grid.js` | GRID UI·참여 |
+| `road.js` | Three.js 도로 |
+| `chat.js` | 1:1 · GRID 채팅 |
+| `shop.js` | 상점 (prototype + planned 카테고리 표시) |
+| `growth.js` / `community.js` / … | PLAY · SOCIAL 패널 |
 
 ---
 
-## 화면 구성
+## 화면 구성 (현재 메뉴 유지)
+
+상단: **주변차량 · 그리드 · 대화방 · 성장 · 상점 · 커뮤니티** (+ MY CAR)
 
 ```
-┌─ topbar (메뉴 · 크레딧 · MY CAR) ─────────────────┐
-├─ stage-head (현재 GRID · GPS) ────────────────────┤
-├─ view-guidebar ───────────────────────────────────┤
-│  [↺ N ↻ 지명]   [주변|도로|전체]   [도로환경]     │
-├─ view-content ────────────────────────────────────┤
-│  주변: 지도 전체폭                                 │
-│  도로: Three.js 전체폭                             │
-│  전체: 지도 50% | 도로 50% (동일 road scene)       │
-└───────────────────────────────────────────────────┘
-│ side-panel (주변차량 · GRID · 채팅 · …)            │
+주변: 지도 | 도로: Three.js | 전체: 지도 50% + 도로 50%
 ```
 
-- guidebar는 지도/캔버스 **위가 아닌** 별도 문서 흐름 영역입니다.
-- `selectedGridId`와 `currentGridId`를 혼용하지 않습니다.
+향후 1차 메뉴 후보: DRIVE · SOCIAL · STORE · BENEFITS · CARE · LOCAL · PLAY · MY  
+→ 설정 파일만 정의, **이번 빌드에서 메뉴를 바꾸지 않음**
 
 ---
 
-## 개발 메모
+## 식별자 규칙
 
-- 앱 로직은 `app/assets/js/modules/*`에 두고, `app.js`는 화면 연결만 유지하는 것을 권장합니다.
-- Spatial GRID 전국 셀을 `localStorage`에 통째로 저장하지 않습니다. 가입 상태(`joinedGrids`, `spatialMembers`)만 저장합니다.
-- 사용자 식별 키는 `user.id`, GRID 식별 키는 `grid.id`입니다.
-- 문법 검사 예:
-
-```bash
-node --check app/assets/js/app.js
-node --check app/assets/js/modules/road.js
-```
+- 사용자: `user.id` (닉네임 ≠ 고유키)
+- GRID: `grid.id`
+- GRID 상태: `locationGridId` / `currentGridId` / `selectedGridId`
 
 ---
 
-## 상태 · 제한
+## 현재 제한사항
 
-- **Beta** — API·UI·데이터 스키마가 바뀔 수 있습니다.
-- 서버 동기화 없음 (로컬 데모/클라이언트 중심).
-- Leaflet / Three.js CDN 의존 (오프라인 내장화는 향후 과제).
-- `README_KO.md`에 초기 Electron 전환·지명 레이어 관련 추가 설명이 있습니다.
+- Beta — 스키마·API·UI 변경 가능
+- 서버 동기화·실결제·실보험 가입·외부 사고 전송 **없음**
+- 민감정보(주민번호·카드번호 등) 수집 필드 **없음**
+- Leaflet / Three.js CDN 의존
+- `README_KO.md` — 초기 Electron 전환 보충 설명
+
+---
+
+## 개발 원칙
+
+- 분석 → 최소 수정 → `node --check` → 수동 검증
+- 대규모 리팩토링·기존 기능 삭제 금지
+- Animation loop / Renderer 중복 생성 금지
+- `app.js` 비대화 금지
+- 상세: `.cursor/rules.md`
 
 ---
 
 ## 라이선스
 
-Private / `UNLICENSED`. 무단 배포·재사용을 금합니다.
-
----
+Private / `UNLICENSED`. 무단 배포·재사용 금지.
 
 ## 관련
 
-- 제품명: **VROO**
-- App ID: `com.vroo.desktop`
-- 슬로건: *DRIVE TOGETHER*
+- 제품명: **VROO** · App ID: `com.vroo.desktop`
+- 슬로건(KO): *운전의 모든 순간을 연결하다.*
+- 슬로건(EN): *Drive Together, Live Better.*

@@ -406,12 +406,14 @@ function updateHudCount() {
 }
 
 function ensureBubbleLayer() {
-  const host = document.querySelector("#threeHost");
+  const host = getRoadHost();
   if (!host) return null;
   if (!bubbleLayer) {
     bubbleLayer = document.createElement("div");
     bubbleLayer.id = "roadBubbleLayer";
     bubbleLayer.className = "road-bubble-layer";
+    host.appendChild(bubbleLayer);
+  } else if (bubbleLayer.parentElement !== host) {
     host.appendChild(bubbleLayer);
   }
   return bubbleLayer;
@@ -472,10 +474,11 @@ function showBubbleForUser(userId, text, messageId) {
 function updateBubblePositions() {
   if (!camera || !renderer || !running) return;
   if (!projVec) projVec = new THREE.Vector3();
-  const host = document.querySelector("#threeHost");
+  const host = getRoadHost();
   if (!host) return;
   const w = host.clientWidth;
   const h = host.clientHeight;
+  if (w < 2 || h < 2) return;
 
   for (const [userId, el] of roadBubbleOverlays) {
     const mesh = userId === MY_USER_ID ? mineMesh : carEntries.get(userId)?.mesh;
@@ -730,19 +733,50 @@ export function initRoad(state, users) {
   roadReady = true;
 }
 
+function getRoadHost() {
+  return document.querySelector("#threeHost");
+}
+
 function resize() {
   if (!renderer || !camera) return;
-  const host = document.querySelector("#threeHost");
+  const host = getRoadHost();
   if (!host) return;
-  camera.aspect = Math.max(host.clientWidth, 1) / Math.max(host.clientHeight, 1);
+  const w = host.clientWidth;
+  const h = host.clientHeight;
+  if (w < 2 || h < 2) return;
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(Math.max(host.clientWidth, 1), Math.max(host.clientHeight, 1));
+  renderer.setSize(w, h);
+}
+
+/**
+ * 방식 A: 단일 renderer DOM을 road 전체폭 / 전체 우측 pane으로 이동.
+ * scene·loop·차량 상태는 공유. canvas 재생성 없음.
+ */
+export function mountRoadStage(target) {
+  const stage = document.querySelector("#roadStage");
+  if (!stage) return;
+  const roadView = document.querySelector("#roadView");
+  const allPane = document.querySelector("#allRoadPane");
+  const dest =
+    target === "all" && allPane
+      ? allPane
+      : roadView;
+  if (!dest) return;
+  if (stage.parentElement !== dest) dest.appendChild(stage);
+  requestAnimationFrame(() => {
+    resize();
+    requestAnimationFrame(resize);
+  });
 }
 
 function tick() {
   if (!running || !renderer || !clock) return;
   frameId = requestAnimationFrame(tick);
   try {
+    const host = getRoadHost();
+    if (!host || host.clientWidth < 2 || host.clientHeight < 2) return;
+
     const dt = Math.min(clock.getDelta(), 0.03);
     const now = performance.now();
     const speed = 38 + Math.round(Math.sin(now / 2500) * 3);
@@ -774,10 +808,10 @@ function tick() {
 
 export function startRoad() {
   if (!roadReady || !clock) return;
+  resize();
   if (running) return;
   running = true;
   clock.start();
-  resize();
   syncConversationBeams();
   tick();
 }

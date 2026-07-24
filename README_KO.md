@@ -1,5 +1,12 @@
 # VROO Desktop 1.1.0-beta.1
 
+**운전의 모든 순간을 연결하다.** — Mobility Lifestyle Platform 프로토타입
+
+제품 정의·상업화 로드맵·기능 상태는 루트 [README.md](./README.md) 및 [docs/](./docs/) 를 따릅니다.  
+이 파일은 Electron 전환·실행 보충 설명용입니다.
+
+---
+
 기존 Web Prototype의 localhost·PowerShell 서버 방식을 제거하고 Electron 데스크톱 앱으로 전환한 프로젝트입니다.
 
 ## 핵심 변화
