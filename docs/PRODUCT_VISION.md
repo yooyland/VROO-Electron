@@ -1,13 +1,17 @@
 # VROO Product Vision
 
 **운전의 모든 순간을 연결하다.**  
-*Drive Together, Live Better.*
+*Drive • Connect • Grow*
 
 ---
 
 ## 1. 제품 정의
 
-VROO는 **운전자의 모든 생활을 하나로 연결하는 Mobility Lifestyle Platform** 이다.
+VROO는 **Digital Car Life Platform** 이다.
+SNS·내비·게임이 아니라, **자동차를 RPG 캐릭터(아바타)** 로 성장시키는 생태계다.
+
+설계 기준 문서: **`docs/ARCHITECTURE_BIBLE.md`**
+Cursor 규칙: `.cursor/rules/01-design.mdc` ~ `05-game-system.mdc`
 
 단순 자동차 채팅·지도 앱이 아니다.  
 실제 위치 위에서 **차량을 아바타**로 삼아 소셜·혜택·커머스·보험·긴급지원·지역 커뮤니티를 한 경험으로 묶는다.
@@ -39,8 +43,9 @@ VROO는 **운전자의 모든 생활을 하나로 연결하는 Mobility Lifestyl
 | **G. PLAY** | 성장·미션·랭킹·시즌·출석 | 성장·크레딧 → 시즌/미션 |
 | **H. MY** | 차량·포인트·쿠폰·보험·결제·설정 | MY CAR 일부 → 통합 MY |
 
-현재 UI 메뉴(주변차량·그리드·대화방·성장·상점·커뮤니티)는 유지한다.  
-확장 메뉴 정의는 `app/assets/js/config/product-navigation.js` 를 따른다.
+현재 UI 메뉴(주변차량·그리드·대화방·성장·상점·커뮤니티)는 유지하되,
+목표 IA·개발 순서는 Architecture Bible을 따른다 (Garage→Map→Chat→Mission→…).
+확장 메뉴 정의는 `app/assets/js/config/product-navigation.js` 를 참고한다.
 
 ---
 

@@ -1,0 +1,30 @@
+name: VROO Verify
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          if (Test-Path package-lock.json) {
+            npm ci
+          } elseif (Test-Path package.json) {
+            npm install
+          }
+      - name: Run VROO checks
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/ai-check.ps1
