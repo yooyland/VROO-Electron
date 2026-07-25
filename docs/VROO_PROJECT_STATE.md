@@ -99,3 +99,5 @@ Until VROO-002 adds real lint/test/build wiring, “verification passed” means
 
 - Bootstrap created: AI workflow rules, task queue, and checks.
 - **2026-07-25 VROO-001:** Verified Electron/vanilla structure, entry points, localStorage state, missing lint/test/build scripts, Character sync path, and `ai-check.ps1` baseline behavior. No feature redesign.
+- **ai-check:** `scripts/ai-check.ps1` **passed** after minimal whitespace/EOF fixes (`docs/PRODUCT_VISION.md`, `app/assets/css/app.css`).
+- **Branch:** `ai/VROO-001-repository-audit` pushed to `origin`. Draft PR requires GitHub auth (`gh auth login`) if CLI was not logged in; compare URL: `https://github.com/yooyland/VROO-Electron/compare/main...ai/VROO-001-repository-audit?expand=1`
