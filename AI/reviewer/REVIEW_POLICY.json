@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "requiredEvidence": [
+    "changed file list",
+    "validation commands",
+    "validation output",
+    "acceptance comparison",
+    "unresolved risks"
+  ],
+  "outcomes": [
+    "APPROVED",
+    "CHANGES_REQUIRED",
+    "BLOCKED",
+    "NO_EVIDENCE"
+  ]
+}

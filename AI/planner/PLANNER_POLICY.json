@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "priorityWeights": {
+    "P0": 100,
+    "P1": 70,
+    "P2": 40,
+    "P3": 10
+  },
+  "riskWeights": {
+    "HIGH": 50,
+    "MEDIUM": 25,
+    "LOW": 10
+  },
+  "rules": [
+    "repository safety before feature work",
+    "unblock dependencies before dependent tasks",
+    "one active task at a time",
+    "prefer evidence-producing tasks"
+  ]
+}

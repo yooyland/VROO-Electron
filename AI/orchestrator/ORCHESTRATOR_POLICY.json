@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "priority_order": [
+    "P0",
+    "P1",
+    "P2",
+    "P3"
+  ],
+  "safety_first_tasks": [
+    "REPO-001",
+    "FOUNDATION-002"
+  ],
+  "protected_paths": [
+    ".git",
+    "AI/reports",
+    "D:/VROO_Backups"
+  ],
+  "forbidden_automatic_actions": [
+    "git reset --hard",
+    "git clean -fd",
+    "git push --force",
+    "automatic merge",
+    "automatic deletion"
+  ],
+  "task_output_files": {
+    "current_task": "AI/CURRENT_TASK.json",
+    "cursor_instruction": "AI/CURSOR_TASK_INSTRUCTION.md",
+    "validation_plan": "AI/VALIDATION_PLAN.md",
+    "execution_report": "AI/ORCHESTRATOR_REPORT.md"
+  }
+}

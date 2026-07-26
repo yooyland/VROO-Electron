@@ -1,0 +1,56 @@
+﻿{
+    "version":  "1.0",
+    "updatedAt":  "2026-07-26T22:55:20.3231940+09:00",
+    "entries":  [
+                    {
+                        "id":  "MEM-64E0FD25EF88",
+                        "type":  "decision",
+                        "title":  "Decision Log",
+                        "summary":  "# VROO Decision Log\n\n## ADR-001 ??GitHub is the source of truth; desktop is the execution workspace\nStatus: Accepted\n\nDecision:\nGitHub records accepted project state. The CEO desktop project at `D:\\VROO_Electron` is where Cursor or another implementation engine can directly modify and run files.\n\nReason:\nChatGPT does not continuously possess direct access to the CEO desktop. Separating durable project truth from local execution prevents false assumptions about synchronization.\n\n## ADR-002 ??Cursor remains a replaceable implementation engine\nStatus: Accepted\n\nDecision:\nCursor is not removed. It remains the preferred tool for direct desktop file modification until another connected engine can perform that job more reliably.\n\nReason:\nThe operating system must survive tool replacement. VROO rules, tasks, evidence, and decisions cannot depend on one IDE.\n",
+                        "source":  "AI\\DECISION_LOG.md",
+                        "sourceHash":  "64E0FD25EF88D35207E95ED84E314B43B6616DCDF8EFC69FF7B5A7C1C45EE154",
+                        "createdAt":  "2026-07-26T22:44:55.1435236+09:00",
+                        "status":  "ACTIVE"
+                    },
+                    {
+                        "id":  "MEM-835D9646DF57",
+                        "type":  "architecture",
+                        "title":  "Architecture Bible",
+                        "summary":  "# VROO Architecture Bible\n\n\u003e Digital Car Life Platform ??**?먮룞李④? RPG 罹먮┃?곗씤 ?붿????앺깭怨?*  \n\u003e Slogan: **Drive ??Connect ??Grow**  \n\u003e 臾몄꽌 ?곹깭: **Living design** (援ы쁽 ?곹깭? 紐⑺몴瑜?援щ텇)  \n\u003e 愿?? `PRODUCT_VISION.md` 쨌 `PLATFORM_ARCHITECTURE.md` 쨌 `FEATURE_STATUS.md` 쨌 `.cursor/rules/01~05-*.mdc`\n\n---\n\n## 0. ??以??뺤쓽\n\nVROO??SNS쨌?대퉬寃뚯씠?샕룰쾶?꾩씠 ?꾨땲??  \n?ъ슜?먮뒗 **?먯떊???먮룞李⑤? ?깆옣**?쒗궎硫? ?꾩떎 GPS 怨듦컙?먯꽌 ?곌껐쨌誘몄뀡쨌?섏쭛쨌而ㅻ??덊떚瑜??쒕떎.\n\n| ??븷 | ?섎? |\n|------|------|\n| Owner (?щ엺) | 怨꾩젙쨌?ㅼ젙쨌寃곗젣 二쇱껜 |\n| **Vehicle (?먮룞李?** | **?쒕퉬?ㅼ쓽 二쇱씤怨?= RPG 罹먮┃??* |\n| World | Map 쨌 Road 쨌 GRID 쨌 Chat 쨌 Community |\n",
+                        "source":  "docs\\ARCHITECTURE_BIBLE.md",
+                        "sourceHash":  "835D9646DF57861EA3272EA48AB88D4BB5387779725A7234FB7B36EDD7CDFD32",
+                        "createdAt":  "2026-07-26T22:44:55.1495484+09:00",
+                        "status":  "ACTIVE"
+                    },
+                    {
+                        "id":  "MEM-1D01F8CC74DB",
+                        "type":  "milestone",
+                        "title":  "Project State",
+                        "summary":  "# VROO Project State\n\n\u003e Last verified: 2026-07-25 쨌 Task: **VROO-001** Repository audit  \n\u003e Path: `D:\\VROO_Electron` 쨌 Branch: `ai/VROO-001-repository-audit`\n\n## Mission\n\nBuild VROO as a location-based automotive social/game platform whose **vehicle is the user\u0027s identity and character**.\n\n## Verified stack (on disk)\n\n| Item | Finding |\n|------|---------|\n| Product | Electron desktop: User App + role-based Console |\n| Package | `vroo-desktop` `1.1.0-beta.1` (`package.json`) |\n| Electron (lock) | **43.2.0** (`package-lock.json` / `node_modules`); `package.json` declares `\"electron\": \"latest\"` |\n| electron-builder | 26.x (lock); scripts `pack`, `build:win` |\n| Frontend | Vanilla JS **ES modules** ??no React/Vue, no bundler in npm scripts |\n| Map / 3D | Leaflet 1.9.4 + Three.js 0.160.0 via `unpkg.com` (`app/index.html`) |\n| Runtime npm deps | **None** (devDependencies only) |",
+                        "source":  "docs\\VROO_PROJECT_STATE.md",
+                        "sourceHash":  "1D01F8CC74DB7F026E82F6049C326077C6547C103F60CDE6E1481E87E1E9258F",
+                        "createdAt":  "2026-07-26T22:44:55.1525464+09:00",
+                        "status":  "ACTIVE"
+                    },
+                    {
+                        "id":  "MEM-DE58690EBF1F",
+                        "type":  "milestone",
+                        "title":  "Foundation Status",
+                        "summary":  "# FOUNDATION STATUS\n\n- Product: VROO\n- Foundation version: 1.0\n- Status: OPERATIONAL\n- Operating model: Controlled automation\n- Required local executor: PowerShell + Git\n- Optional implementation tools: Cursor, Codex, VS Code, human developer\n- Source of truth: `AI/`\n- Main branch direct development: prohibited\n- Merge without owner approval: prohibited\n\n## Completion criteria\n\nFoundation v1.0 is operational only when all checks below pass:\n\n- Required governance documents exist.\n- Work queue has a valid machine-readable task table.\n- A READY task can create an isolated branch.\n- Dirty working trees block new task creation.",
+                        "source":  "AI\\FOUNDATION_STATUS.md",
+                        "sourceHash":  "DE58690EBF1FE142EE79054460475ED858786BB0E41E3B9D935BE3436D53CD01",
+                        "createdAt":  "2026-07-26T22:44:55.1571636+09:00",
+                        "status":  "ACTIVE"
+                    },
+                    {
+                        "id":  "MEM-EDDD8E9E1A41",
+                        "type":  "milestone",
+                        "title":  "Next Action",
+                        "summary":  "# NEXT ACTION\n\n- Task: **REPO-001**\n- Priority: **P0**\n- Title: Split mixed repository changes into coherent commits\n- Acceptance: Every remaining change is assigned to a coherent commit group; no file is lost.\n\nReview `AI\\REPOSITORY_COMMIT_PLAN.md` before changing Git state.",
+                        "source":  "AI\\NEXT_ACTION.md",
+                        "sourceHash":  "EDDD8E9E1A4153483D798C1D463219093D732D27CF3DA7CCC0668FDE7A3610B9",
+                        "createdAt":  "2026-07-26T22:44:55.1611731+09:00",
+                        "status":  "ACTIVE"
+                    }
+                ]
+}

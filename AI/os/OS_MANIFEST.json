@@ -1,0 +1,15 @@
+{
+  "name": "VROO AI Development Operating System",
+  "version": "1.0",
+  "components": [
+    "AI Company Foundation",
+    "Project Brain",
+    "AI Orchestrator",
+    "Memory Engine",
+    "Dependency Engine",
+    "Planner Engine",
+    "Reviewer Engine"
+  ],
+  "main_command": ".\\scripts\\os\\vroo-ai-os.ps1 cycle",
+  "project_root": "D:\\VROO_Electron"
+}

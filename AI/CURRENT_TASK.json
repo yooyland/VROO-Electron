@@ -1,0 +1,19 @@
+﻿{
+    "version":  "1.0",
+    "generatedAt":  "2026-07-26T22:49:51.4261183+09:00",
+    "task":  {
+                 "id":  "REPO-001",
+                 "area":  "Repository",
+                 "title":  "Split mixed repository changes into coherent commits",
+                 "status":  "READY",
+                 "priority":  "P0",
+                 "dependsOn":  "-",
+                 "acceptance":  "Every remaining change is assigned to a coherent commit group; no file is lost."
+             },
+    "selectionReason":  "Repository contains 283 changed entries and REPO-001 was not in the queue.",
+    "repository":  {
+                       "branch":  "foundation/v1.0-operational-20260726-221332",
+                       "head":  "c6fe516",
+                       "dirtyCount":  283
+                   }
+}

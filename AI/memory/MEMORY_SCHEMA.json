@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "memory_types": [
+    "decision",
+    "architecture",
+    "design",
+    "constraint",
+    "risk",
+    "milestone",
+    "lesson"
+  ],
+  "required_fields": [
+    "id",
+    "type",
+    "title",
+    "summary",
+    "source",
+    "createdAt",
+    "status"
+  ]
+}

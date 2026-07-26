@@ -1,0 +1,134 @@
+﻿{
+    "version":  "1.0",
+    "generatedAt":  "2026-07-26T22:49:50.0532588+09:00",
+    "nodes":  [
+                  {
+                      "id":  "foundation",
+                      "dependsOn":  [
+
+                                    ],
+                      "score":  72,
+                      "blockedBy":  [
+
+                                    ],
+                      "executable":  true
+                  },
+                  {
+                      "id":  "brain",
+                      "dependsOn":  [
+                                        "foundation"
+                                    ],
+                      "score":  0,
+                      "blockedBy":  [
+
+                                    ],
+                      "executable":  true
+                  },
+                  {
+                      "id":  "orchestrator",
+                      "dependsOn":  [
+                                        "brain"
+                                    ],
+                      "score":  0,
+                      "blockedBy":  [
+
+                                    ],
+                      "executable":  true
+                  },
+                  {
+                      "id":  "architecture",
+                      "dependsOn":  [
+                                        "foundation"
+                                    ],
+                      "score":  57,
+                      "blockedBy":  [
+
+                                    ],
+                      "executable":  true
+                  },
+                  {
+                      "id":  "character",
+                      "dependsOn":  [
+                                        "architecture"
+                                    ],
+                      "score":  57,
+                      "blockedBy":  [
+                                        "architecture"
+                                    ],
+                      "executable":  false
+                  },
+                  {
+                      "id":  "garage",
+                      "dependsOn":  [
+                                        "character",
+                                        "profile",
+                                        "core-ui"
+                                    ],
+                      "score":  57,
+                      "blockedBy":  [
+                                        "character"
+                                    ],
+                      "executable":  false
+                  },
+                  {
+                      "id":  "profile",
+                      "dependsOn":  [
+                                        "architecture",
+                                        "core-ui"
+                                    ],
+                      "score":  78,
+                      "blockedBy":  [
+                                        "architecture"
+                                    ],
+                      "executable":  false
+                  },
+                  {
+                      "id":  "chat",
+                      "dependsOn":  [
+                                        "storage",
+                                        "core-ui"
+                                    ],
+                      "score":  90,
+                      "blockedBy":  [
+
+                                    ],
+                      "executable":  true
+                  },
+                  {
+                      "id":  "storage",
+                      "dependsOn":  [
+                                        "architecture"
+                                    ],
+                      "score":  0,
+                      "blockedBy":  [
+                                        "architecture"
+                                    ],
+                      "executable":  false
+                  },
+                  {
+                      "id":  "core-ui",
+                      "dependsOn":  [
+                                        "architecture"
+                                    ],
+                      "score":  0,
+                      "blockedBy":  [
+                                        "architecture"
+                                    ],
+                      "executable":  false
+                  },
+                  {
+                      "id":  "delivery",
+                      "dependsOn":  [
+                                        "core-ui",
+                                        "chat",
+                                        "garage",
+                                        "profile"
+                                    ],
+                      "score":  90,
+                      "blockedBy":  [
+                                        "garage"
+                                    ],
+                      "executable":  false
+                  }
+              ]
+}

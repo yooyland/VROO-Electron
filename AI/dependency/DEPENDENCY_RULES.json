@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "foundation",
+      "dependsOn": []
+    },
+    {
+      "id": "brain",
+      "dependsOn": [
+        "foundation"
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "dependsOn": [
+        "brain"
+      ]
+    },
+    {
+      "id": "architecture",
+      "dependsOn": [
+        "foundation"
+      ]
+    },
+    {
+      "id": "character",
+      "dependsOn": [
+        "architecture"
+      ]
+    },
+    {
+      "id": "garage",
+      "dependsOn": [
+        "character",
+        "profile",
+        "core-ui"
+      ]
+    },
+    {
+      "id": "profile",
+      "dependsOn": [
+        "architecture",
+        "core-ui"
+      ]
+    },
+    {
+      "id": "chat",
+      "dependsOn": [
+        "storage",
+        "core-ui"
+      ]
+    },
+    {
+      "id": "storage",
+      "dependsOn": [
+        "architecture"
+      ]
+    },
+    {
+      "id": "core-ui",
+      "dependsOn": [
+        "architecture"
+      ]
+    },
+    {
+      "id": "delivery",
+      "dependsOn": [
+        "core-ui",
+        "chat",
+        "garage",
+        "profile"
+      ]
+    }
+  ]
+}

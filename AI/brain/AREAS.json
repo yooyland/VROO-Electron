@@ -1,0 +1,131 @@
+{
+  "version": "2.0",
+  "areas": [
+    {
+      "id": "foundation",
+      "name": "Foundation",
+      "weight": 10,
+      "patterns": [
+        "AI/*.md",
+        "scripts/foundation/*.ps1",
+        ".github/workflows/*foundation*"
+      ],
+      "required_signals": [
+        "AI/MASTER_BIBLE.md",
+        "AI/WORK_QUEUE.md",
+        "scripts/foundation/vroo-foundation.ps1"
+      ]
+    },
+    {
+      "id": "garage",
+      "name": "Garage",
+      "weight": 15,
+      "patterns": [
+        "app/assets/css/*garage*",
+        "app/assets/js/modules/my/**",
+        "app/assets/characters/**"
+      ],
+      "required_signals": [
+        "app/assets/css/my-garage.css",
+        "app/assets/js/modules/my",
+        "app/assets/characters"
+      ]
+    },
+    {
+      "id": "chat",
+      "name": "Chat",
+      "weight": 15,
+      "patterns": [
+        "app/assets/js/modules/*chat*",
+        "app/assets/js/modules/conversation-store.js"
+      ],
+      "required_signals": [
+        "app/assets/js/modules/chat.js",
+        "app/assets/js/modules/conversation-store.js",
+        "app/assets/js/modules/road-chat.js"
+      ]
+    },
+    {
+      "id": "profile",
+      "name": "Profile / My Page",
+      "weight": 10,
+      "patterns": [
+        "app/assets/js/modules/profile.js",
+        "app/assets/js/modules/my/**"
+      ],
+      "required_signals": [
+        "app/assets/js/modules/profile.js",
+        "app/assets/js/modules/my"
+      ]
+    },
+    {
+      "id": "character",
+      "name": "Character System",
+      "weight": 15,
+      "patterns": [
+        "Character/**",
+        "app/assets/characters/**",
+        "scripts/sync-characters.js"
+      ],
+      "required_signals": [
+        "Character",
+        "app/assets/characters",
+        "scripts/sync-characters.js"
+      ]
+    },
+    {
+      "id": "architecture",
+      "name": "Architecture",
+      "weight": 10,
+      "patterns": [
+        "docs/*.md"
+      ],
+      "required_signals": [
+        "docs/ARCHITECTURE_BIBLE.md",
+        "docs/DATA_MODEL.md",
+        "docs/API_GUIDE.md",
+        "docs/UI_FLOW.md"
+      ]
+    },
+    {
+      "id": "firebase",
+      "name": "Firebase / Data",
+      "weight": 10,
+      "patterns": [
+        "docs/*FIREBASE*",
+        "app/assets/js/core/storage.js"
+      ],
+      "required_signals": [
+        "docs/FIREBASE_SCHEMA.md",
+        "app/assets/js/core/storage.js"
+      ]
+    },
+    {
+      "id": "ui",
+      "name": "Core UI",
+      "weight": 10,
+      "patterns": [
+        "app/index.html",
+        "app/assets/js/app.js",
+        "app/assets/css/**"
+      ],
+      "required_signals": [
+        "app/index.html",
+        "app/assets/js/app.js"
+      ]
+    },
+    {
+      "id": "delivery",
+      "name": "Build / Delivery",
+      "weight": 5,
+      "patterns": [
+        "package.json",
+        ".github/workflows/**"
+      ],
+      "required_signals": [
+        "package.json",
+        ".github/workflows/ai-company-check.yml"
+      ]
+    }
+  ]
+}

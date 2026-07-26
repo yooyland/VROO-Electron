@@ -1,0 +1,69 @@
+{
+  "version": "2.0",
+  "tasks": [
+    {
+      "id": "REPO-001",
+      "area": "Repository",
+      "title": "Split mixed repository changes into coherent commits",
+      "priority": "P0",
+      "trigger": "dirty_count > 0",
+      "acceptance": "Every remaining change is assigned to a coherent commit group; no file is lost."
+    },
+    {
+      "id": "FOUNDATION-002",
+      "area": "Foundation",
+      "title": "Validate Project Brain and Foundation together",
+      "priority": "P0",
+      "trigger": "foundation_score < 90",
+      "acceptance": "Foundation validation and Project Brain scan both complete without errors."
+    },
+    {
+      "id": "ARCH-001",
+      "area": "Architecture",
+      "title": "Review and commit architecture document set",
+      "priority": "P1",
+      "trigger": "architecture_untracked > 0",
+      "acceptance": "Architecture documents are internally consistent and committed together."
+    },
+    {
+      "id": "CHAR-001",
+      "area": "Character System",
+      "title": "Verify source-to-runtime character synchronization",
+      "priority": "P1",
+      "trigger": "character_changes > 0",
+      "acceptance": "Character source and runtime assets synchronize reproducibly."
+    },
+    {
+      "id": "GARAGE-001",
+      "area": "Garage",
+      "title": "Validate Garage visual layout and character rendering",
+      "priority": "P1",
+      "trigger": "garage_changes > 0",
+      "acceptance": "Garage layout has no overflow, clipping, or inconsistent character asset selection."
+    },
+    {
+      "id": "CHAT-001",
+      "area": "Chat",
+      "title": "Validate recent conversation display and persistent room state",
+      "priority": "P1",
+      "trigger": "chat_changes > 0",
+      "acceptance": "Recent messages display and room state persists across navigation."
+    },
+    {
+      "id": "PROFILE-001",
+      "area": "Profile / My Page",
+      "title": "Validate My Page section hierarchy",
+      "priority": "P2",
+      "trigger": "profile_changes > 0",
+      "acceptance": "My Page sections are clear, responsive, and consistent with VROO UI rules."
+    },
+    {
+      "id": "UI-001",
+      "area": "Core UI",
+      "title": "Validate core navigation and prevent horizontal overflow",
+      "priority": "P1",
+      "trigger": "ui_changes > 0",
+      "acceptance": "Core navigation works and unintended horizontal scrolling is absent."
+    }
+  ]
+}

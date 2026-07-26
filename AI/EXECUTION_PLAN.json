@@ -1,0 +1,12 @@
+﻿{
+    "version":  "1.0",
+    "generatedAt":  "2026-07-26T22:49:50.0919401+09:00",
+    "selectedTask":  {
+                         "id":  "REPO-001",
+                         "area":  "Repository",
+                         "priority":  "P0",
+                         "title":  "Split mixed repository changes into coherent commits",
+                         "acceptance":  "Every changed file is assigned to exactly one reviewed commit group or ambiguity list."
+                     },
+    "reason":  "Repository safety has precedence because 282 changed entries exist."
+}
