@@ -108,6 +108,8 @@ export const defaults = {
     car: "sport",
     status: "1.1.0-beta.1 테스트 중"
   },
+  /** MY GARAGE — 차량 컬렉션·뷰 상태 */
+  myGarage: null,
   location: {lat: 37.5665, lng: 126.9780},
   hornEnabled: true,
   mapBearing: 0
@@ -381,7 +383,7 @@ function sanitizeState(s) {
   }
 
   if (!Array.isArray(s.roadChatHistory)) s.roadChatHistory = [];
-  if (!["all", "spatial", "direct", "room"].includes(s.roomsListFilter)) s.roomsListFilter = "all";
+  if (!["all", "spatial", "direct", "room", "road", "nearby", "grid"].includes(s.roomsListFilter)) s.roomsListFilter = "all";
 
   if (!s.nearbyChat || typeof s.nearbyChat !== "object" || Array.isArray(s.nearbyChat)) {
     s.nearbyChat = {
@@ -463,10 +465,26 @@ function sanitizeState(s) {
       scrollByConversationId: {},
       selectedVehicleByConversationId: {},
       returnView: null,
-      drivingInteractionMode: "unknown"
+      drivingInteractionMode: "unknown",
+      selectedConversationType: "all",
+      listScrollPosition: 0,
+      messageScrollPosition: null,
+      contextPanelCollapsed: false,
+      chatSearchQuery: ""
     };
-  } else if (!["parked", "passenger", "moving", "unknown"].includes(s.conversationUi.drivingInteractionMode)) {
-    s.conversationUi.drivingInteractionMode = "unknown";
+  } else {
+    if (!["parked", "passenger", "moving", "unknown"].includes(s.conversationUi.drivingInteractionMode)) {
+      s.conversationUi.drivingInteractionMode = "unknown";
+    }
+    const types = ["all", "road", "nearby", "grid", "direct", "room", "spatial"];
+    if (!types.includes(s.conversationUi.selectedConversationType)) {
+      s.conversationUi.selectedConversationType = "all";
+    }
+    if (typeof s.conversationUi.chatSearchQuery !== "string") s.conversationUi.chatSearchQuery = "";
+    s.conversationUi.contextPanelCollapsed = !!s.conversationUi.contextPanelCollapsed;
+    s.conversationUi.listScrollPosition = Number.isFinite(Number(s.conversationUi.listScrollPosition))
+      ? Number(s.conversationUi.listScrollPosition)
+      : 0;
   }
 
   if (!s.roadInsight || typeof s.roadInsight !== "object" || Array.isArray(s.roadInsight)) {
@@ -492,6 +510,25 @@ function sanitizeState(s) {
 
   if (!s.profile || typeof s.profile !== "object" || Array.isArray(s.profile)) {
     s.profile = structuredClone(defaults.profile);
+  }
+  if (s.myGarage != null && (typeof s.myGarage !== "object" || Array.isArray(s.myGarage))) {
+    s.myGarage = null;
+  } else if (s.myGarage && typeof s.myGarage === "object") {
+    const views = [
+      "garage",
+      "collection",
+      "upgrade",
+      "custom",
+      "accessory",
+      "inventory",
+      "missions",
+      "records",
+      "achievements",
+      "profile",
+      "friends"
+    ];
+    if (!views.includes(s.myGarage.activeMyView)) s.myGarage.activeMyView = "garage";
+    if (!Array.isArray(s.myGarage.vehicles)) s.myGarage.vehicles = [];
   }
   if (!s.location || typeof s.location !== "object" || Array.isArray(s.location)) {
     s.location = structuredClone(defaults.location);
