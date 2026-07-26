@@ -1,3 +1,9 @@
 node_modules/
 dist/
 *.log
+
+# VROO AI Company Foundation runtime/install files
+AI/CURRENT_TASK.md
+*.foundation-backup
+VROO_AI_Company_Foundation_v1.0/
+VROO_AI_Company_Foundation_v1.0_Completion/

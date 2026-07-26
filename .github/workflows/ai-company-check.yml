@@ -1,0 +1,38 @@
+name: AI Company Foundation Check
+
+on:
+  pull_request:
+  push:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Foundation
+        shell: pwsh
+        run: |
+          ./scripts/foundation/Validate-Foundation.ps1 -ProjectRoot $PWD
+
+      - name: Validate package.json
+        shell: pwsh
+        run: |
+          if (Test-Path package.json) {
+            Get-Content package.json -Raw | ConvertFrom-Json | Out-Null
+          }
+
+      - name: Run project tests when available
+        shell: pwsh
+        run: |
+          if (-not (Test-Path package.json)) { exit 0 }
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          if ($pkg.scripts.test -and $pkg.scripts.test -notmatch 'no test specified') {
+            npm ci
+            npm test
+          }

@@ -1,0 +1,39 @@
+name: VROO Foundation Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required AI Company files
+        shell: bash
+        run: |
+          required=(
+            AI/MASTER_BIBLE.md
+            AI/AI_ROLES.md
+            AI/QUALITY_RULES.md
+            AI/COMPLETION_TREE.md
+            AI/WORK_QUEUE.md
+            AI/AI_OPERATING_MANUAL.md
+            AI/DECISION_LOG.md
+          )
+          missing=0
+          for file in "${required[@]}"; do
+            if [ ! -s "$file" ]; then
+              echo "Missing or empty: $file"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Detect unresolved completion claims
+        shell: bash
+        run: |
+          if grep -RInE 'COMPLETE.*(TODO|TBD)|완료.*(TODO|미검증)' AI; then
+            echo "Potential contradictory completion claim detected."
+            exit 1
+          fi
