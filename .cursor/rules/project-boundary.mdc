@@ -1,16 +1,25 @@
 ---
-description: VROO Electron 제품 경계·Mobility Lifestyle Platform 정의
+description: VROO Electron 제품 경계·스택·문서 인덱스
 alwaysApply: true
 ---
 
 # VROO Electron
 
-- 위치: `D:\VROO_Electron` (장기 · Mobility Lifestyle Platform)
-- 정의: 운전자의 모든 생활을 하나로 연결하는 플랫폼
-- 슬로건(KO): 운전의 모든 순간을 연결하다. / (EN) Drive Together, Live Better.
-- 8축: DRIVE·SOCIAL·STORE·BENEFITS·CARE·LOCAL·PLAY·MY
-- 상태: implemented | prototype | planned — 미구현을 완료처럼 표시 금지
-- 스택: Electron, 바닐라 JS, Leaflet, Three.js, localStorage
-- 타 프로젝트(App-YooYLand, OpenStudio, YooY/RN/Expo) 참조 금지
-- 문서: `docs/PRODUCT_VISION.md`, `README.md`
+- 경로: `D:\VROO_Electron`
+- 정의: **Digital Car Life Platform** (자동차 = RPG 캐릭터)
+- Slogan: Drive • Connect • Grow / KO: 운전의 모든 순간을 연결하다
+- 스택: Electron · 바닐라 JS · Leaflet · Three.js · localStorage(현재)
+- 타 프로젝트(YooYLand/OpenStudio/RN) 참조 금지
 - 응답: 한국어
+
+## Rules
+
+`01-design` · `02-ui` · `03-domain` · `04-server` · `05-game-system` · `06-reuse` · `07-character-system` · `vroo-dev-workflow`
+
+## Docs
+
+- **Architecture Bible** `docs/ARCHITECTURE_BIBLE.md`
+- **Data** `DATA_MODEL.md` · `FIREBASE_SCHEMA.md` · `API_GUIDE.md`
+- **Flow** `UI_FLOW.md` · `ROADMAP.md`
+- `PRODUCT_VISION.md` · `PLATFORM_ARCHITECTURE.md` · `FEATURE_STATUS.md`
+- **Character** `Character/README.md` · `Character/Bible/CHARACTER_BIBLE.md` · `Character/Data/vehicle-character-manifest.json`

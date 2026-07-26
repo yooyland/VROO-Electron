@@ -1,0 +1,4 @@
+VROO 공식 차량 캐릭터 5종을 설치했다.
+경로: D:\VROO_Electron\Character\Vehicles
+manifest: Character/Data/vehicle-character-manifest.json
+우선 MY GARAGE의 VROO Heritage 차량을 Character/Vehicles/05_Heritage/views/front_45.svg로 교체한다. 기존 데이터와 기능은 유지하고 실패 시 기존 렌더러를 fallback으로 유지한다.

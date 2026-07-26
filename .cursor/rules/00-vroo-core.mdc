@@ -1,0 +1,13 @@
+---
+description: VROO project-wide product, quality, and autonomy rules
+globs:
+alwaysApply: true
+---
+# VROO Core Rule
+- Read `AGENTS.md` before doing any work.
+- Communicate in Korean unless code or established technical terms require English.
+- Inspect before editing; do not invent existing architecture.
+- Prefer minimal, reversible, reviewable changes.
+- Do not ask the owner about implementation details that can be safely inferred.
+- Record material assumptions in the PR description.
+- Never merge to main automatically.

@@ -1,0 +1,38 @@
+---
+description: VROO UI 규칙 — 화면·메뉴·컴포넌트
+alwaysApply: true
+---
+
+# 02 UI
+
+## 기능 우선순위 (신규·개편 시)
+
+Garage → Map → Chat → Mission → Grid → Community → Shop → Settings
+
+## 목표 메뉴 IA
+
+HOME · GARAGE · MAP · CHAT · GRID · MISSION · SHOP · COMMUNITY · MY(Settings)
+
+현재 Electron 매핑(점진 정렬, 일괄 개편은 요청 시만):
+
+| 목표 | 현재 |
+|------|------|
+| Map/Home | 주변차량 + 지도·도로 |
+| Garage/My | `modules/my/` MY GARAGE |
+| Chat | 대화방 AppShell |
+| Grid | 그리드 |
+| Mission | 성장 + MY 미션 |
+| Shop / Community | 상점 / 커뮤니티 |
+
+## 화면 규칙
+
+- **Garage/MY**: 사람 프로필 폼이 메인 아님. 대표 차량 → 상태 → 활동 → 친구 → 기록 → 설정
+- **Chat**: 자동차·공간·읽음·온라인 우선 (일반 메신저 금지)
+- **Map**: GPS·차량 중심, 지도 넓게
+- 아이콘: 통일 SVG. 이모지 메뉴·패키지 설치 금지
+- AppShell 2열(메인+컨텍스트) 패턴 재사용
+- 미구현 = planned/준비 중. 완료처럼 표시 금지
+
+## 새 화면 체크
+
+1 사용자 목적 → 2 자동차 성장 → 3 서버 데이터 → 4 UI → 5 확장

@@ -1,0 +1,29 @@
+---
+description: VROO 성장 시스템 — 레벨·XP·아이템·미션
+alwaysApply: true
+---
+
+# 05 Game System
+
+## 원칙
+
+성장 대상은 **사람 프로필이 아니라 자동차(및 계정  Progressive 동기화)**.  
+확률형 강화·가짜 클리어·가짜 결제 성공 금지. **예측 가능한 성장** 우선.
+
+## 루프
+
+Map/Chat/Grid/Mission 활동 → XP/Mission progress → Level/Ability → Items/Collection → Garage 표현 → Shop(선택)
+
+## 로컬 프로토타입 (현재)
+
+- 계정: `state.level`, `state.xp`, `state.credits`
+- 차량: `state.myGarage.vehicles[]` (stats·custom·owned)
+- 미션/업적: `myGarage.missions` / `achievements` (`source: local`)
+
+## 규칙
+
+- Ability = **VROO 성장 지표** (실차 성능처럼 표현 금지)
+- Mission 완료는 서버 검증 전 자동 완료처럼 표시 금지
+- 코인/크레딧 차감은 `spendCredits` 등 단일 경로
+- 아이템 장착 = 디지털 아바타 꾸미기 (실차 제어 암시 금지)
+- 상세 수치·컬렉션: `docs/ARCHITECTURE_BIBLE.md` §성장

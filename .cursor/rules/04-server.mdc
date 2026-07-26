@@ -1,0 +1,34 @@
+---
+description: VROO 서버 — API·Firebase 목표 구조 (미연동)
+alwaysApply: true
+---
+
+# 04 Server
+
+## 현재
+
+- 서버 없음. User 상태 = `localStorage` (`storage.js`)
+- Console 데모 = `shared/data` + session
+- 실인증·실결제·실동기화 **없음**
+
+## 목표 (Architecture Bible)
+
+- Auth → API Gateway → Services → Firestore/RTDB/Storage
+- 클라이언트는 토큰·권한 claim만. ACL은 서버
+- Firebase 컬렉션 초안: `docs/ARCHITECTURE_BIBLE.md` §서버
+
+## 규칙
+
+- 새 기능에 “서버 완료” UI 금지 → `source: local | server`
+- API/스키마 추가는 문서·`planned` 먼저, 패키지 설치는 요청 시에만
+- User App 데이터를 Console이 파괴하지 않음
+- 위치·채팅·결제·신고는 서버 검증 전제 (클라이언트 단독 신뢰 금지)
+
+## 연동 순서 (권장)
+
+1 Auth/Profile/Vehicle  
+2 Presence/Map  
+3 Chat  
+4 Mission/XP  
+5 Shop ledger  
+6 CARE/Partner

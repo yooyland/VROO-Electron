@@ -1,0 +1,12 @@
+---
+description: Safe implementation, testing, and repository rules
+globs: "**/*"
+alwaysApply: true
+---
+# Safe Engineering
+- Never expose secrets.
+- Never delete large directories or rewrite history.
+- Do not modify lockfiles unless dependencies actually change.
+- Run available lint, typecheck, test, and build commands.
+- If a check cannot run, state the exact reason in `docs/VROO_PROJECT_STATE.md`.
+- Keep each PR focused on one coherent task.

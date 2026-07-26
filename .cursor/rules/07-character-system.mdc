@@ -1,0 +1,33 @@
+---
+description: VROO Character System — 차량 캐릭터 단일 기준
+alwaysApply: true
+---
+
+# Character System
+
+- 경로: `D:\VROO_Electron\Character`
+- 자동차는 VROO의 **핵심 캐릭터**다.
+- **Character 폴더**가 차량 디자인의 단일 기준이다.
+- 차량 ID·등급·성장 순서는 `Character/Data/vehicle-character-manifest.json` · `vehicle-evolution.json`을 따른다.
+- 단계: Basic/Common → Street/Rare → Sport/Epic → Performance/Legendary → VROO Heritage/Mythic
+- 임시 차량(SVG/박스)을 새로 만들기 전에 Character 에셋을 확인한다.
+- Character **원본**(Bible/Concept/Vehicles/Parts/Effects/Audio/Source)은 수정하지 않는다.
+- 앱용 변환물은 `Character/Exports/` 또는 `app/assets/characters/`에 둔다.
+- Garage · Map · Chat · Friends · Shop은 동일 `characterId`를 공유한다.
+- 실존 자동차 브랜드 디자인을 직접 복제하지 않는다.
+- naming: `Character/Bible/ASSET_NAMING_RULES.md`
+- fallback 없이 기존 차량 렌더러를 제거하지 않는다.
+- 연동 가이드: `Character/Integration/INTEGRATION_GUIDE.md`
+- 앱 adapter: `app/assets/js/modules/my/character-adapter.js`
+- Electron CSP(`'self'`) 대응: 필요한 Export는 `app/assets/characters/`에 동기화 후 로드
+- 원본 경로 `../Character`는 참고·동기화 소스이며, 렌더러 직접 fetch는 CSP로 차단될 수 있음
+- 동기화: `npm run sync:characters`
+- Hero 에셋 우선순위: `front_45.webp` → `.png` → `.svg` → Three.js → premium SVG
+- SVG는 실사 에셋 추가 후에도 삭제하지 않는다 (fallback)
+- 실사 파일은 **실제 alpha(투명)** 가 있는 cutout만 공식 인정. 프로모/불투명 합성은 Archive.
+- Garage Hero: `approved && transparent && assetType==="character"` 만 raster/공식 로드
+- placeholder는 SVG만 (현재 Heritage). promotional/concept 런타임 금지
+- 차량별 고유 `characterId` + `characterStatus: "missing"` 까지 공식 원화 대기
+- 동기화: `npm run sync:characters` (Archive/Concept/미승인 raster 제외)
+- 잘못된 홍보 에셋: `Character/Archive/Invalid_Heritage_Assets/`
+- 공식 front_45 기준: `Character/Bible/PRODUCTION_CHECKLIST.md`

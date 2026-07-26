@@ -1,0 +1,31 @@
+---
+description: VROO 도메인 — 자동차 생태계·ID·금지
+alwaysApply: true
+---
+
+# 03 Domain
+
+## 핵심 모델
+
+**자동차 = RPG 캐릭터**  
+속성: Level · XP · Ability · Items · Collection · Mission · Achievement · History · Friends
+
+Owner(`user`) ↔ ActiveVehicle(`vehicle`) ↔ Spatial(Map/Grid/Road) ↔ Social(Chat) ↔ Play(Mission) ↔ Store
+
+## ID·공간
+
+- `user.id` / `vehicle.id` / `grid.id` 구분
+- location · current · selected GridId 혼동 금지
+- Spatial GRID L1/L2/L3, viewport만, 그리드 메뉴에서 표시
+
+## 상업·안전 언어
+
+- UI: **혜택** 우선 (광고 남발 금지)
+- 금지: 실결제 성공 연출, 실보험 확정, 외부 사고 전송, 민감정보 임의 필드
+- CARE/BENEFITS/LOCAL = planned until server
+
+## 경계
+
+- User App (`app/`) ≠ Console (`console/`)
+- 타 프로젝트(YooYLand/OpenStudio/RN) 참조 금지
+- 스택: Electron · 바닐라 JS · Leaflet · Three.js · localStorage(현재)

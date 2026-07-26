@@ -1,0 +1,13 @@
+---
+description: VROO UI and interaction quality rules
+globs: "**/*.{html,css,scss,tsx,ts,jsx,js,vue,svelte}"
+alwaysApply: false
+---
+# VROO UI/UX
+- Mobile-first and usable on desktop.
+- Avoid horizontal overflow.
+- All primary actions must have visible feedback and disabled/loading/error states.
+- Preserve chat history context and clearly distinguish participants.
+- Floating panels opened by `+` should be draggable where technically appropriate, keyboard accessible, and remain within viewport.
+- My Page must use clear visual sections, consistent spacing, and a restrained premium automotive visual language.
+- Never use mock UI as completed functionality.
