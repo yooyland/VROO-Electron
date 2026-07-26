@@ -325,7 +325,12 @@ export function ensureConversationUi(state) {
       scrollByConversationId: {},
       selectedVehicleByConversationId: {},
       returnView: null,
-      drivingInteractionMode: "unknown"
+      drivingInteractionMode: "unknown",
+      selectedConversationType: "all",
+      listScrollPosition: 0,
+      messageScrollPosition: null,
+      contextPanelCollapsed: false,
+      chatSearchQuery: ""
     };
   }
   const ui = state.conversationUi;
@@ -337,6 +342,15 @@ export function ensureConversationUi(state) {
   if (!["parked", "passenger", "moving", "unknown"].includes(ui.drivingInteractionMode)) {
     ui.drivingInteractionMode = "unknown";
   }
+  const types = ["all", "road", "nearby", "grid", "direct", "room", "spatial"];
+  if (!types.includes(ui.selectedConversationType)) {
+    ui.selectedConversationType = state.roomsListFilter && types.includes(state.roomsListFilter)
+      ? state.roomsListFilter
+      : "all";
+  }
+  if (typeof ui.chatSearchQuery !== "string") ui.chatSearchQuery = "";
+  ui.contextPanelCollapsed = !!ui.contextPanelCollapsed;
+  ui.listScrollPosition = Number.isFinite(Number(ui.listScrollPosition)) ? Number(ui.listScrollPosition) : 0;
   return ui;
 }
 

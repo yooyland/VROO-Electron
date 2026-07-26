@@ -73,15 +73,31 @@ const DEFAULT_QUICK_RECOMMEND = Object.freeze([
   "hazard"
 ]);
 
-/** 패널 상태와 별도인 일시 overlay (persist 안 함) */
+/** Floating 툴 패널 id → 저장 키 */
+export const ROAD_TOOL_PANEL_IDS = Object.freeze({
+  quick: "quickMessages",
+  situation: "roadSituation",
+  help: "helpRequest",
+  voice: "voiceMode"
+});
+
+/** 패널 상태와 별도인 일시 UI (위치는 state에 persist) */
 const floatUi = {
+  /** null | menu | quick | situation | help | voice */
   overlay: null,
   quickShowAll: false,
-  outsideBound: false
+  outsideBound: false,
+  resizeBound: false,
+  stickBottom: true,
+  pendingNewCount: 0,
+  dragging: false
 };
 
 const ROAD_RADIUS_M = 450;
 const STALE_MS = 5 * 60 * 1000;
+
+const TOOL_PANEL_MIN = Object.freeze({ w: 220, h: 120 });
+const TOOL_PANEL_MAX = Object.freeze({ w: 320, h: 280 });
 
 let panelEl = null;
 /** Content Workspace 전체 상세 패널 (같은 roadChat 세션) */
@@ -174,7 +190,14 @@ export function defaultRoadChatState() {
     messagePurpose: "chat",
     situationCategory: "traffic",
     contentCategoryFilter: "all",
-    recentQuickIds: []
+    recentQuickIds: [],
+    /** compact 미리보기 메시지 수 */
+    recentMessagePreviewCount: 3,
+    /** 활성 floating tool: null | quick | situation | help | voice */
+    activeFloatingTool: null,
+    floatingPanelPositions: {},
+    roadChatScrollPosition: null,
+    stickMessageBottom: true
   };
 }
 
@@ -227,13 +250,164 @@ export function sanitizeRoadChat(raw) {
     contentCategoryFilter: raw.contentCategoryFilter || "all",
     recentQuickIds: Array.isArray(raw.recentQuickIds)
       ? raw.recentQuickIds.map(String).filter(Boolean).slice(0, 4)
-      : []
+      : [],
+    recentMessagePreviewCount: Math.max(
+      2,
+      Math.min(10, Math.floor(Number(raw.recentMessagePreviewCount) || 3))
+    ),
+    activeFloatingTool: ["quick", "situation", "help", "voice"].includes(raw.activeFloatingTool)
+      ? raw.activeFloatingTool
+      : null,
+    floatingPanelPositions: sanitizeFloatingPositions(raw.floatingPanelPositions),
+    roadChatScrollPosition: Number.isFinite(Number(raw.roadChatScrollPosition))
+      ? Number(raw.roadChatScrollPosition)
+      : null,
+    stickMessageBottom: raw.stickMessageBottom !== false
   };
 }
 
-function closeFloatOverlay() {
+function sanitizeFloatingPositions(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const key of Object.values(ROAD_TOOL_PANEL_IDS)) {
+    const p = raw[key];
+    if (!p || typeof p !== "object") continue;
+    const x = Number(p.x);
+    const y = Number(p.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    out[key] = { x, y };
+  }
+  return out;
+}
+
+function closeFloatOverlay(state) {
   floatUi.overlay = null;
   floatUi.quickShowAll = false;
+  if (state?.roadChat) state.roadChat.activeFloatingTool = null;
+  removeToolPanelEl();
+}
+
+function removeToolPanelEl() {
+  document.querySelector("#roadToolPanel")?.remove();
+}
+
+function getRoadStageHost() {
+  return (
+    document.querySelector("#roadStage") ||
+    document.querySelector("#roadChatDock")?.parentElement ||
+    document.body
+  );
+}
+
+function clampFloatingPanelPosition(x, y, panelW, panelH, hostEl) {
+  const host = hostEl || getRoadStageHost();
+  const hr = host.getBoundingClientRect();
+  const w = Math.min(panelW || TOOL_PANEL_MAX.w, Math.max(TOOL_PANEL_MIN.w, hr.width - 16));
+  const h = Math.min(panelH || TOOL_PANEL_MAX.h, Math.max(TOOL_PANEL_MIN.h, hr.height - 16));
+  const maxX = Math.max(8, hr.width - w - 8);
+  const maxY = Math.max(8, hr.height - h - 8);
+  return {
+    x: Math.min(maxX, Math.max(8, Number(x) || 8)),
+    y: Math.min(maxY, Math.max(8, Number(y) || 8)),
+    w,
+    h
+  };
+}
+
+function defaultToolPanelPos(toolId, hostEl) {
+  const host = hostEl || getRoadStageHost();
+  const hr = host.getBoundingClientRect();
+  const dock = document.querySelector("#roadChatDock");
+  const dr = dock?.getBoundingClientRect();
+  const w = Math.min(TOOL_PANEL_MAX.w, Math.max(240, Math.min(300, hr.width * 0.28)));
+  const h = 220;
+  let x = 16;
+  let y = 16;
+  if (toolId === "quick" || toolId === "voice") {
+    if (dr) {
+      x = dr.left - hr.left;
+      y = Math.max(8, dr.top - hr.top - h - 10);
+    } else {
+      x = 12;
+      y = hr.height - h - 120;
+    }
+  } else if (toolId === "situation") {
+    x = Math.max(8, hr.width - w - 24);
+    y = Math.max(48, hr.height * 0.28);
+  } else if (toolId === "help") {
+    x = Math.max(8, hr.width - w - 24);
+    y = Math.max(8, hr.height - h - 24);
+  }
+  /* 중앙(차량 시야) 회피: 가운데 40% 대에 있으면 옆으로 */
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  if (cx > hr.width * 0.35 && cx < hr.width * 0.65 && cy > hr.height * 0.3 && cy < hr.height * 0.7) {
+    x = hr.width > 900 ? hr.width - w - 24 : 12;
+  }
+  return clampFloatingPanelPosition(x, y, w, h, host);
+}
+
+function getStoredToolPos(state, toolId) {
+  const key = ROAD_TOOL_PANEL_IDS[toolId];
+  const stored = state?.roadChat?.floatingPanelPositions?.[key];
+  if (stored && Number.isFinite(stored.x) && Number.isFinite(stored.y)) {
+    return clampFloatingPanelPosition(stored.x, stored.y, TOOL_PANEL_MAX.w, TOOL_PANEL_MAX.h);
+  }
+  return defaultToolPanelPos(toolId);
+}
+
+function saveToolPanelPos(state, toolId, x, y) {
+  const rc = ensureRoadChat(state);
+  if (!rc.floatingPanelPositions || typeof rc.floatingPanelPositions !== "object") {
+    rc.floatingPanelPositions = {};
+  }
+  const key = ROAD_TOOL_PANEL_IDS[toolId];
+  if (!key) return;
+  const clamped = clampFloatingPanelPosition(x, y, TOOL_PANEL_MAX.w, TOOL_PANEL_MAX.h);
+  rc.floatingPanelPositions[key] = { x: clamped.x, y: clamped.y };
+  saveState();
+}
+
+function formatMsgClock(ts) {
+  const n = Number(ts);
+  if (!Number.isFinite(n)) return "";
+  return new Date(n).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function messageTypeLabel(m) {
+  if (!m) return "";
+  const cat = m.category;
+  if (!cat || cat === "chat" || cat === "courtesy") return "";
+  if (cat === "help") return "도움 요청";
+  return "도로 상황";
+}
+
+function buildMessagePreviewHtml(messages, limit) {
+  const list = (messages || []).slice(-limit);
+  if (!list.length) return `<div class="muted road-msg-empty">아직 메시지가 없습니다.</div>`;
+  return list
+    .map((m) => {
+      const mine = !!m.mine;
+      const who = mine ? "나" : escapeHtml(m.senderNickname || "차량");
+      const body = escapeHtml(String(m.body || m.text || "").slice(0, 160));
+      const time = escapeHtml(formatMsgClock(m.createdAt));
+      const type = messageTypeLabel(m);
+      const typeHtml = type ? `<span class="road-msg-type">${escapeHtml(type)}</span>` : "";
+      const status =
+        mine && m.deliveryStatus && m.deliveryStatus !== "sent"
+          ? `<span class="road-msg-status muted">${escapeHtml(m.deliveryStatus === "local_only" ? "로컬" : m.deliveryStatus)}</span>`
+          : "";
+      return `<button type="button" class="road-msg-item ${mine ? "mine" : "theirs"}" data-msg-id="${escapeHtml(m.id || "")}" data-sender="${escapeHtml(m.senderVehicleId || "")}" aria-label="${mine ? "내 메시지" : who}, ${body}">
+        <div class="road-msg-meta">
+          ${mine ? "" : `<b class="road-msg-who">${who}</b>`}
+          <span class="road-msg-time muted">${time}</span>
+          ${status}
+        </div>
+        ${typeHtml}
+        <div class="road-msg-body">${body}</div>
+      </button>`;
+    })
+    .join("");
 }
 
 function rememberQuickId(state, quickId) {
@@ -875,7 +1049,7 @@ function sendRoadMessage(state, text, opts = {}) {
   /* Floating 작성 모드: 전송 후 일반 대화로 복귀 */
   if (opts.source === "road_input" || opts.fromQuick) {
     resetComposeMode(state);
-    closeFloatOverlay();
+    closeFloatOverlay(state);
   }
 
   emit("chat:messagePreview", {
@@ -982,6 +1156,10 @@ function scheduleRoadDemoReply(state, participants) {
       if (confirmSit) {
         rc.unreadSituation = Math.max(0, Number(rc.unreadSituation) || 0) + 1;
       }
+    } else if (!floatUi.stickBottom) {
+      floatUi.pendingNewCount = Math.max(0, Number(floatUi.pendingNewCount) || 0) + 1;
+    } else {
+      floatUi.pendingNewCount = 0;
     }
     rebuildSituationConsensus(state);
     buildLocalRoadInsight(state, participants);
@@ -1105,7 +1283,7 @@ function insightCardHtml(insight, participants, radiusM, opts = {}) {
 }
 
 /**
- * 왼쪽 Floating Road Chat — compact 입력 중심 (+ 기능 메뉴)
+ * 왼쪽 Floating Road Chat — 최근 메시지 미리보기 + 드래그 가능 툴 패널
  */
 export function renderFloatingRoadChat(dock, state, opts = {}) {
   if (!dock) return;
@@ -1116,13 +1294,15 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
   setDockMode(state, mode);
   mode = rc.dockMode;
 
+  if (!floatUi.overlay && rc.activeFloatingTool) {
+    floatUi.overlay = rc.activeFloatingTool;
+  }
+
   const { participants, myDirection } = refreshSessionContext(state);
   const draft = getRoadDraft(state);
   const split = getRoadUnreadSplit(state);
   const last = rc.messages?.length ? rc.messages[rc.messages.length - 1] : null;
   const lastText = last ? String(last.body || last.text || "") : "아직 메시지가 없습니다.";
-  const lastKind =
-    last?.category && last.category !== "chat" && last.category !== "courtesy" ? "도로 상황" : "일반 대화";
   const voice = rc.voiceMode || "inactive";
   const voiceActive = voice === "listening" || voice === "processing" || voice === "draft_ready";
   const maxLen = ROAD_CHAT_CONFIG.maxLengthRoad;
@@ -1130,6 +1310,11 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
   const sitCat = rc.situationCategory || "traffic";
   const overlay = floatUi.overlay;
   const nearLimit = draft.length >= Math.floor(maxLen * 0.85);
+  const previewCount =
+    mode === "expanded"
+      ? Math.min(10, Math.max(5, Number(rc.recentMessagePreviewCount) || 5))
+      : Math.min(3, Math.max(2, window.innerWidth < 1400 ? 2 : Number(rc.recentMessagePreviewCount) || 3));
+  const olderUnread = Math.max(0, split.total - previewCount);
 
   dock.classList.toggle("dock-collapsed", mode === "collapsed");
   dock.classList.toggle("dock-compact", mode === "compact");
@@ -1143,7 +1328,7 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
     </span>`;
 
   if (mode === "collapsed") {
-    closeFloatOverlay();
+    closeFloatOverlay(state);
     dock.innerHTML = `
       <button type="button" class="road-chat-dock-toggle" id="roadChatDockToggle" aria-expanded="false">
         현재 도로 대화 ${unreadBadge}
@@ -1184,21 +1369,21 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
       </div>`
     : "";
 
-  let expandedBlock = "";
+  const msgHtml = buildMessagePreviewHtml(rc.messages, previewCount);
+  const olderBtn =
+    olderUnread > 0
+      ? `<button type="button" class="secondary road-older-unread" id="roadOlderUnread">이전 새 메시지 ${olderUnread}개 더 있음</button>`
+      : "";
+  const newMsgBtn =
+    floatUi.pendingNewCount > 0 && !floatUi.stickBottom
+      ? `<button type="button" class="primary road-new-msg-jump" id="roadNewMsgJump">새 메시지 ${floatUi.pendingNewCount}개</button>`
+      : "";
+
+  let expandedExtra = "";
   if (mode === "expanded") {
-    const recentMsgs = (rc.messages || [])
-      .slice(-5)
-      .map((m) => {
-        const who = m.mine ? "나" : m.senderNickname || "차량";
-        const kind =
-          m.category && m.category !== "chat" && m.category !== "courtesy" ? "상황" : "대화";
-        return `<div class="road-float-msg ${m.mine ? "mine" : ""}"><span class="muted">${escapeHtml(kind)}</span> <b>${escapeHtml(who)}</b> ${escapeHtml(String(m.body || "").slice(0, 72))}</div>`;
-      })
-      .join("");
     const insight = buildLocalRoadInsight(state, participants);
-    expandedBlock = `
-      <div id="roadFloatingScroll" class="road-float-scroll">${recentMsgs || '<div class="muted">메시지 없음</div>'}</div>
-      <div class="muted">참여 ${participants.length}대 · 같은 방향 ${participants.filter((p) => p.sameDirection).length}대 · ${escapeHtml(directionLabel(myDirection))}</div>
+    expandedExtra = `
+      <div class="muted road-float-participants">참여 ${participants.length}대 · 같은 방향 ${participants.filter((p) => p.sameDirection).length}대 · ${escapeHtml(directionLabel(myDirection))}</div>
       <div class="muted road-float-insight-mini">${escapeHtml((insight.summaryText || "").slice(0, 80))}</div>
       <div class="convo-actions">
         <button type="button" class="primary" data-open-road-chat>대화방 열기</button>
@@ -1207,98 +1392,13 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
 
   const menuOpen = overlay === "menu";
   const actionMenu = menuOpen
-    ? `<div class="road-float-overlay road-float-menu" id="roadFloatMenu" role="menu" aria-label="메시지 기능">
+    ? `<div class="road-float-menu-pop" id="roadFloatMenu" role="menu" aria-label="메시지 기능">
         ${ROAD_FLOAT_ACTIONS.map(
           (a) =>
             `<button type="button" class="road-float-menu-item" role="menuitem" data-float-action="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`
         ).join("")}
       </div>`
     : "";
-
-  let panelOverlay = "";
-  if (overlay === "situation") {
-    panelOverlay = `
-      <div class="road-float-overlay road-float-sheet" id="roadFloatSheet" role="dialog" aria-label="도로 상황 선택">
-        <div class="road-float-sheet-head">
-          <b>도로 상황 알리기</b>
-          <button type="button" class="secondary" id="roadOverlayClose" aria-label="닫기">닫기</button>
-        </div>
-        <div class="road-cat-bar" role="group" aria-label="도로 상황 분류">
-          ${ROAD_SITUATION_CATEGORIES.map(
-            (c) =>
-              `<button type="button" class="secondary ${sitCat === c.id && purpose === "situation" ? "active" : ""}" data-sit-pick="${escapeHtml(c.id)}" aria-pressed="${sitCat === c.id && purpose === "situation"}">${escapeHtml(c.label)}</button>`
-          ).join("")}
-        </div>
-        ${
-          purpose === "situation"
-            ? `<div class="road-suggest" role="listbox" aria-label="추천 문구">
-            ${(SITUATION_PHRASE_HINTS[sitCat] || SITUATION_PHRASE_HINTS.other)
-              .slice(0, 3)
-              .map(
-                (s) =>
-                  `<button type="button" class="secondary road-suggest-item" role="option" data-sit-phrase="${escapeHtml(s)}">${escapeHtml(s)}</button>`
-              )
-              .join("")}
-          </div>`
-            : `<div class="muted">분류를 선택하면 추천 문구가 표시됩니다.</div>`
-        }
-      </div>`;
-  } else if (overlay === "help") {
-    panelOverlay = `
-      <div class="road-float-overlay road-float-sheet" id="roadFloatSheet" role="dialog" aria-label="도움 요청">
-        <div class="road-float-sheet-head">
-          <b>도움 요청</b>
-          <button type="button" class="secondary" id="roadOverlayClose" aria-label="닫기">닫기</button>
-        </div>
-        <div class="muted road-help-note">긴급신고 서비스가 아닙니다.</div>
-        <div class="road-suggest" role="listbox">
-          ${HELP_REQUEST_OPTIONS.map(
-            (h) =>
-              `<button type="button" class="secondary road-suggest-item" role="option" data-help-opt="${escapeHtml(h.id)}">${escapeHtml(h.label)}</button>`
-          ).join("")}
-        </div>
-      </div>`;
-  } else if (overlay === "quick") {
-    const recent = (rc.recentQuickIds || [])
-      .map((id) => getQuickDef(id))
-      .filter(Boolean)
-      .slice(0, 2);
-    const recommend = DEFAULT_QUICK_RECOMMEND.map((id) => getQuickDef(id))
-      .filter(Boolean)
-      .filter((q) => !recent.some((r) => r.id === q.id));
-    const primary = [...recent, ...recommend].slice(0, 6);
-    const allList = floatUi.quickShowAll ? ROAD_QUICK_DEFS : primary;
-    panelOverlay = `
-      <div class="road-float-overlay road-float-sheet road-float-quick-sheet" id="roadFloatSheet" role="dialog" aria-label="빠른 메시지">
-        <div class="road-float-sheet-head">
-          <b>빠른 메시지</b>
-          <button type="button" class="secondary" id="roadOverlayClose" aria-label="닫기">닫기</button>
-        </div>
-        ${
-          recent.length
-            ? `<div class="muted">최근 사용</div>
-          <div class="road-quick-row">${recent
-            .map(
-              (q) =>
-                `<button type="button" class="secondary road-quick" data-quick-id="${escapeHtml(q.id)}">${escapeHtml(q.label)}</button>`
-            )
-            .join("")}</div>`
-            : ""
-        }
-        <div class="muted">${floatUi.quickShowAll ? "전체" : "추천"}</div>
-        <div class="road-quick-row">${(floatUi.quickShowAll ? allList : primary)
-          .map(
-            (q) =>
-              `<button type="button" class="secondary road-quick" data-quick-id="${escapeHtml(q.id)}">${escapeHtml(q.label)}</button>`
-          )
-          .join("")}</div>
-        ${
-          !floatUi.quickShowAll
-            ? `<button type="button" class="secondary" id="roadQuickShowAll">전체 보기</button>`
-            : ""
-        }
-      </div>`;
-  }
 
   const placeholder =
     purpose === "situation"
@@ -1309,7 +1409,7 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
 
   dock.innerHTML = `
     <div class="road-float-shell road-float-compact" data-conversation-id="${escapeHtml(rc.session.conversationId)}">
-      <div class="road-float-head">
+      <div class="road-chat-header road-float-head">
         <div>
           <b>현재 도로 대화</b> ${unreadBadge}
         </div>
@@ -1318,13 +1418,16 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
           <button type="button" class="secondary" id="roadDockModeToggle">${mode === "expanded" ? "간단히" : "더 보기"}</button>
         </div>
       </div>
-      <div class="road-float-preview"><span class="muted">${escapeHtml(lastKind)}</span> “${escapeHtml(lastText.slice(0, 56))}”</div>
-      ${expandedBlock}
+      ${olderBtn}
+      <div class="road-chat-message-preview ${mode === "expanded" ? "is-expanded" : ""}" id="roadMsgPreview">
+        <div class="road-msg-list" id="roadFloatingScroll" role="log" aria-label="최근 도로 대화">${msgHtml}</div>
+        ${newMsgBtn}
+      </div>
+      ${expandedExtra}
       ${modeChip}
       ${voiceBar}
-      <div class="road-float-compose-wrap">
+      <div class="road-chat-composer road-float-compose-wrap">
         ${actionMenu}
-        ${panelOverlay}
         <div class="road-float-compose-row">
           <button type="button" class="road-float-plus ${menuOpen ? "open" : ""}" id="roadFloatPlus"
             aria-label="메시지 기능 열기" aria-haspopup="menu" aria-expanded="${menuOpen}"
@@ -1346,9 +1449,26 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
       </div>
     </div>`;
 
+  const scrollEl = dock.querySelector("#roadFloatingScroll");
+  if (scrollEl && mode === "expanded") {
+    requestAnimationFrame(() => {
+      if (floatUi.stickBottom || rc.stickMessageBottom !== false) {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      } else if (rc.roadChatScrollPosition != null) {
+        scrollEl.scrollTop = rc.roadChatScrollPosition;
+      }
+    });
+    scrollEl.addEventListener("scroll", () => {
+      const nearBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 28;
+      floatUi.stickBottom = nearBottom;
+      rc.stickMessageBottom = nearBottom;
+      rc.roadChatScrollPosition = scrollEl.scrollTop;
+      if (nearBottom) floatUi.pendingNewCount = 0;
+    });
+  }
+
   const ta = dock.querySelector("#roadFloatingText");
   const countEl = dock.querySelector("#roadFloatCount");
-  const clearBtn = dock.querySelector("#roadFloatClear");
   const updateCountUi = () => {
     if (!ta || !countEl) return;
     const len = ta.value.length;
@@ -1356,7 +1476,6 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
     countEl.textContent = `${len}/${maxLen}`;
     countEl.hidden = len < 40 && !near;
     countEl.classList.toggle("near-limit", near);
-    if (clearBtn) clearBtn.hidden = !len;
   };
   const autosize = () => {
     if (!ta) return;
@@ -1372,37 +1491,15 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
     rc.draftText = ta.value;
     persistUiDraft(state);
     autosize();
-    if (clearBtn) {
-      if (ta.value && clearBtn.hidden !== false) {
-        /* clear 버튼은 재렌더 없이 표시 토글 */
-      }
-    }
-    if (!dock.querySelector("#roadFloatClear") && ta.value) {
-      const wrap = dock.querySelector(".road-float-input-wrap");
-      if (wrap && !wrap.querySelector("#roadFloatClear")) {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "road-float-inline-clear";
-        b.id = "roadFloatClear";
-        b.setAttribute("aria-label", "입력 지우기");
-        b.textContent = "×";
-        b.onclick = () => {
-          clearRoadDraft(state);
-          ta.value = "";
-          saveState();
-          autosize();
-          b.remove();
-        };
-        wrap.appendChild(b);
-      }
-    }
   });
   ta?.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       if (floatUi.overlay) {
         e.preventDefault();
-        closeFloatOverlay();
+        closeFloatOverlay(state);
+        saveState();
         renderFloatingRoadChat(dock, state, { skipMarkRead: true });
+        dock.querySelector("#roadFloatPlus")?.focus();
         return;
       }
     }
@@ -1416,10 +1513,38 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
   });
   requestAnimationFrame(autosize);
 
+  dock.querySelector("#roadOlderUnread")?.addEventListener("click", () => {
+    setDockMode(state, "expanded");
+    saveState();
+    renderFloatingRoadChat(dock, state);
+  });
+  dock.querySelector("#roadNewMsgJump")?.addEventListener("click", () => {
+    floatUi.stickBottom = true;
+    floatUi.pendingNewCount = 0;
+    rc.stickMessageBottom = true;
+    renderFloatingRoadChat(dock, state, { skipMarkRead: true });
+  });
+
+  dock.querySelectorAll("[data-msg-id]").forEach((b) => {
+    b.onclick = () => {
+      const sid = b.dataset.sender;
+      const msgId = b.dataset.msgId;
+      const msg = (rc.messages || []).find((m) => m.id === msgId);
+      openRoadMsgContext(state, msg, sid);
+    };
+  });
+
   const plus = dock.querySelector("#roadFloatPlus");
   plus?.addEventListener("click", (e) => {
     e.stopPropagation();
-    floatUi.overlay = floatUi.overlay === "menu" ? null : "menu";
+    if (floatUi.overlay === "menu") {
+      floatUi.overlay = null;
+    } else {
+      if (["quick", "situation", "help", "voice"].includes(floatUi.overlay)) {
+        closeFloatOverlay(state);
+      }
+      floatUi.overlay = "menu";
+    }
     floatUi.quickShowAll = false;
     renderFloatingRoadChat(dock, state, { skipMarkRead: true });
     dock.querySelector("#roadFloatPlus")?.focus();
@@ -1430,91 +1555,13 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
       e.stopPropagation();
       const id = b.dataset.floatAction;
       if (id === "open_room") {
-        closeFloatOverlay();
+        closeFloatOverlay(state);
         openRoadRooms(state);
         return;
       }
-      if (id === "voice") {
-        closeFloatOverlay();
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-          showSystemMessage("음성 입력은 아직 연동 전입니다. 텍스트 입력을 이용해 주세요.");
-          renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-          return;
-        }
-        toggleRoadVoice(state);
-        return;
+      if (id === "voice" || id === "situation" || id === "help" || id === "quick") {
+        openFloatingTool(state, id);
       }
-      if (id === "situation") {
-        floatUi.overlay = "situation";
-        renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-        return;
-      }
-      if (id === "help") {
-        floatUi.overlay = "help";
-        renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-        return;
-      }
-      if (id === "quick") {
-        floatUi.overlay = "quick";
-        floatUi.quickShowAll = false;
-        renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-      }
-    };
-  });
-
-  dock.querySelector("#roadOverlayClose")?.addEventListener("click", () => {
-    closeFloatOverlay();
-    renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-  });
-
-  dock.querySelectorAll("[data-sit-pick]").forEach((b) => {
-    b.onclick = () => {
-      rc.messagePurpose = "situation";
-      rc.situationCategory = b.dataset.sitPick;
-      saveState();
-      renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-    };
-  });
-  dock.querySelectorAll("[data-sit-phrase]").forEach((b) => {
-    b.onclick = () => {
-      rc.messagePurpose = "situation";
-      const phrase = b.dataset.sitPhrase;
-      rc.draftText = phrase;
-      if (ta) ta.value = phrase;
-      persistUiDraft(state);
-      closeFloatOverlay();
-      saveState();
-      renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-      document.querySelector("#roadFloatingText")?.focus();
-    };
-  });
-  dock.querySelectorAll("[data-help-opt]").forEach((b) => {
-    b.onclick = () => {
-      const opt = HELP_REQUEST_OPTIONS.find((h) => h.id === b.dataset.helpOpt);
-      rc.messagePurpose = "help";
-      if (opt) {
-        rc.draftText = opt.phrase;
-        if (ta) ta.value = opt.phrase;
-        persistUiDraft(state);
-      }
-      closeFloatOverlay();
-      saveState();
-      renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-      document.querySelector("#roadFloatingText")?.focus();
-    };
-  });
-  dock.querySelector("#roadQuickShowAll")?.addEventListener("click", () => {
-    floatUi.quickShowAll = true;
-    renderFloatingRoadChat(dock, state, { skipMarkRead: true });
-  });
-  dock.querySelectorAll("[data-quick-id]").forEach((b) => {
-    b.onclick = () => {
-      closeFloatOverlay();
-      sendRoadMessage(state, getQuickDef(b.dataset.quickId)?.label, {
-        quickId: b.dataset.quickId,
-        fromQuick: true
-      });
     };
   });
 
@@ -1543,7 +1590,7 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
   dock.querySelector("[data-open-road-chat]")?.addEventListener("click", () => openRoadRooms(state));
   dock.querySelector("#roadDockCollapse").onclick = () => {
     persistUiDraft(state);
-    closeFloatOverlay();
+    closeFloatOverlay(state);
     setDockMode(state, "collapsed");
     stopRoadVoice(state);
     saveState();
@@ -1551,7 +1598,6 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
   };
   dock.querySelector("#roadDockModeToggle").onclick = () => {
     persistUiDraft(state);
-    closeFloatOverlay();
     setDockMode(state, mode === "expanded" ? "compact" : "expanded");
     saveState();
     renderFloatingRoadChat(dock, state);
@@ -1560,27 +1606,331 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
   if (!opts.skipMarkRead) markRoadChatRead(state);
   else updateRoadDockBadge(state);
 
+  if (["quick", "situation", "help", "voice"].includes(overlay)) {
+    renderRoadToolPanel(state, overlay);
+  } else {
+    removeToolPanelEl();
+  }
+
+  bindFloatGlobalHandlers(dock, state);
+}
+
+function openFloatingTool(state, toolId) {
+  const rc = ensureRoadChat(state);
+  floatUi.overlay = toolId;
+  floatUi.quickShowAll = false;
+  rc.activeFloatingTool = toolId;
+  saveState();
+  const dock = document.querySelector("#roadChatDock");
+  if (dock) renderFloatingRoadChat(dock, state, { skipMarkRead: true });
+  else renderRoadToolPanel(state, toolId);
+}
+
+function openRoadMsgContext(state, msg, senderId) {
+  if (!msg) return;
+  const who = msg.mine ? "나" : msg.senderNickname || "차량";
+  const time = formatMsgClock(msg.createdAt);
+  const body = String(msg.body || "").slice(0, 80);
+  const type = messageTypeLabel(msg);
+  showSystemMessage(
+    `${who} · ${time}${type ? ` · ${type}` : ""}\n“${body}”\n자세한 기록·신고·차단은 대화방에서 확인할 수 있습니다.`
+  );
+  if (!msg.mine && senderId) {
+    ensureRoadChat(state).selectedVehicleId = String(senderId);
+    saveState();
+  }
+}
+
+function toolPanelTitle(toolId) {
+  return (
+    {
+      quick: "빠른 메시지",
+      situation: "도로 상황 알리기",
+      help: "도움 요청",
+      voice: "음성 모드"
+    }[toolId] || "기능"
+  );
+}
+
+function renderRoadToolPanel(state, toolId) {
+  const host = getRoadStageHost();
+  if (!host) return;
+  const rc = ensureRoadChat(state);
+  const purpose = rc.messagePurpose || "chat";
+  const sitCat = rc.situationCategory || "traffic";
+  let el = document.querySelector("#roadToolPanel");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "roadToolPanel";
+    el.className = "road-tool-panel";
+    host.appendChild(el);
+  }
+  const pos = getStoredToolPos(state, toolId);
+  el.style.left = `${pos.x}px`;
+  el.style.top = `${pos.y}px`;
+  el.style.width = `${pos.w}px`;
+  el.style.maxHeight = `${pos.h}px`;
+  el.dataset.tool = toolId;
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", `${toolPanelTitle(toolId)}, 이동 가능`);
+
+  let body = "";
+  if (toolId === "situation") {
+    body = `
+      <div class="road-cat-bar" role="group" aria-label="도로 상황 분류">
+        ${ROAD_SITUATION_CATEGORIES.map(
+          (c) =>
+            `<button type="button" class="secondary ${sitCat === c.id && purpose === "situation" ? "active" : ""}" data-sit-pick="${escapeHtml(c.id)}" aria-pressed="${sitCat === c.id && purpose === "situation"}">${escapeHtml(c.label)}</button>`
+        ).join("")}
+      </div>
+      ${
+        purpose === "situation"
+          ? `<div class="road-suggest" role="listbox" aria-label="추천 문구">
+          ${(SITUATION_PHRASE_HINTS[sitCat] || SITUATION_PHRASE_HINTS.other)
+            .slice(0, 3)
+            .map(
+              (s) =>
+                `<button type="button" class="secondary road-suggest-item" role="option" data-sit-phrase="${escapeHtml(s)}">${escapeHtml(s)}</button>`
+            )
+            .join("")}
+        </div>`
+          : `<div class="muted">분류를 선택하면 추천 문구가 표시됩니다.</div>`
+      }`;
+  } else if (toolId === "help") {
+    body = `
+      <div class="muted road-help-note">긴급신고 서비스가 아닙니다.</div>
+      <div class="road-suggest" role="listbox">
+        ${HELP_REQUEST_OPTIONS.map(
+          (h) =>
+            `<button type="button" class="secondary road-suggest-item" role="option" data-help-opt="${escapeHtml(h.id)}">${escapeHtml(h.label)}</button>`
+        ).join("")}
+      </div>`;
+  } else if (toolId === "quick") {
+    const recent = (rc.recentQuickIds || [])
+      .map((id) => getQuickDef(id))
+      .filter(Boolean)
+      .slice(0, 2);
+    const recommend = DEFAULT_QUICK_RECOMMEND.map((id) => getQuickDef(id))
+      .filter(Boolean)
+      .filter((q) => !recent.some((r) => r.id === q.id));
+    const primary = [...recent, ...recommend].slice(0, 6);
+    const list = floatUi.quickShowAll ? ROAD_QUICK_DEFS : primary;
+    body = `
+      ${
+        recent.length
+          ? `<div class="muted">최근 사용</div>
+        <div class="road-quick-row">${recent
+          .map(
+            (q) =>
+              `<button type="button" class="secondary road-quick" data-quick-id="${escapeHtml(q.id)}">${escapeHtml(q.label)}</button>`
+          )
+          .join("")}</div>`
+          : ""
+      }
+      <div class="muted">${floatUi.quickShowAll ? "전체" : "추천"}</div>
+      <div class="road-quick-row">${list
+        .map(
+          (q) =>
+            `<button type="button" class="secondary road-quick" data-quick-id="${escapeHtml(q.id)}">${escapeHtml(q.label)}</button>`
+        )
+        .join("")}</div>
+      ${!floatUi.quickShowAll ? `<button type="button" class="secondary" id="roadQuickShowAll">전체 보기</button>` : ""}`;
+  } else if (toolId === "voice") {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const voice = rc.voiceMode || "inactive";
+    body = SR
+      ? `<div class="muted">음성 모드 · ${escapeHtml(voiceModeLabel(voice))}</div>
+         <button type="button" class="primary" id="roadToolVoiceToggle">${voice === "listening" ? "음성 종료" : "음성 시작"}</button>`
+      : `<div class="muted">음성 입력은 아직 연동 전입니다. 텍스트 입력을 이용해 주세요.</div>
+         <button type="button" class="secondary" id="roadToolVoiceClose">닫기</button>`;
+  }
+
+  el.innerHTML = `
+    <div class="road-tool-panel-head" data-drag-handle tabindex="0"
+      aria-label="패널 이동 핸들. 드래그하거나 Alt+방향키로 이동">
+      <span class="road-tool-drag" aria-hidden="true">⋮⋮</span>
+      <b>${escapeHtml(toolPanelTitle(toolId))}</b>
+      <button type="button" class="secondary road-tool-close" id="roadToolClose" aria-label="닫기">닫기</button>
+    </div>
+    <div class="road-tool-panel-body">${body}</div>`;
+
+  bindToolPanelDrag(el, state, toolId);
+  bindToolPanelActions(el, state, toolId);
+  requestAnimationFrame(() => reclampToolPanel(el, state, toolId));
+}
+
+function bindToolPanelActions(el, state, toolId) {
+  const dock = () => document.querySelector("#roadChatDock");
+  const rc = ensureRoadChat(state);
+  el.querySelector("#roadToolClose")?.addEventListener("click", () => {
+    closeFloatOverlay(state);
+    saveState();
+    if (dock()) renderFloatingRoadChat(dock(), state, { skipMarkRead: true });
+    else removeToolPanelEl();
+    dock()?.querySelector("#roadFloatPlus")?.focus();
+  });
+  el.querySelectorAll("[data-sit-pick]").forEach((b) => {
+    b.onclick = () => {
+      rc.messagePurpose = "situation";
+      rc.situationCategory = b.dataset.sitPick;
+      saveState();
+      renderRoadToolPanel(state, "situation");
+      if (dock()) renderFloatingRoadChat(dock(), state, { skipMarkRead: true });
+    };
+  });
+  el.querySelectorAll("[data-sit-phrase]").forEach((b) => {
+    b.onclick = () => {
+      rc.messagePurpose = "situation";
+      rc.draftText = b.dataset.sitPhrase;
+      persistUiDraft(state);
+      closeFloatOverlay(state);
+      saveState();
+      if (dock()) {
+        renderFloatingRoadChat(dock(), state, { skipMarkRead: true });
+        document.querySelector("#roadFloatingText")?.focus();
+      }
+    };
+  });
+  el.querySelectorAll("[data-help-opt]").forEach((b) => {
+    b.onclick = () => {
+      const opt = HELP_REQUEST_OPTIONS.find((h) => h.id === b.dataset.helpOpt);
+      rc.messagePurpose = "help";
+      if (opt) {
+        rc.draftText = opt.phrase;
+        persistUiDraft(state);
+      }
+      closeFloatOverlay(state);
+      saveState();
+      if (dock()) {
+        renderFloatingRoadChat(dock(), state, { skipMarkRead: true });
+        document.querySelector("#roadFloatingText")?.focus();
+      }
+    };
+  });
+  el.querySelector("#roadQuickShowAll")?.addEventListener("click", () => {
+    floatUi.quickShowAll = true;
+    renderRoadToolPanel(state, "quick");
+  });
+  el.querySelectorAll("[data-quick-id]").forEach((b) => {
+    b.onclick = () => {
+      closeFloatOverlay(state);
+      sendRoadMessage(state, getQuickDef(b.dataset.quickId)?.label, {
+        quickId: b.dataset.quickId,
+        fromQuick: true
+      });
+    };
+  });
+  el.querySelector("#roadToolVoiceToggle")?.addEventListener("click", () => {
+    toggleRoadVoice(state);
+  });
+  el.querySelector("#roadToolVoiceClose")?.addEventListener("click", () => {
+    closeFloatOverlay(state);
+    saveState();
+    if (dock()) renderFloatingRoadChat(dock(), state, { skipMarkRead: true });
+  });
+}
+
+function reclampToolPanel(el, state, toolId) {
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const host = getRoadStageHost();
+  const hr = host.getBoundingClientRect();
+  const x = r.left - hr.left;
+  const y = r.top - hr.top;
+  const c = clampFloatingPanelPosition(x, y, r.width, r.height, host);
+  el.style.left = `${c.x}px`;
+  el.style.top = `${c.y}px`;
+  el.style.width = `${c.w}px`;
+  saveToolPanelPos(state, toolId, c.x, c.y);
+}
+
+function bindToolPanelDrag(el, state, toolId) {
+  const handle = el.querySelector("[data-drag-handle]");
+  if (!handle || handle.dataset.dragBound) return;
+  handle.dataset.dragBound = "1";
+  let startX = 0;
+  let startY = 0;
+  let origX = 0;
+  let origY = 0;
+
+  const onMove = (e) => {
+    if (!floatUi.dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const host = getRoadStageHost();
+    const c = clampFloatingPanelPosition(origX + dx, origY + dy, el.offsetWidth, el.offsetHeight, host);
+    el.style.left = `${c.x}px`;
+    el.style.top = `${c.y}px`;
+  };
+  const onUp = (e) => {
+    if (!floatUi.dragging) return;
+    floatUi.dragging = false;
+    try {
+      handle.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    document.body.classList.remove("road-tool-dragging");
+    const host = getRoadStageHost();
+    const hr = host.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    saveToolPanelPos(state, toolId, r.left - hr.left, r.top - hr.top);
+  };
+
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.target.closest?.("button")) return;
+    e.preventDefault();
+    floatUi.dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    const host = getRoadStageHost();
+    const hr = host.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    origX = r.left - hr.left;
+    origY = r.top - hr.top;
+    handle.setPointerCapture?.(e.pointerId);
+    document.body.classList.add("road-tool-dragging");
+  });
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+  handle.addEventListener("pointercancel", onUp);
+
+  handle.addEventListener("keydown", (e) => {
+    if (!e.altKey) return;
+    const step = e.shiftKey ? 24 : 8;
+    let dx = 0;
+    let dy = 0;
+    if (e.key === "ArrowLeft") dx = -step;
+    else if (e.key === "ArrowRight") dx = step;
+    else if (e.key === "ArrowUp") dy = -step;
+    else if (e.key === "ArrowDown") dy = step;
+    else return;
+    e.preventDefault();
+    const host = getRoadStageHost();
+    const hr = host.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const c = clampFloatingPanelPosition(r.left - hr.left + dx, r.top - hr.top + dy, r.width, r.height, host);
+    el.style.left = `${c.x}px`;
+    el.style.top = `${c.y}px`;
+    saveToolPanelPos(state, toolId, c.x, c.y);
+  });
+}
+
+function bindFloatGlobalHandlers(dock, state) {
   if (!floatUi.outsideBound) {
     floatUi.outsideBound = true;
     document.addEventListener("pointerdown", (e) => {
+      if (floatUi.dragging) return;
       if (!floatUi.overlay) return;
-      const d = document.querySelector("#roadChatDock");
-      if (!d || !stateRef) return;
       const t = e.target;
-      if (d.contains(t)) {
-        if (t.closest?.("#roadFloatPlus") || t.closest?.(".road-float-overlay")) return;
-        /* 패널 안이지만 overlay 밖(입력 등) 클릭 시 메뉴만 닫기 */
-        if (floatUi.overlay === "menu") {
-          closeFloatOverlay();
-          renderFloatingRoadChat(d, stateRef, { skipMarkRead: true });
-        }
-        return;
+      if (t.closest?.("#roadToolPanel") || t.closest?.("#roadFloatPlus") || t.closest?.("#roadFloatMenu")) return;
+      if (floatUi.overlay === "menu") {
+        floatUi.overlay = null;
+        const d = document.querySelector("#roadChatDock");
+        if (d && stateRef) renderFloatingRoadChat(d, stateRef, { skipMarkRead: true });
       }
-      closeFloatOverlay();
-      renderFloatingRoadChat(d, stateRef, { skipMarkRead: true });
     });
   }
-
   if (!dock.dataset.escBound) {
     dock.dataset.escBound = "1";
     document.addEventListener("keydown", (e) => {
@@ -1588,7 +1938,8 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
       const d = document.querySelector("#roadChatDock");
       if (!d || !stateRef) return;
       if (floatUi.overlay) {
-        closeFloatOverlay();
+        closeFloatOverlay(stateRef);
+        saveState();
         renderFloatingRoadChat(d, stateRef, { skipMarkRead: true });
         d.querySelector("#roadFloatPlus")?.focus();
         return;
@@ -1598,6 +1949,14 @@ export function renderFloatingRoadChat(dock, state, opts = {}) {
         saveState();
         renderFloatingRoadChat(d, stateRef);
       }
+    });
+  }
+  if (!floatUi.resizeBound) {
+    floatUi.resizeBound = true;
+    window.addEventListener("resize", () => {
+      const el = document.querySelector("#roadToolPanel");
+      const tool = el?.dataset?.tool;
+      if (el && tool && stateRef) reclampToolPanel(el, stateRef, tool);
     });
   }
 }
@@ -1728,27 +2087,59 @@ export function renderRoadChatContentDetail(panel, state, opts = {}) {
   </div>`;
 
   panel.innerHTML = `
-    <div class="road-chat-shell road-chat-content-detail" data-road-content-detail data-conversation-type="road" data-conversation-id="${escapeHtml(rc.session.conversationId)}">
+    <div class="road-chat-shell road-chat-content-detail ${opts.embed ? "is-embed" : ""}" data-road-content-detail data-conversation-type="road" data-conversation-id="${escapeHtml(rc.session.conversationId)}">
       <div class="card chat-header road-chat-header">
         <button class="secondary" id="roadContentBack" type="button">←</button>
         <div class="chat-header-main">
           ${headerContextHtml(state, participants, myDirection, radiusM)}
           <div class="muted" style="margin-top:4px">대화 ${split.unreadMessageCount} · 상황 ${split.unreadSituationCount} · 음성 ${voiceOk ? "사용 가능" : "미지원"} · ${escapeHtml(voiceModeLabel(voice))}</div>
         </div>
-        <button class="secondary" id="roadContentToSpatial" type="button">공간에서 보기</button>
+        <button class="secondary" id="roadContentToSpatial" type="button">도로 화면에서 보기</button>
       </div>
-      ${insightCardHtml(insight, participants, radiusM, { filterable: true })}
+      ${opts.embed ? "" : insightCardHtml(insight, participants, radiusM, { filterable: true })}
       ${filterBar}
-      <div class="card">
+      ${
+        opts.embed
+          ? ""
+          : `<div class="card">
         <label class="muted">메시지 검색</label>
         <input id="roadContentSearch" type="search" placeholder="메시지·닉네임" value="${escapeHtml(q)}" />
       </div>
       <div class="card road-chat-participants">
         <b>참여 차량 ${participants.length}대</b>
         <div class="road-participant-list">${people || '<div class="muted">반경 내 참여 가능한 차량이 없습니다.</div>'}</div>
-      </div>
+      </div>`
+      }
       <div id="roadChatScrollContent" class="chat-scroll road-chat-scroll road-chat-scroll-full">${bubbles || '<div class="muted" style="padding:8px">도로 대화를 시작해 보세요.</div>'}</div>
-      <div class="road-purpose-bar" role="radiogroup" aria-label="메시지 목적">
+      <div class="road-chat-composer-bar chat-compose road-compose ${opts.embed ? "chat-compose-bar" : ""}">
+        ${
+          opts.embed
+            ? `<div class="chat-compose-row">
+          <button type="button" class="secondary chat-plus-btn" id="roadContentPlus" aria-expanded="false" aria-label="메시지 기능">+</button>
+          <textarea id="roadChatTextContent" maxlength="${ROAD_CHAT_CONFIG.maxLengthRoad}" placeholder="도로 메시지를 입력하세요" rows="1">${escapeHtml(rc.contentDraftText || getRoadDraft(state) || "")}</textarea>
+          <button type="button" class="primary" id="roadChatSendContent" aria-label="메시지 전송">전송</button>
+        </div>
+        <div id="roadContentPlusMenu" class="chat-plus-menu" hidden>
+          <button type="button" class="secondary" data-road-plus="situation">도로 상황</button>
+          <button type="button" class="secondary" data-road-plus="help">도움 요청</button>
+          <button type="button" class="secondary" data-road-plus="quick">빠른 메시지</button>
+          <button type="button" class="secondary" data-road-plus="voice">음성 모드</button>
+          <button type="button" class="secondary" data-road-plus="spatial">공간에서 보기</button>
+        </div>
+        <div id="roadContentPlusBody" class="chat-plus-body" hidden></div>`
+            : `<textarea id="roadChatTextContent" maxlength="${ROAD_CHAT_CONFIG.maxLengthContent}" placeholder="메시지 입력 (최대 ${ROAD_CHAT_CONFIG.maxLengthContent}자)" rows="2">${escapeHtml(rc.contentDraftText || getRoadDraft(state) || "")}</textarea>
+        <div class="compose-actions">
+          <button type="button" class="secondary" id="roadContentPlus" aria-label="메시지 기능">+</button>
+          <button type="button" class="secondary" id="roadContentReport">신고</button>
+          <button type="button" class="secondary" id="roadContentBlock">차단</button>
+          <button type="button" class="primary" id="roadChatSendContent" aria-label="메시지 전송">전송</button>
+        </div>`
+        }
+      </div>
+      ${
+        opts.embed
+          ? ""
+          : `<div class="road-purpose-bar" role="radiogroup" aria-label="메시지 목적">
         <button type="button" class="secondary ${purpose === "chat" ? "active" : ""}" data-purpose="chat" role="radio" aria-checked="${purpose === "chat"}">일반 대화</button>
         <button type="button" class="secondary ${purpose === "situation" ? "active" : ""}" data-purpose="situation" role="radio" aria-checked="${purpose === "situation"}">도로 상황</button>
         <button type="button" class="secondary ${purpose === "help" ? "active" : ""}" data-purpose="help" role="radio" aria-checked="${purpose === "help"}">도움 요청</button>
@@ -1771,15 +2162,8 @@ export function renderRoadChatContentDetail(panel, state, opts = {}) {
             `<button type="button" class="secondary road-quick" data-quick-id="${escapeHtml(qm.id)}" aria-label="${escapeHtml(qm.label)}">${escapeHtml(qm.label)}</button>`
         ).join("")}
       </div>
-      <div class="chat-compose road-compose">
-        <textarea id="roadChatTextContent" maxlength="${ROAD_CHAT_CONFIG.maxLengthContent}" placeholder="메시지 입력 (최대 ${ROAD_CHAT_CONFIG.maxLengthContent}자)" rows="2">${escapeHtml(rc.contentDraftText || getRoadDraft(state) || "")}</textarea>
-        <div class="compose-actions">
-          <button type="button" class="secondary" id="roadContentReport">신고</button>
-          <button type="button" class="secondary" id="roadContentBlock">차단</button>
-          <button type="button" class="primary" id="roadChatSendContent" aria-label="메시지 전송">전송</button>
-        </div>
-      </div>
-      <div class="muted insight-disclaimer" style="padding:8px">표시된 도로 정보는 참여자 메시지 기반 참고 정보입니다.</div>
+      <div class="muted insight-disclaimer" style="padding:8px">표시된 도로 정보는 참여자 메시지 기반 참고 정보입니다.</div>`
+      }
     </div>`;
 
   const scroll = panel.querySelector("#roadChatScrollContent");
@@ -1802,40 +2186,43 @@ export function renderRoadChatContentDetail(panel, state, opts = {}) {
   };
   panel.querySelector("#roadContentSearch")?.addEventListener("change", (e) => {
     persistUiDraft(state);
-    renderRoadChatContentDetail(panel, state, { search: e.target.value, skipMarkRead: true });
+    renderRoadChatContentDetail(panel, state, { ...opts, search: e.target.value, skipMarkRead: true });
   });
   panel.querySelectorAll("[data-cat-filter]").forEach((b) => {
     b.onclick = () => {
       rc.contentCategoryFilter = b.dataset.catFilter;
       saveState();
-      renderRoadChatContentDetail(panel, state, { skipMarkRead: true });
+      renderRoadChatContentDetail(panel, state, { ...opts, skipMarkRead: true });
     };
   });
   panel.querySelectorAll("[data-insight-filter]").forEach((b) => {
     b.onclick = () => {
       rc.contentCategoryFilter = b.dataset.insightFilter;
       saveState();
-      renderRoadChatContentDetail(panel, state, { skipMarkRead: true });
+      renderRoadChatContentDetail(panel, state, { ...opts, skipMarkRead: true });
+      /* Context panel 필터와 동기화 */
+      emit("chat:contextFilter", { category: b.dataset.insightFilter });
     };
   });
   panel.querySelectorAll("[data-purpose]").forEach((b) => {
     b.onclick = () => {
       rc.messagePurpose = b.dataset.purpose;
       saveState();
-      renderRoadChatContentDetail(panel, state, { skipMarkRead: true });
+      renderRoadChatContentDetail(panel, state, { ...opts, skipMarkRead: true });
     };
   });
   panel.querySelectorAll("[data-sit-cat]").forEach((b) => {
     b.onclick = () => {
       rc.situationCategory = b.dataset.sitCat;
       saveState();
-      renderRoadChatContentDetail(panel, state, { skipMarkRead: true });
+      renderRoadChatContentDetail(panel, state, { ...opts, skipMarkRead: true });
     };
   });
+  const sendMax = opts.embed ? ROAD_CHAT_CONFIG.maxLengthRoad : ROAD_CHAT_CONFIG.maxLengthContent;
   panel.querySelector("#roadChatSendContent").onclick = () => {
     const ta = panel.querySelector("#roadChatTextContent");
     sendRoadMessage(state, ta?.value, {
-      maxLen: ROAD_CHAT_CONFIG.maxLengthContent,
+      maxLen: sendMax,
       source: "content_input",
       purpose: rc.messagePurpose,
       situationCategory: rc.situationCategory
@@ -1845,18 +2232,133 @@ export function renderRoadChatContentDetail(panel, state, opts = {}) {
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
     sendRoadMessage(state, e.target.value, {
-      maxLen: ROAD_CHAT_CONFIG.maxLengthContent,
+      maxLen: sendMax,
       source: "content_input",
       purpose: rc.messagePurpose,
       situationCategory: rc.situationCategory
     });
   });
+  panel.querySelector("#roadContentPlus")?.addEventListener("click", () => {
+    if (!opts.embed) {
+      showSystemMessage("도로 상황·도움·빠른 메시지는 도로 화면 Floating Chat의 + 메뉴를 이용하거나, 아래에서 분류 필터로 확인할 수 있습니다.");
+      return;
+    }
+    const menu = panel.querySelector("#roadContentPlusMenu");
+    const btn = panel.querySelector("#roadContentPlus");
+    if (!menu || !btn) return;
+    const open = menu.hidden;
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    const body = panel.querySelector("#roadContentPlusBody");
+    if (body) body.hidden = true;
+  });
+  panel.querySelectorAll("[data-road-plus]").forEach((b) => {
+    b.onclick = () => {
+      const act = b.dataset.roadPlus;
+      const menu = panel.querySelector("#roadContentPlusMenu");
+      const body = panel.querySelector("#roadContentPlusBody");
+      if (menu) menu.hidden = true;
+      panel.querySelector("#roadContentPlus")?.setAttribute("aria-expanded", "false");
+      if (act === "spatial") {
+        emit("roadchat:requestOpen");
+        return;
+      }
+      if (act === "situation") {
+        rc.messagePurpose = "situation";
+        rc.situationCategory = rc.situationCategory || "traffic";
+        saveState();
+        if (body) {
+          body.hidden = false;
+          body.innerHTML = `<div class="muted">도로 상황 분류</div><div class="road-cat-bar">${ROAD_SITUATION_CATEGORIES.map(
+            (c) =>
+              `<button type="button" class="secondary" data-embed-sit="${escapeHtml(c.id)}">${escapeHtml(c.label)}</button>`
+          ).join("")}</div>`;
+          body.querySelectorAll("[data-embed-sit]").forEach((x) => {
+            x.onclick = () => {
+              rc.messagePurpose = "situation";
+              rc.situationCategory = x.dataset.embedSit;
+              saveState();
+              const hints = SITUATION_PHRASE_HINTS[x.dataset.embedSit] || SITUATION_PHRASE_HINTS.other;
+              body.innerHTML = `<div class="muted">${escapeHtml(categoryLabel(x.dataset.embedSit))} · 추천 문구</div><div class="road-suggest">${hints
+                .slice(0, 3)
+                .map((s) => `<button type="button" class="secondary" data-embed-phrase="${escapeHtml(s)}">${escapeHtml(s)}</button>`)
+                .join("")}</div>`;
+              body.querySelectorAll("[data-embed-phrase]").forEach((p) => {
+                p.onclick = () => {
+                  const ta = panel.querySelector("#roadChatTextContent");
+                  if (ta) ta.value = p.dataset.embedPhrase;
+                };
+              });
+            };
+          });
+        }
+        return;
+      }
+      if (act === "help") {
+        rc.messagePurpose = "help";
+        saveState();
+        if (body) {
+          body.hidden = false;
+          body.innerHTML = `<div class="muted">도움 요청 · 긴급신고 대체 아님</div><div class="road-suggest">${HELP_REQUEST_OPTIONS.map(
+            (h) =>
+              `<button type="button" class="secondary" data-embed-help="${escapeHtml(h.phrase)}">${escapeHtml(h.label)}</button>`
+          ).join("")}</div>`;
+          body.querySelectorAll("[data-embed-help]").forEach((p) => {
+            p.onclick = () => {
+              const ta = panel.querySelector("#roadChatTextContent");
+              if (ta) ta.value = p.dataset.embedHelp;
+            };
+          });
+        }
+        return;
+      }
+      if (act === "quick") {
+        if (body) {
+          body.hidden = false;
+          body.innerHTML = `<div class="muted">빠른 메시지</div><div class="road-quick-row">${ROAD_QUICK_DEFS.slice(0, 6)
+            .map(
+              (q) =>
+                `<button type="button" class="secondary road-quick" data-quick-id="${escapeHtml(q.id)}">${escapeHtml(q.label)}</button>`
+            )
+            .join("")}</div>`;
+          body.querySelectorAll("[data-quick-id]").forEach((qb) => {
+            qb.onclick = () =>
+              sendRoadMessage(state, getQuickDef(qb.dataset.quickId)?.label, {
+                quickId: qb.dataset.quickId,
+                fromQuick: true,
+                maxLen: sendMax
+              });
+          });
+        }
+        return;
+      }
+      if (act === "voice") {
+        showSystemMessage("음성 모드는 도로 화면 Floating Chat에서 이용할 수 있습니다.");
+      }
+    };
+  });
+  panel.querySelector("#roadContentReport")?.addEventListener("click", () => {
+    showSystemMessage("신고는 서버 연동 후 처리됩니다. 지금은 로컬 안내만 표시합니다.");
+  });
+  panel.querySelector("#roadContentBlock")?.addEventListener("click", () => {
+    const id = rc.selectedVehicleId;
+    if (!id) {
+      showSystemMessage("차단할 참여 차량을 먼저 선택하세요.");
+      return;
+    }
+    if (!Array.isArray(state.blockedUserIds)) state.blockedUserIds = [];
+    if (!state.blockedUserIds.includes(id)) state.blockedUserIds.push(id);
+    saveState();
+    showSystemMessage("선택 차량을 차단 목록에 추가했습니다.");
+    renderRoadChatContentDetail(panel, state, { ...opts, skipMarkRead: true });
+  });
   panel.querySelectorAll("[data-quick-id]").forEach((b) => {
+    if (b.closest("#roadContentPlusBody")) return;
     b.onclick = () =>
       sendRoadMessage(state, getQuickDef(b.dataset.quickId)?.label, {
         quickId: b.dataset.quickId,
         fromQuick: true,
-        maxLen: ROAD_CHAT_CONFIG.maxLengthContent
+        maxLen: sendMax
       });
   });
   panel.querySelectorAll("[data-road-user]").forEach((b) => {
@@ -1868,21 +2370,6 @@ export function renderRoadChatContentDetail(panel, state, opts = {}) {
       emit("user:open", { id });
     };
   });
-  panel.querySelector("#roadContentReport").onclick = () => {
-    showSystemMessage("신고는 서버 연동 후 처리됩니다. 지금은 로컬 안내만 표시합니다.");
-  };
-  panel.querySelector("#roadContentBlock").onclick = () => {
-    const id = rc.selectedVehicleId;
-    if (!id) {
-      showSystemMessage("차단할 참여 차량을 먼저 선택하세요.");
-      return;
-    }
-    if (!Array.isArray(state.blockedUserIds)) state.blockedUserIds = [];
-    if (!state.blockedUserIds.includes(id)) state.blockedUserIds.push(id);
-    saveState();
-    showSystemMessage("선택 차량을 차단 목록에 추가했습니다.");
-    renderRoadChatContentDetail(panel, state, { skipMarkRead: true });
-  };
 
   if (!opts.skipMarkRead) markRoadChatRead(state);
 }
