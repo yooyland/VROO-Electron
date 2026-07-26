@@ -25,6 +25,7 @@ VROO는 **운전자의 모든 생활을 하나로 연결하는** 위치 기반 �
 | 문서 | 내용 |
 |------|------|
 | [docs/PRODUCT_VISION.md](./docs/PRODUCT_VISION.md) | 비전, 8개 서비스 축, 수익·차별점 |
+| [docs/VEHICLE_FACE_DNA.md](./docs/VEHICLE_FACE_DNA.md) | 차량 페이스 정체성 설계 (Draft) |
 | [docs/COMMERCIAL_ROADMAP.md](./docs/COMMERCIAL_ROADMAP.md) | Phase 1–6 상업화 로드맵 |
 | [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md) | 기능별 상태표 |
 | [docs/ADMIN_CONSOLE_PLAN.md](./docs/ADMIN_CONSOLE_PLAN.md) | 관리자 콘솔 설계 |
