@@ -42,8 +42,8 @@ const CONTENT_TITLES={
   shop:["상점","STORE · 차량·혜택 상품"],
   growth:["성장","PLAY · 레벨·크레딧"],
   community:["커뮤니티","SOCIAL · 게시판"],
-  chat:["대화방","SOCIAL · 공간·1:1·일반 대화"],
-  my:["MY","내 차량 · 프로필"]
+  chat:["대화방","도로·주변·GRID·1:1 대화를 한곳에서 확인합니다."],
+  my:["MY GARAGE","내 차량과 성장 기록을 관리합니다."]
 };
 
 let currentScreen=state.currentScreen||"nearby";
@@ -142,6 +142,8 @@ function setScreen(name){
   if(name==="my"){
     document.querySelectorAll("[data-screen]").forEach(b=>b.classList.remove("active"));
   }
+  if(name!=="chat")contentPanel?.classList.remove("has-chat-appshell");
+  if(name!=="my")contentPanel?.classList.remove("has-my-garage");
 
   try{setSpatialGridVisible(name==="grid"&&currentWorkspace==="spatial")}catch(e){console.warn("[VROO] spatial grid visibility",e)}
 
@@ -257,10 +259,15 @@ function openRoadConversation(){
 function createPost(){openModal("새 게시글",`<label>게시판</label><select id="postCat"><option>공지</option><option>자유</option><option>뽐내기</option><option>Q&A</option><option>고객센터</option></select><label>제목</label><input id="postTitle"><label>내용</label><textarea id="postBody" style="min-height:150px"></textarea><label>공개 범위</label><select id="postScope"><option value="all">전체 공개</option><option value="grid">내 GRID</option><option value="500m">주변 500m</option><option value="1km">주변 1km</option><option value="5km">주변 5km</option><option value="private">나만 보기</option></select>`,[{label:"취소",onClick:closeModal},{label:"게시하기",className:"primary",onClick:()=>{const title=document.querySelector("#postTitle").value.trim(),body=document.querySelector("#postBody").value.trim();if(!title||!body)return;state.posts.unshift({id:"p"+Date.now(),category:document.querySelector("#postCat").value,title,body,author:state.profile.nickname,scope:document.querySelector("#postScope").value,createdAt:Date.now(),likes:0,comments:[]});state.communityCategory=document.querySelector("#postCat").value;closeModal();save();setScreen("community")}}])}
 
 on("state:save",save);
+on("ui:refreshAccount",()=>syncHeader());
 on("user:open",payload=>openUserDetail(state,payload));
 on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
-on("workspace:spatialHome",()=>{setScreen("nearby");setView(currentView||"near")});
+on("workspace:spatialHome",(payload)=>{
+  setScreen("nearby");
+  const v=payload?.view;
+  setView(v==="all"||v==="road"||v==="near"?v:(currentView||"near"));
+});
 on("place:open", place => {
   const kind = place.kind || place.type || "place";
   const kindText =
@@ -315,13 +322,13 @@ on("user:horn",({id})=>{
   showSystemMessage(id?"빵빵 신호를 보냈습니다. (로컬)":"빵빵");
 });
 on("roadchat:contentBack",()=>{
-  if(currentWorkspace==="content"&&currentScreen==="chat")renderRooms(contentPanel,state);
+  if(currentWorkspace==="content"&&currentScreen==="chat")renderRooms(contentPanel,state,{resetSelection:true});
 });
 on("roadchat:changed",()=>{
   refreshChatBadge(state);
   if(currentWorkspace==="content"&&currentScreen==="chat"){
-    const detail=contentPanel?.querySelector?.("[data-road-content-detail],[data-nearby-content-detail]");
-    if(!detail&&!contentPanel?.querySelector?.(".chat-shell"))renderRooms(contentPanel,state);
+    const detail=contentPanel?.querySelector?.("[data-road-content-detail],[data-nearby-content-detail],.chat-shell");
+    if(!detail)renderRooms(contentPanel,state,{resetSelection:true});
   }
 });
 on("roadchat:openPanel",()=>{
@@ -346,7 +353,7 @@ on("spatialChat:back",()=>{
       save();
       return;
     }
-    renderRooms(contentPanel,state);
+    renderRooms(contentPanel,state,{resetSelection:true});
     return;
   }
   if(currentView==="all")renderAllViewSummary(spatialPanel,state);
