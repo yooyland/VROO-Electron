@@ -27,10 +27,13 @@ VROO는 **운전자의 모든 생활을 하나로 연결하는** 위치 기반 �
 | [docs/PRODUCT_VISION.md](./docs/PRODUCT_VISION.md) | 비전, 8개 서비스 축, 수익·차별점 |
 | [docs/COMMERCIAL_ROADMAP.md](./docs/COMMERCIAL_ROADMAP.md) | Phase 1–6 상업화 로드맵 |
 | [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md) | 기능별 상태표 |
+| [docs/ARCHITECTURE_BIBLE.md](./docs/ARCHITECTURE_BIBLE.md) | 시스템 아키텍처 |
+| [docs/UI_FLOW.md](./docs/UI_FLOW.md) | UI 흐름 |
 | [docs/ADMIN_CONSOLE_PLAN.md](./docs/ADMIN_CONSOLE_PLAN.md) | 관리자 콘솔 설계 |
 | [docs/PARTNER_PLATFORM_PLAN.md](./docs/PARTNER_PLATFORM_PLAN.md) | 제휴·혜택 노출 |
 | [docs/COMMERCE_ARCHITECTURE.md](./docs/COMMERCE_ARCHITECTURE.md) | 주문·결제·정산 (미구현) |
 | [docs/PRIVACY_AND_SAFETY_PLAN.md](./docs/PRIVACY_AND_SAFETY_PLAN.md) | 동의·안전 체크리스트 |
+| [docs/AI_TASK_QUEUE.md](./docs/AI_TASK_QUEUE.md) | AI 작업 큐 (운영) |
 
 ---
 
@@ -45,7 +48,7 @@ VROO는 **운전자의 모든 생활을 하나로 연결하는** 위치 기반 �
 | **CARE** | 보험 · 사고 · 긴급출동 | planned |
 | **LOCAL** | GRID 지역 혜택 · POI | planned (+ 지명 prototype) |
 | **PLAY** | 성장 · 미션 · 시즌 | prototype / planned |
-| **MY** | 내 차량 · 쿠폰 · 설정 | prototype / planned |
+| **MY** | MY GARAGE · 프로필 · 컬렉션 | prototype |
 
 확장 메뉴 정의(기존 UI 미교체): `app/assets/js/config/product-navigation.js`
 
@@ -56,8 +59,11 @@ VROO는 **운전자의 모든 생활을 하나로 연결하는** 위치 기반 �
 - **지도**: 주변 / 도로 / 전체(좌우 50:50), GPS, 지명 레이어, 회전
 - **Spatial GRID**: L1 50km / L2 10km / L3 2km, `locationGridId` · `currentGridId` · `selectedGridId`
 - **도로**: Three.js, 레벨별 차량, 대화 광선·말풍선, 단일 renderer·loop
-- **소셜**: 1:1·GRID 채팅, unread, 음성 입력, 커뮤니티
-- **PLAY/STORE**: 성장·크레딧, 상점 기본(차량 선택), MY CAR
+- **소셜 / Chat**: 대화방 AppShell, 1:1·GRID·도로·주변 세션, unread, 음성 입력, 커뮤니티
+- **MY GARAGE**: 쇼룸 Hero, 컬렉션·업그레이드·커스텀·미션 등 룸 탭 (`modules/my/`)
+- **Character System**: 공식 소스 `Character/` + 런타임 미러 `app/assets/characters/` (Garage Hero)
+- **AI Foundation**: Project Brain / Orchestrator / OS 스크립트 (`AI/`, `scripts/brain|orchestrator|…`)
+- **PLAY/STORE**: 성장·크레딧, 상점 기본(차량 선택)
 - **상태**: `localStorage` (`core/storage.js`)
 
 ### 상업화 목표 (미구현 · planned)
@@ -80,7 +86,7 @@ VROO는 **운전자의 모든 생활을 하나로 연결하는** 위치 기반 �
 | 도메인 시드 | `app/assets/js/data/*` |
 | 빌드 | electron-builder (NSIS + Portable) |
 
-CDN 의존으로 **인터넷 연결**이 필요합니다. 백엔드·WebSocket·Firebase 없음.
+CDN 의존으로 **인터넷 연결**이 필요합니다. 백엔드·WebSocket·Firebase SDK 없음 (스키마 문서만 참고용).
 
 ---
 
@@ -111,6 +117,19 @@ npm run dev:platform   # User App + Console 동시
 
 > 사용자 앱 메뉴에 콘솔 링크는 없습니다. 개발 빌드에서 Electron 메뉴 **Develop → Open VROO Console** 또는 `Ctrl+Shift+C`.
 
+### 캐릭터 런타임 동기화
+
+공식 소스(`Character/`)에서 승인된 에셋만 앱 런타임으로 복사합니다.
+
+```bash
+npm run sync:characters
+# 동일: node scripts/sync-characters.js
+```
+
+- 소스: `Character/Data`, `Character/Vehicles/*/views` 등
+- 대상: `app/assets/characters/`
+- Concept / Archive / 미승인 raster는 복사하지 않습니다
+
 ### Windows 빌드
 
 ```bash
@@ -119,6 +138,27 @@ npm run build:win
 
 결과: `dist/` (NSIS · Portable)
 
+### 기본 검증
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/ai-check.ps1
+```
+
+---
+
+## Character Pack (공식 차량 캐릭터)
+
+VROO 공식 차량 캐릭터 소스 트리입니다. 저장소의 `Character/` 폴더를 그대로 사용하거나, 배포 zip을 받은 경우 **프로젝트 루트의 `Character/`에 병합**하세요.
+
+| 항목 | 설명 |
+|------|------|
+| 뷰 표준 | `Vehicles/*/views/front_45.svg` (Garage Hero 기본) |
+| SVG 그룹 ID | `shadow`, `wheels`, `body`, `lights`, `badge`, `reflection` |
+| 매니페스트 | `Character/Data/vehicle-character-manifest.json` |
+| 상세 | [Character/README.md](./Character/README.md) |
+
+현재 SVG는 **교체 가능한 임시 캐릭터**입니다. 원화 확정 시 같은 파일명·그룹 ID를 유지한 채 교체한 뒤 `npm run sync:characters`를 실행하세요.
+
 ---
 
 ## 프로젝트 구조
@@ -126,17 +166,21 @@ npm run build:win
 ```
 VROO_Electron/
 ├── main.js / preload.js / package.json
-├── docs/                         # 제품·상업화·운영 문서
+├── AI/                           # Project Brain · Orchestrator · OS
+├── Character/                    # 캐릭터 소스 (동기화 원본)
+├── docs/                         # 제품·아키텍처·운영 문서
+├── scripts/                      # sync-characters, ai-check, brain/orchestrator
 ├── app/
 │   ├── index.html
 │   └── assets/
-│       ├── css/app.css
+│       ├── css/                  # app.css, my-garage.css
+│       ├── characters/           # 런타임 미러 (sync 결과)
 │       └── js/
-│           ├── app.js            # 화면 연결만
+│           ├── app.js            # 화면 연결
 │           ├── config/           # 네비·기능 상태
 │           ├── data/             # 혜택·제휴·보험·멤버십 시드
 │           ├── core/             # storage, events, ui
-│           └── modules/          # map, road, grid, chat, …
+│           └── modules/          # map, road, grid, chat, my/, …
 ├── assets/
 └── *.cmd
 ```
@@ -149,7 +193,9 @@ VROO_Electron/
 | `spatial-grid.js` | GRID ID·경계 |
 | `grid.js` | GRID UI·참여 |
 | `road.js` | Three.js 도로 |
-| `chat.js` | 1:1 · GRID 채팅 |
+| `chat.js` / `road-chat.js` / `conversation-store.js` | 대화방 · 도로/주변 세션 |
+| `my/*` | MY GARAGE AppShell · Hero · 룸 탭 |
+| `profile.js` | MY 진입 → `my-shell` re-export |
 | `shop.js` | 상점 (prototype + planned 카테고리 표시) |
 | `growth.js` / `community.js` / … | PLAY · SOCIAL 패널 |
 
@@ -157,7 +203,7 @@ VROO_Electron/
 
 ## 화면 구성 (현재 메뉴 유지)
 
-상단: **주변차량 · 그리드 · 대화방 · 성장 · 상점 · 커뮤니티** (+ MY CAR)
+상단: **주변차량 · 그리드 · 대화방 · 성장 · 상점 · 커뮤니티** (+ MY CAR → MY GARAGE)
 
 ```
 주변: 지도 | 도로: Three.js | 전체: 지도 50% + 도로 50%
@@ -192,7 +238,7 @@ VROO_Electron/
 - 대규모 리팩토링·기존 기능 삭제 금지
 - Animation loop / Renderer 중복 생성 금지
 - `app.js` 비대화 금지
-- 상세: `.cursor/rules.md`
+- 상세: `.cursor/rules/` 및 프로젝트 규칙
 
 ---
 

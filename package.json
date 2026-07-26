@@ -11,6 +11,7 @@
     "dev": "electron .",
     "console": "electron . -- --console",
     "dev:platform": "electron . -- --platform",
+    "sync:characters": "node scripts/sync-characters.js",
     "pack": "electron-builder --dir",
     "build:win": "electron-builder --win nsis portable"
   },
