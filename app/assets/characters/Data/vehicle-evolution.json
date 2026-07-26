@@ -1,0 +1,22 @@
+{
+  "basic": {
+    "next": "street",
+    "requiredLevel": 10
+  },
+  "street": {
+    "next": "sport",
+    "requiredLevel": 25
+  },
+  "sport": {
+    "next": "performance",
+    "requiredLevel": 45
+  },
+  "performance": {
+    "next": "heritage",
+    "requiredLevel": 65
+  },
+  "heritage": {
+    "next": null,
+    "requiredLevel": 65
+  }
+}

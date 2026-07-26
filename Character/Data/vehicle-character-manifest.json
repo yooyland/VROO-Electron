@@ -1,0 +1,119 @@
+{
+  "version": "1.2.0",
+  "view": "front_45",
+  "garagePolicy": {
+    "requireApproved": true,
+    "requireTransparent": true,
+    "requireAssetType": "character",
+    "rejectAssetTypes": ["concept", "promotional"],
+    "allowPlaceholderSvg": true
+  },
+  "vehicles": [
+    {
+      "characterId": "vroo-basic",
+      "name": "VROO Basic",
+      "stage": 1,
+      "rarity": "Common",
+      "approved": false,
+      "transparent": true,
+      "assetType": "placeholder",
+      "characterStatus": "missing",
+      "hasOfficialAsset": false,
+      "useInGarageHero": false,
+      "views": {
+        "front45": {
+          "webp": null,
+          "png": null,
+          "svg": "Character/Vehicles/01_Basic/views/front_45.svg"
+        }
+      }
+    },
+    {
+      "characterId": "vroo-executive-s",
+      "catalogType": "sedan",
+      "name": "Executive S",
+      "stage": 2,
+      "rarity": "Rare",
+      "approved": false,
+      "transparent": true,
+      "assetType": "placeholder",
+      "characterStatus": "missing",
+      "hasOfficialAsset": false,
+      "useInGarageHero": false,
+      "views": {
+        "front45": {
+          "webp": null,
+          "png": null,
+          "svg": "Character/Vehicles/02_Street/views/front_45.svg"
+        }
+      }
+    },
+    {
+      "characterId": "vroo-roadster-gt",
+      "catalogType": "sport",
+      "name": "Roadster GT",
+      "stage": 3,
+      "rarity": "Epic",
+      "approved": false,
+      "transparent": true,
+      "assetType": "placeholder",
+      "characterStatus": "missing",
+      "hasOfficialAsset": false,
+      "useInGarageHero": false,
+      "views": {
+        "front45": {
+          "webp": null,
+          "png": null,
+          "svg": "Character/Vehicles/03_Sport/views/front_45.svg"
+        }
+      }
+    },
+    {
+      "characterId": "vroo-trail-x",
+      "catalogType": "suv",
+      "name": "Trail X",
+      "stage": 4,
+      "rarity": "Legendary",
+      "approved": false,
+      "transparent": true,
+      "assetType": "placeholder",
+      "characterStatus": "missing",
+      "hasOfficialAsset": false,
+      "useInGarageHero": false,
+      "views": {
+        "front45": {
+          "webp": null,
+          "png": null,
+          "svg": "Character/Vehicles/04_Performance/views/front_45.svg"
+        }
+      }
+    },
+    {
+      "characterId": "vroo-heritage-executive-s",
+      "catalogType": "classic",
+      "name": "Heritage Executive S",
+      "stage": 5,
+      "rarity": "Mythic",
+      "approved": false,
+      "transparent": true,
+      "assetType": "placeholder",
+      "characterStatus": "missing",
+      "hasOfficialAsset": false,
+      "useInGarageHero": true,
+      "views": {
+        "front45": {
+          "webp": null,
+          "png": null,
+          "svg": "Character/Vehicles/05_Heritage/views/front_45.svg"
+        }
+      },
+      "notes": "Promo PNG/WebP archived. Hero uses placeholder SVG only until approved transparent character cutout."
+    }
+  ],
+  "aliases": {
+    "vroo-heritage": "vroo-heritage-executive-s",
+    "vroo-sport": "vroo-roadster-gt",
+    "vroo-street": "vroo-executive-s",
+    "vroo-performance": "vroo-trail-x"
+  }
+}

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+<title id="title">VROO Sport front 3/4 placeholder</title>
+<desc id="desc">Layered placeholder vehicle asset. Replace paths while keeping group IDs.</desc>
+<defs>
+  <linearGradient id="bodyGrad" x1="0" x2="1">
+    <stop offset="0" stop-color="#262b34"/>
+    <stop offset="0.55" stop-color="#111722"/>
+    <stop offset="1" stop-color="#262b34"/>
+  </linearGradient>
+  <linearGradient id="glassGrad" x1="0" x2="1">
+    <stop offset="0" stop-color="#9fc7e8" stop-opacity=".55"/>
+    <stop offset="1" stop-color="#142234" stop-opacity=".92"/>
+  </linearGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g id="vehicle-shadow">
+  <ellipse cx="610" cy="470" rx="455" ry="45" fill="#000" opacity=".55"/>
+</g>
+<g id="vehicle-body">
+  <path d="M155 405 C205 330 295 285 420 265 L565 205 C650 165 775 175 850 218 L995 300 C1045 328 1070 360 1085 405 L1030 430 L220 430 Z"
+        fill="url(#bodyGrad)" stroke="#b66cff" stroke-width="5"/>
+  <path d="M325 285 L555 220 C650 185 750 190 820 225 L890 277 L505 277 Z"
+        fill="url(#glassGrad)" stroke="#73859a" stroke-width="3"/>
+  <path d="M545 222 L585 278 M745 205 L770 278" stroke="#66788f" stroke-width="7"/>
+  <path d="M230 395 C280 365 330 350 380 348 M875 343 C935 345 990 365 1030 395"
+        fill="none" stroke="#222c39" stroke-width="10"/>
+</g>
+<g id="vehicle-gold-accent">
+  <path d="M210 415 C430 438 760 438 1040 408" fill="none" stroke="#b66cff" stroke-width="8"/>
+  <path d="M865 300 L1015 334" fill="none" stroke="#b66cff" stroke-width="5"/>
+</g>
+<g id="vehicle-glass">
+  <path d="M340 282 L556 225 L575 278 L497 278 Z" fill="#0c1725" opacity=".9"/>
+  <path d="M590 222 L738 207 L762 278 L592 278 Z" fill="#101c2b" opacity=".92"/>
+</g>
+<g id="vehicle-wheel-rear">
+  <circle cx="355" cy="418" r="82" fill="#06080c" stroke="#d3aa28" stroke-width="9"/>
+  <circle cx="355" cy="418" r="43" fill="#161d27" stroke="#b66cff" stroke-width="6"/>
+</g>
+<g id="vehicle-wheel-front">
+  <circle cx="915" cy="418" r="86" fill="#06080c" stroke="#d3aa28" stroke-width="9"/>
+  <circle cx="915" cy="418" r="46" fill="#161d27" stroke="#b66cff" stroke-width="6"/>
+</g>
+<g id="vehicle-front-light" filter="url(#glow)">
+  <path d="M920 305 L1030 333 L975 350 L900 331 Z" fill="#dff8ff" stroke="#b66cff" stroke-width="5"/>
+</g>
+<g id="vehicle-rear-light">
+  <path d="M205 347 L288 329 L260 355 L190 369 Z" fill="#ff4355"/>
+</g>
+<g id="vehicle-door">
+  <path d="M580 288 L770 288 L748 380 L592 380 Z" fill="none" stroke="#536276" stroke-width="4"/>
+</g>
+<g id="vehicle-spoiler"><path d="M765 190 L930 180 L935 195 L770 205 Z" fill="#171b21" stroke="#b66cff" stroke-width="5"/></g>
+<g id="vehicle-reflection" opacity=".16" transform="translate(0 850) scale(1 -1)">
+  <path d="M155 405 C205 330 295 285 420 265 L565 205 C650 165 775 175 850 218 L995 300 C1045 328 1070 360 1085 405 L1030 430 L220 430 Z"
+        fill="#b66cff"/>
+</g>
+</svg>

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VROO Vehicle Layer Schema",
+  "type": "object",
+  "required": [
+    "id",
+    "body",
+    "wheels",
+    "lights"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "glass": {
+      "type": "string"
+    },
+    "doors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "wheels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lights": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "spoiler": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "shadow": {
+      "type": "string"
+    },
+    "reflection": {
+      "type": "string"
+    }
+  }
+}

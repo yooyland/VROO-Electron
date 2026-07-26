@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VROO Character Demo</title>
+  <link rel="stylesheet" href="../css/vroo-character.css">
+  <style>
+    body{margin:0;padding:24px;background:#020306;color:#fff;font-family:Arial,sans-serif}
+    main{max-width:1400px;margin:auto}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+    button{padding:10px 14px;border:1px solid #39475a;border-radius:10px;background:#111821;color:#fff}
+    button:hover{border-color:#ffc400}
+  </style>
+</head>
+<body>
+<main>
+  <h1>VROO Character Demo</h1>
+  <div class="controls" id="controls"></div>
+  <section id="stage" class="vroo-character-stage"></section>
+</main>
+<script type="module">
+  import { VrooCharacterLoader } from "../js/vroo-character-loader.js";
+  const loader = new VrooCharacterLoader({ baseUrl: "../.." });
+  const manifest = await loader.loadManifest();
+  const controls = document.querySelector("#controls");
+
+  for (const vehicle of manifest.vehicles) {
+    const button = document.createElement("button");
+    button.textContent = `${vehicle.evolutionStage}. ${vehicle.name}`;
+    button.addEventListener("click", () => loader.renderInto("#stage", vehicle.id));
+    controls.appendChild(button);
+  }
+  loader.renderInto("#stage", manifest.defaultVehicleId);
+</script>
+</body>
+</html>

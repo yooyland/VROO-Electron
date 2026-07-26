@@ -1,0 +1,59 @@
+:root {
+  --vroo-gold: #ffc400;
+  --vroo-bg: #05070a;
+  --vroo-panel: #0d131b;
+  --vroo-border: #263241;
+}
+
+.vroo-character-stage {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--vroo-border);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 68% 38%, rgba(255,196,0,.18), transparent 34%),
+    linear-gradient(135deg, #090b0f, #020305 70%);
+}
+
+.vroo-character-stage::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 8%;
+  bottom: 8%;
+  height: 14%;
+  border-radius: 50%;
+  background: rgba(0,0,0,.65);
+  filter: blur(18px);
+}
+
+.vroo-character-image {
+  position: absolute;
+  z-index: 1;
+  inset: 5% 2% 3% 32%;
+  width: 66%;
+  height: 90%;
+  object-fit: contain;
+  user-select: none;
+  transform-origin: center bottom;
+  transition: transform 260ms ease, filter 260ms ease;
+}
+
+.vroo-character-stage:hover .vroo-character-image {
+  transform: scale(1.025);
+  filter: drop-shadow(0 18px 24px rgba(255,196,0,.12));
+}
+
+@media (max-width: 767px) {
+  .vroo-character-stage { min-height: 390px; }
+  .vroo-character-image {
+    inset: 4% 2% 30% 2%;
+    width: 96%;
+    height: 66%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vroo-character-image { transition: none; }
+}
