@@ -7,6 +7,12 @@
 - Candidate: `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
 - Identity reference (unchanged): `app/assets/characters/05_Heritage/views/front_45.png`
 
+## V3 change log
+- V1 원본 차량 RGBA만 사용, 배경/체커보드 미포함.
+- 차량 RGBA를 균일 축소(~62.7%)하여 목표 BBox 높이 `720px`, 폭 `1071px` 확보.
+- 투명 2048×2048 새 캔버스 중앙 `(1024,1024)`에만 합성.
+- 엣지 디컨타미네이션: 반투명 경계부의 마젠타 편향을 부분 탈채도 처리(알파 이진화 금지), 합성 시 헤일로 미발견.
+
 ## V2 change log
 - 차량 스케일을 공식 `front_45.png`와 일관되게 맞춤: 2048 캔버스에서 보이는 실루엣 BBox 높이 ≈ `685px`, 중심 `(1024, 1024)` 고정.
 - 엣지 디컨타미네이션 수행: 흰/검/체커보드 합성 200%에서 보라/마젠타 헤일로 미발견, near‑magenta 엣지 픽셀 `0`.
@@ -22,11 +28,11 @@
 - pass: `True`
 
 ## 3. Visible alpha bounding box and margins
-- bbox (x0,y0)–(x1,y1): `(681, 681)–(1366, 1366)`
-- margins px: left `681`, top `681`, right `682`, bottom `682`
-- minimum safe margin: `≥ 33%` (require ≥ 8%)
-- content center: `(1023.0, 1023.0)`
-- transparent / partial / opaque: `3725079` / `0` / `469225`
+- bbox (x0,y0)–(x1,y1): `(488, 664)–(1559, 1384)`
+- margins px: left `488`, top `664`, right `489`, bottom `664`
+- minimum safe margin: `≥ 23.8%` (require ≥ 8%)
+- content center: `(1023.0, 1023.5)`
+- transparent / partial / opaque: `3547325` / `11476` / `635503`
 - pass: `True`
 
 ## 4. Centerline symmetry check
@@ -36,7 +42,7 @@
 - pass: `True`
 
 ## 5. Fringe test
-- near-magenta fringe pixels: `0`
+- near-magenta fringe pixels: `0` (semi‑transparent edge only; 이진화 없음)
 - pass: `True`
 
 ## 6. Approved front_45.png unchanged
@@ -50,8 +56,8 @@
 - pass: `True`
 
 ## 8. Candidate hashes
-- SHA-256: `1e82a9e156a2372aa6d5872a6b482a4c30432816d1ab38de741d70d0093a1901`
-- Git blob SHA (`git hash-object`): `2a0da9a9e4e3fe7d17ab1d709d286247f0bafd0c`
+- SHA-256: `786390614b018287dbefda9df2b6c0148239d951af368269744631543bf3b3f8`
+- Git blob SHA (`git hash-object`): `f84520e85f48e650342d7a85259bb661630d7160`
 
 ## 9. Changed-file list (intended commit scope)
 - `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
@@ -64,4 +70,4 @@
 - Garage / JS / CSS touched: **no**
 - all checks pass: `True`
 
-HERITAGE_FRONT_PASS1_CANDIDATE_READY_V2
+HERITAGE_FRONT_PASS1_CANDIDATE_READY_V3
