@@ -347,7 +347,7 @@ function showVehiclePreviewCard(user) {
       } else if (act === "horn") {
         emit("user:horn", { id: user.id });
       } else if (act === "gift") {
-        showSystemMessage("선물 기능은 서버 연동 후 이용할 수 있습니다.");
+        emit("shop:openGift", { id: user.id, nickname: user.nickname || user.id });
       } else if (act === "report") {
         showSystemMessage("신고는 서버 연동 후 처리됩니다. (긴급신고 서비스가 아닙니다)");
       } else if (act === "block") {
