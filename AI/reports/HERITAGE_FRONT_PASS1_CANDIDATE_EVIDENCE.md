@@ -7,6 +7,14 @@
 - Candidate: `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
 - Identity reference (unchanged): `app/assets/characters/05_Heritage/views/front_45.png`
 
+## V5 change log
+- 오른쪽 미러/연결부의 정상 픽셀을 중심선(1023.5) 기준 좌우 반사하여 왼쪽 미러 하우징·연결부에만 적용.
+- 골드 방향지시등은 보존(복사 제외)하고 대칭 배치 정합을 유지.
+- 기하/알파/비례/그릴·램프·엠블렘·골드 라인 불변.
+- ROI 내 수정 픽셀 수: `153`
+- ROI: `x=[488, 894)`, `y=[822, 1081)` (BBox 기준 상중단 영역)
+- 좌/우 미러 RGB 평균 MAE(ROI, after): `5.85`
+
 ## V4 change log
 - V3의 크기·위치·비례·디자인 고정, 알파 불변.
 - 왼쪽 미러 연결부 및 외곽의 보라/마젠타 색 오염만 정밀 중화.
@@ -63,8 +71,8 @@
 - pass: `True`
 
 ## 8. Candidate hashes
-- SHA-256: `857ecb00eba3af480131c9681429c997c0a0d92745a5df1ff35d1b91a7abbcc6`
-- Git blob SHA (`git hash-object`): `d542ccba7a559256b5ac8892625a8a06f1532596`
+- SHA-256: `74cf7fd85ae65e7a63a92187d07ed270164b35875d8868d0a7770e3e8569281a`
+- Git blob SHA (`git hash-object`): `cfc329264953d1371ca8f45d431747fd44e6b456`
 
 ## 9. Changed-file list (intended commit scope)
 - `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
@@ -77,4 +85,4 @@
 - Garage / JS / CSS touched: **no**
 - all checks pass: `True`
 
-HERITAGE_FRONT_PASS1_CANDIDATE_READY_V4
+HERITAGE_FRONT_PASS1_CANDIDATE_READY_V5
