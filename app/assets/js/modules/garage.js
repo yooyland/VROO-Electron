@@ -172,9 +172,13 @@ function renderInventory(root) {
 
 function renderMission(root) {
   root.innerHTML = `
-    <div class="garage-list-card"><b>오늘의 드라이브</b><span>0 / 10 km</span></div>
-    <div class="garage-list-card"><b>GRID 방문</b><span>0 / 3</span></div>
-    <div class="garage-list-card"><b>안전 운전 연속 기록</b><span>준비 중</span></div>`;
+    <div class="garage-empty-card">
+      <span>◆</span><h3>Mission</h3>
+      <p>미션 진행·보상·레벨 성장은 PLAY에서 한 번만 관리합니다.</p>
+      <small>Garage는 내 차량과 장착 상태를 관리합니다.</small>
+      <button type="button" class="primary" id="openPlayFromGarage">게임 · PLAY 열기</button>
+    </div>`;
+  root.querySelector("#openPlayFromGarage").onclick = () => emit("garage:openGrowth");
 }
 
 function renderFriends(root, state) {

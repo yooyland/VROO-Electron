@@ -40,7 +40,7 @@ const SPATIAL_SCREENS=new Set(["nearby","grid"]);
 const CONTENT_SCREENS=new Set(["shop","growth","community","chat","my"]);
 const CONTENT_TITLES={
   shop:["상점","STORE · 차량·혜택 상품"],
-  growth:["성장","PLAY · 레벨·크레딧"],
+  growth:["게임","PLAY · 미션·성장·보상"],
   community:["커뮤니티","SOCIAL · 게시판"],
   chat:["대화방","SOCIAL · 공간·1:1·일반 대화"],
   my:["MY CAR · 차고","GARAGE · 차량 관리·성장"]
@@ -262,6 +262,7 @@ on("user:open",payload=>openUserDetail(state,payload));
 on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
 on("garage:openGrowth",()=>setScreen("growth"));
+on("growth:openGarage",()=>setScreen("my"));
 on("garage:openCustomize",()=>{
   state.shopCategory="feature";
   save();
