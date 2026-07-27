@@ -28,6 +28,10 @@ function wantsHeritageRuntimeTest() {
   return getAppArgs().includes("--heritage-runtime-test");
 }
 
+function wantsWorkspaceRuntimeTest() {
+  return getAppArgs().includes("--workspace-runtime-test");
+}
+
 function baseWebPreferences() {
   return {
     preload: path.join(__dirname, "preload.js"),
@@ -143,7 +147,101 @@ async function runHeritageRuntimeTest(win) {
   }
 }
 
-function createUserWindow({ smokeTest = false } = {}) {
+async function runWorkspaceRuntimeTest(win) {
+  try {
+    const result = await win.webContents.executeJavaScript(`
+      (async () => {
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const waitFor = async (predicate, label, timeout = 12000) => {
+          const started = Date.now();
+          while (Date.now() - started < timeout) {
+            const value = predicate();
+            if (value) return value;
+            await wait(75);
+          }
+          throw new Error("Timed out waiting for " + label);
+        };
+        const click = async (selector) => {
+          const element = await waitFor(() => document.querySelector(selector), selector);
+          element.click();
+          await wait(150);
+        };
+
+        await waitFor(() => window.__VROO_BOOT_OK === true, "VROO boot");
+        await click('[data-screen="chat"]');
+        const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
+        const chat = {
+          zoneCount: commandGrid.children.length,
+          filterCount: document.querySelectorAll(".chat-live-rail-head [data-rooms-filter]").length,
+          roomHost: Boolean(document.querySelector("[data-chat-room-host]")),
+          filtersInsideThirdZone: Boolean(document.querySelector(".chat-live-rail .chat-command-filters"))
+        };
+
+        await click("[data-open-road-scene]");
+        chat.roadDetailInThirdZone = Boolean(await waitFor(
+          () => document.querySelector("[data-chat-room-host] [data-road-content-detail]"),
+          "road detail in third zone"
+        ));
+        await click("#roadContentBack");
+        chat.backRestoresRoomList = Boolean(await waitFor(
+          () => document.querySelector("[data-chat-room-host]"),
+          "room list after back"
+        ));
+
+        await click("#myPageButton");
+        await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
+        const garage = {
+          visible: true,
+          viewCount: document.querySelectorAll("[data-garage-view]").length,
+          actionCount: document.querySelectorAll("[data-garage-action]").length
+        };
+
+        await click('[data-garage-action="mission"]');
+        garage.missionInternal = Boolean(document.querySelector('[data-room="mission"].active'));
+        await click('[data-room="garage"]');
+        await click('[data-garage-action="collection"]');
+        garage.collectionInternal = Boolean(document.querySelector('[data-room="inventory"].active'));
+        await click('[data-room="garage"]');
+        await click('[data-garage-action="customize"]');
+        garage.customizeRoutesToStore = Boolean(await waitFor(
+          () => document.querySelector('[data-cat="feature"].active'),
+          "Store feature category"
+        ));
+
+        await click("#myPageButton");
+        await click('[data-room="garage"]');
+        await click('[data-garage-action="upgrade"]');
+        garage.upgradeRoutesToGame = Boolean(await waitFor(() => document.querySelector("#levelUp"), "Game upgrade"));
+
+        const checks = [
+          chat.zoneCount === 3,
+          chat.filterCount === 4,
+          chat.roomHost,
+          chat.filtersInsideThirdZone,
+          chat.roadDetailInThirdZone,
+          chat.backRestoresRoomList,
+          garage.visible,
+          garage.viewCount === 9,
+          garage.actionCount === 4,
+          garage.missionInternal,
+          garage.collectionInternal,
+          garage.customizeRoutesToStore,
+          garage.upgradeRoutesToGame
+        ];
+        return { boot: true, chat, garage, pass: checks.every(Boolean) };
+      })()
+    `, true);
+    console.log(`WORKSPACE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
+    if (!result.pass) throw new Error("Workspace runtime assertions failed");
+    console.log("WORKSPACE_RUNTIME_TEST_PASS");
+    app.exit(0);
+  } catch (error) {
+    console.error("WORKSPACE_RUNTIME_TEST_FAIL", error);
+    app.exit(1);
+  }
+}
+
+function createUserWindow({ smokeTest = false, smokeRunner = runHeritageRuntimeTest } = {}) {
   if (userWindow && !userWindow.isDestroyed()) {
     if (!smokeTest) userWindow.focus();
     return userWindow;
@@ -169,7 +267,7 @@ function createUserWindow({ smokeTest = false } = {}) {
     }
   });
   if (smokeTest) {
-    userWindow.webContents.once("did-finish-load", () => runHeritageRuntimeTest(userWindow));
+    userWindow.webContents.once("did-finish-load", () => smokeRunner(userWindow));
   }
   attachNavigationGuards(userWindow);
   userWindow.on("closed", () => {
@@ -250,10 +348,13 @@ app.whenReady().then(async () => {
   );
 
   const heritageRuntimeTest = wantsHeritageRuntimeTest();
-  if (!heritageRuntimeTest) buildAppMenu();
+  const workspaceRuntimeTest = wantsWorkspaceRuntimeTest();
+  if (!heritageRuntimeTest && !workspaceRuntimeTest) buildAppMenu();
 
   if (heritageRuntimeTest) {
     createUserWindow({ smokeTest: true });
+  } else if (workspaceRuntimeTest) {
+    createUserWindow({ smokeTest: true, smokeRunner: runWorkspaceRuntimeTest });
   } else if (wantsPlatform()) {
     createUserWindow();
     createConsoleWindow();
