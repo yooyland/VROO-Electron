@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "brand": "VROO",
+  "vehicle_family": "Executive S",
+  "immutable_dna": {
+    "body_type": "premium fastback sports sedan",
+    "stance": "wide, low, planted",
+    "front_signature": "wide black grille with restrained gold perimeter",
+    "headlight_signature": "sharp dual white LED with compact gold accent",
+    "rear_signature": "continuous slim red lamp",
+    "wheel_signature": "large multi-spoke heritage gold wheel",
+    "roofline": "single flowing fastback arc",
+    "emblem": "VROO winged V shield",
+    "primary_palette": [
+      "midnight black",
+      "heritage gold"
+    ],
+    "surface_language": "clean executive tension, controlled aggression"
+  },
+  "upgrade_rule": "grades may add parts and performance cues but must never replace the family silhouette or light signatures"
+}

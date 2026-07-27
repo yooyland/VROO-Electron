@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "vroom_05_heritage_executive_s",
+  "name": "Heritage Executive S",
+  "brand": "VROO",
+  "family": "Executive S",
+  "grade": "HERITAGE",
+  "class": "premium_sports_sedan",
+  "status": "asset-production",
+  "pivot": {
+    "x": 0.5,
+    "y": 0.5
+  },
+  "canvas": {
+    "width": 2048,
+    "height": 2048
+  },
+  "background": "transparent",
+  "directions": [
+    "front",
+    "front_45",
+    "right",
+    "rear_right",
+    "rear",
+    "rear_left",
+    "left",
+    "front_left",
+    "front_right"
+  ],
+  "runtimePriority": [
+    "webp",
+    "png",
+    "svg",
+    "procedural"
+  ],
+  "viewsPath": "./views",
+  "layersPath": "./layers",
+  "designDNA": "../00_DNA/vroo_vehicle_dna.json",
+  "colors": {
+    "primary": "#080808",
+    "accent": "#C79B3B",
+    "headlight": "#EAF7FF",
+    "rearLight": "#FF2E2E"
+  },
+  "release": "v1.0.0",
+  "approval": {
+    "masterFront45": false,
+    "nineDirections": false,
+    "layers": false,
+    "runtimeTest": false
+  }
+}
