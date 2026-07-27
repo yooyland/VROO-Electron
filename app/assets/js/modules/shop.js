@@ -73,6 +73,13 @@ export function renderShop(panel, state) {
       <div class="card product-row"><div class="avatar">🎁</div><div><b>VROO 드라이브 선물</b><div class="muted">쿠폰·혜택 선물 ${badge("planned")}</div></div><button disabled title="서버 연동 전">준비 중</button></div>`;
   };
 
+  const renderVehicleFeatures = () => {
+    list.innerHTML = `
+      <div class="card"><b>내 차량 커스터마이즈</b>${badge("prototype")}<p class="muted">Garage에서 선택한 차량에 적용할 외관과 파츠를 이곳에서 확인합니다.</p></div>
+      <div class="card product-row"><div class="avatar">◉</div><div><b>라이트</b><div class="muted">차량 시그니처 조명 ${badge("prototype")}</div></div><button disabled title="파츠 적용 준비 중">준비 중</button></div>
+      <div class="card product-row"><div class="avatar">✦</div><div><b>휠 · 스포일러 · 배기</b><div class="muted">외관 파츠 ${badge("planned")}</div></div><button disabled title="파츠 적용 준비 중">준비 중</button></div>`;
+  };
+
   const renderCareNotice = () => {
     list.innerHTML = `<div class="card">
       <b>CARE 연계 상품</b>${badge("planned")}
@@ -85,6 +92,7 @@ export function renderShop(panel, state) {
     const cat = SHOP_CATEGORIES.find((c) => c.id === catId) || SHOP_CATEGORIES[0];
     if (cat.kind === "benefits") renderBenefits();
     else if (cat.kind === "gifts") renderGifts();
+    else if (cat.id === "feature") renderVehicleFeatures();
     else if (cat.id === "care") renderCareNotice();
     else if (cat.kind === "notice") {
       list.innerHTML = `<div class="card"><b>${escapeHtml(cat.label)}</b>${badge(cat.status)}<p class="muted">이 카테고리는 준비 중이며 자동차 선택과 중복되지 않습니다.</p></div>`;

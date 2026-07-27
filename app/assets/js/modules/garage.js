@@ -85,7 +85,7 @@ function syncLightLayer(root, state, view) {
   }
 }
 
-function renderOverview(root, state, requestedView = "front_45") {
+function renderOverview(root, state, requestedView = "front_45", openRoom = () => {}) {
   const activeView = normalizeView(requestedView);
   const level = Math.max(1, metric(state.level, 1));
   const xp = Math.max(0, Math.min(100, metric(state.xp, 0)));
@@ -131,9 +131,9 @@ function renderOverview(root, state, requestedView = "front_45") {
     </section>`;
 
   root.querySelector('[data-garage-action="upgrade"]').onclick = () => emit("garage:openGrowth");
-  root.querySelector('[data-garage-action="mission"]').onclick = () => showNotice(root, "미션은 PLAY 메뉴에 통합될 예정입니다.");
-  root.querySelector('[data-garage-action="customize"]').onclick = () => showNotice(root, "커스터마이즈 파츠를 준비 중입니다.");
-  root.querySelector('[data-garage-action="collection"]').onclick = () => showNotice(root, "Heritage S가 대표 차량으로 선택되어 있습니다.");
+  root.querySelector('[data-garage-action="mission"]').onclick = () => openRoom("mission");
+  root.querySelector('[data-garage-action="customize"]').onclick = () => emit("garage:openCustomize");
+  root.querySelector('[data-garage-action="collection"]').onclick = () => openRoom("inventory");
   setVehicleView(root, activeView);
   syncLightLayer(root, state, activeView);
   root.querySelector("[data-garage-light-toggle]").onclick = () => {
@@ -202,6 +202,7 @@ function renderRecord(root, state) {
 
 export function renderGarage(panel, state) {
   if (!panel) return;
+  const validRooms = new Set(["garage", "inventory", "mission", "friends", "record"]);
   panel.innerHTML = `
     <div class="garage-shell">
       <div id="garageContent" class="garage-content"></div>
@@ -216,18 +217,21 @@ export function renderGarage(panel, state) {
 
   const content = panel.querySelector("#garageContent");
   const renderRoom = room => {
+    const activeRoom = validRooms.has(room) ? room : "garage";
+    state.garageRoom = activeRoom;
     panel.querySelectorAll("[data-room]").forEach(button => {
-      button.classList.toggle("active", button.dataset.room === room);
+      button.classList.toggle("active", button.dataset.room === activeRoom);
     });
-    if (room === "inventory") renderInventory(content);
-    else if (room === "mission") renderMission(content);
-    else if (room === "friends") renderFriends(content, state);
-    else if (room === "record") renderRecord(content, state);
-    else renderOverview(content, state, state.garageView);
+    if (activeRoom === "inventory") renderInventory(content);
+    else if (activeRoom === "mission") renderMission(content);
+    else if (activeRoom === "friends") renderFriends(content, state);
+    else if (activeRoom === "record") renderRecord(content, state);
+    else renderOverview(content, state, state.garageView, renderRoom);
+    emit("state:save");
   };
 
   panel.querySelectorAll("[data-room]").forEach(button => {
     button.onclick = () => renderRoom(button.dataset.room);
   });
-  renderRoom("garage");
+  renderRoom(state.garageRoom);
 }

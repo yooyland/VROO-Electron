@@ -262,6 +262,11 @@ on("user:open",payload=>openUserDetail(state,payload));
 on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
 on("garage:openGrowth",()=>setScreen("growth"));
+on("garage:openCustomize",()=>{
+  state.shopCategory="feature";
+  save();
+  setScreen("shop");
+});
 on("shop:openGift",recipient=>{
   state.shopCategory="gift";
   state.shopGiftRecipient=recipient?.id?{id:recipient.id,nickname:recipient.nickname||recipient.id}:null;
