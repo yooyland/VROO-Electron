@@ -1086,6 +1086,16 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .garage-vehicle-picture{position:absolute;inset:82px 2% 10px;z-index:2;display:flex;align-items:center;justify-content:center}
 .garage-vehicle-picture img{display:block;width:min(88%,1050px);height:100%;object-fit:contain;filter:drop-shadow(0 25px 22px #000c)}
 .garage-stage-glow{position:absolute;left:17%;right:17%;bottom:8%;height:16%;border-radius:50%;background:#d49a1b2b;filter:blur(30px)}
+.garage-view-selector{
+  display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:7px;margin-top:10px;padding:8px;
+  border:1px solid #303947;border-radius:14px;background:#090e14
+}
+.garage-view-selector button{
+  min-height:38px;padding:7px 9px;white-space:nowrap;border:1px solid #303947;border-radius:9px;
+  background:#111821;color:#9da7b3;font-size:11px;font-weight:800
+}
+.garage-view-selector button:hover{border-color:#846a2f;color:#fff}
+.garage-view-selector button.active{border-color:#c89b36;background:#2a210d;color:#ffd45c;box-shadow:inset 0 0 0 1px #6b511d}
 .garage-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
 .garage-stat-grid article{min-height:85px;padding:15px;border:1px solid #303947;border-radius:14px;background:linear-gradient(145deg,#141b25,#0b0f15)}
 .garage-stat-grid small,.garage-stat-grid b{display:block}.garage-stat-grid small{color:#8f9aa8}.garage-stat-grid b{margin-top:8px;font-size:17px}
@@ -1105,7 +1115,7 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .garage-record-card svg{width:100%;margin-top:28px}.garage-chart-fill{fill:url(#garageChart)}.garage-chart-line{fill:none;stroke:#ffc400;stroke-width:5;stroke-linecap:round}
 .garage-notice{position:sticky;top:0;z-index:8;margin-bottom:8px;padding:10px 14px;border:1px solid #9d741f;border-radius:10px;background:#241d0c;color:#ffd45c}
 @media(max-width:900px){
-  .garage-hero{min-height:360px}.garage-score{top:92px}.garage-stat-grid,.garage-action-grid{grid-template-columns:repeat(2,1fr)}
+  .garage-hero{min-height:360px}.garage-score{top:92px}.garage-view-selector{grid-template-columns:repeat(3,1fr)}.garage-stat-grid,.garage-action-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:600px){
   .garage-hero-copy{left:18px;top:18px}.garage-score{right:18px}.garage-vehicle-picture{inset:110px 0 5px}
