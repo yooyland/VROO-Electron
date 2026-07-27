@@ -7,6 +7,13 @@
 - Candidate: `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
 - Identity reference (unchanged): `app/assets/characters/05_Heritage/views/front_45.png`
 
+## V6 change log
+- V5를 기준으로 왼쪽 미러 지정 영역의 모든 RGBA 픽셀을 중심선 `x=1023.5` 기준 오른쪽 대응 영역에서 좌우 반사 복사.
+- 색상·알파 조건 미사용, 전체 픽셀 완전 교체. 영역 밖 픽셀은 비트 단위 동일 유지.
+- 교체 영역: `x=488..650`, `y=790..930` (inclusive)
+- 전체 변경 픽셀 수: `12,922` (ROI 내부만), ROI 외 변경 픽셀 수: `0`
+- 교체 영역 좌/우 mirrored RGBA MAE: `0.0`
+
 ## V5 change log
 - 오른쪽 미러/연결부의 정상 픽셀을 중심선(1023.5) 기준 좌우 반사하여 왼쪽 미러 하우징·연결부에만 적용.
 - 골드 방향지시등은 보존(복사 제외)하고 대칭 배치 정합을 유지.
@@ -71,8 +78,8 @@
 - pass: `True`
 
 ## 8. Candidate hashes
-- SHA-256: `74cf7fd85ae65e7a63a92187d07ed270164b35875d8868d0a7770e3e8569281a`
-- Git blob SHA (`git hash-object`): `cfc329264953d1371ca8f45d431747fd44e6b456`
+- SHA-256: `71e7db09738fad9f94c0bd5e786a3dbf14a0ebc29ec36636358fe2bc05c2e816`
+- Git blob SHA (`git hash-object`): `27be8a8e8dc0d8ea9aaf82e48fe21550daf1e02f`
 
 ## 9. Changed-file list (intended commit scope)
 - `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
@@ -85,4 +92,4 @@
 - Garage / JS / CSS touched: **no**
 - all checks pass: `True`
 
-HERITAGE_FRONT_PASS1_CANDIDATE_READY_V5
+HERITAGE_FRONT_PASS1_CANDIDATE_READY_V6
