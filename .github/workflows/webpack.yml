@@ -28,7 +28,7 @@ jobs:
         find app console shared -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
     - name: Check Heritage Garage runtime
-      run: xvfb-run --auto-servernum npm run test:heritage-runtime
+      run: xvfb-run --auto-servernum npx electron --no-sandbox . -- --heritage-runtime-test
 
     - name: Check chat and Garage workspace runtime
-      run: xvfb-run --auto-servernum npm run test:workspace-runtime
+      run: xvfb-run --auto-servernum npx electron --no-sandbox . -- --workspace-runtime-test
