@@ -43,7 +43,7 @@ const CONTENT_TITLES={
   growth:["성장","PLAY · 레벨·크레딧"],
   community:["커뮤니티","SOCIAL · 게시판"],
   chat:["대화방","SOCIAL · 공간·1:1·일반 대화"],
-  my:["MY","내 차량 · 프로필"]
+  my:["MY CAR · 차고","GARAGE · 차량 관리·성장"]
 };
 
 let currentScreen=state.currentScreen||"nearby";
@@ -139,6 +139,7 @@ function setScreen(name){
 
   currentScreen=name;
   document.querySelectorAll("[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen===name));
+  document.querySelector("#myPageButton")?.classList.toggle("active",name==="my");
   if(name==="my"){
     document.querySelectorAll("[data-screen]").forEach(b=>b.classList.remove("active"));
   }
