@@ -14,7 +14,8 @@
     "front": 6,
     "front_45": 3,
     "target": "9.9_brand_master",
-    "nineDirections": "in_progress"
+    "nineDirections": "in_progress",
+    "right": 1
   },
   "pivot": {
     "x": 0.5,
@@ -54,6 +55,11 @@
     "front_45": {
       "png": "./views/front_45.png",
       "webp": "./views/front_45.webp",
+      "svg": null
+    },
+    "right": {
+      "png": "./views/right.png",
+      "webp": "./views/right.webp",
       "svg": null
     }
   },
