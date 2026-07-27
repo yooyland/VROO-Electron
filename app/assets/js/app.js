@@ -262,6 +262,12 @@ on("user:open",payload=>openUserDetail(state,payload));
 on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
 on("garage:openGrowth",()=>setScreen("growth"));
+on("shop:openGift",recipient=>{
+  state.shopCategory="gift";
+  state.shopGiftRecipient=recipient?.id?{id:recipient.id,nickname:recipient.nickname||recipient.id}:null;
+  save();
+  setScreen("shop");
+});
 on("workspace:spatialHome",()=>{setScreen("nearby");setView(currentView||"near")});
 on("place:open", place => {
   const kind = place.kind || place.type || "place";
