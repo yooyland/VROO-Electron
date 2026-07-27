@@ -16,7 +16,7 @@ export const CURRENT_TOP_MENU = [
   { id: "nearby", label: "주변차량", screen: "nearby", axis: "drive", status: "prototype" },
   { id: "grid", label: "그리드", screen: "grid", axis: "social", status: "prototype" },
   { id: "chat", label: "대화방", screen: "chat", axis: "social", status: "prototype" },
-  { id: "growth", label: "성장", screen: "growth", axis: "play", status: "prototype" },
+  { id: "growth", label: "게임", screen: "growth", axis: "play", status: "prototype" },
   { id: "shop", label: "상점", screen: "shop", axis: "store", status: "prototype" },
   { id: "community", label: "커뮤니티", screen: "community", axis: "social", status: "prototype" }
 ];

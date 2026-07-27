@@ -22,7 +22,7 @@ import {playHornThrottled} from "./modules/sound.js";
 import {renderGrowth} from "./modules/growth.js";
 import {renderShop} from "./modules/shop.js";
 import {renderCommunity} from "./modules/community.js";
-import {renderMyPage} from "./modules/profile.js";
+import {renderGarage} from "./modules/garage.js";
 
 const state=loadState();
 ensureRoadChat(state);
@@ -167,7 +167,7 @@ function setScreen(name){
     growth:()=>renderGrowth(contentPanel,state),
     shop:()=>renderShop(contentPanel,state),
     community:()=>renderCommunity(contentPanel,state),
-    my:()=>renderMyPage(contentPanel,state)
+    my:()=>renderGarage(contentPanel,state)
   };
   try{
     r[name]?.();
@@ -260,6 +260,7 @@ on("state:save",save);
 on("user:open",payload=>openUserDetail(state,payload));
 on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
+on("garage:openGrowth",()=>setScreen("growth"));
 on("workspace:spatialHome",()=>{setScreen("nearby");setView(currentView||"near")});
 on("place:open", place => {
   const kind = place.kind || place.type || "place";
