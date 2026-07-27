@@ -118,6 +118,6 @@
     "masterFront45": true,
     "nineDirections": true,
     "layers": false,
-    "runtimeTest": false
+    "runtimeTest": true
   }
 }
