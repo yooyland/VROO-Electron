@@ -17,7 +17,8 @@
     "nineDirections": "in_progress",
     "right": 1,
     "rear_right": 1,
-    "rear": 1
+    "rear": 1,
+    "rear_left": 1
   },
   "pivot": {
     "x": 0.5,
@@ -72,6 +73,11 @@
     "rear": {
       "png": "./views/rear.png",
       "webp": "./views/rear.webp",
+      "svg": null
+    },
+    "rear_left": {
+      "png": "./views/rear_left.png",
+      "webp": "./views/rear_left.webp",
       "svg": null
     }
   },
