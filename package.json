@@ -12,6 +12,7 @@
     "console": "electron . -- --console",
     "dev:platform": "electron . -- --platform",
     "test:heritage-runtime": "electron . -- --heritage-runtime-test",
+    "test:workspace-runtime": "electron . -- --workspace-runtime-test",
     "pack": "electron-builder --dir",
     "build:win": "electron-builder --win nsis portable"
   },
