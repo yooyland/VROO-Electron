@@ -18,7 +18,8 @@
     "right": 1,
     "rear_right": 1,
     "rear": 1,
-    "rear_left": 1
+    "rear_left": 1,
+    "left": 1
   },
   "pivot": {
     "x": 0.5,
@@ -78,6 +79,11 @@
     "rear_left": {
       "png": "./views/rear_left.png",
       "webp": "./views/rear_left.webp",
+      "svg": null
+    },
+    "left": {
+      "png": "./views/left.png",
+      "webp": "./views/left.webp",
       "svg": null
     }
   },
