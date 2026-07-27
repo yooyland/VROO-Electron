@@ -89,10 +89,30 @@ async function runHeritageRuntimeTest(win) {
             pressed: button.getAttribute("aria-pressed") === "true"
           });
         }
+        document.querySelector('[data-garage-view="front_45"]')?.click();
+        const lightButton = document.querySelector("[data-garage-light-toggle]");
+        const lightLayer = document.querySelector("[data-garage-light-layer]");
+        lightButton?.click();
+        const lightReady = await waitFor(() =>
+          lightLayer &&
+          lightLayer.complete &&
+          lightLayer.naturalWidth === 2048 &&
+          lightLayer.classList.contains("active")
+        , 5000);
+        const lightPilot = {
+          ready: lightReady,
+          pressed: lightButton?.getAttribute("aria-pressed") === "true",
+          naturalWidth: lightLayer?.naturalWidth || 0,
+          naturalHeight: lightLayer?.naturalHeight || 0
+        };
+        document.querySelector('[data-garage-view="right"]')?.click();
+        lightPilot.disabledOutsideFront45 = lightButton?.disabled === true;
+        lightPilot.hiddenOutsideFront45 = !lightLayer?.classList.contains("active");
         return {
           boot: window.__VROO_BOOT_OK === true,
           selectorCount: document.querySelectorAll("[data-garage-view]").length,
-          results
+          results,
+          lightPilot
         };
       })()
     `, true);
@@ -103,8 +123,18 @@ async function runHeritageRuntimeTest(win) {
       item.fallbackApplied ||
       !item.pressed
     );
+    const lightFailed =
+      !result.lightPilot?.ready ||
+      !result.lightPilot?.pressed ||
+      result.lightPilot?.naturalWidth !== 2048 ||
+      result.lightPilot?.naturalHeight !== 2048 ||
+      !result.lightPilot?.disabledOutsideFront45 ||
+      !result.lightPilot?.hiddenOutsideFront45;
     console.log(`HERITAGE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
-    if (failed.length) throw new Error(`Heritage runtime failures: ${failed.map(item => item.id).join(", ")}`);
+    if (failed.length || lightFailed) {
+      const details = failed.map(item => item.id).concat(lightFailed ? ["front_45_light_pilot"] : []);
+      throw new Error(`Heritage runtime failures: ${details.join(", ")}`);
+    }
     console.log("HERITAGE_RUNTIME_TEST_PASS");
     app.exit(0);
   } catch (error) {

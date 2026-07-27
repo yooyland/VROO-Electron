@@ -26,6 +26,14 @@
   ],
   "assetPattern": "./{direction}/{layer}.png",
   "runtimePattern": "./{direction}/{layer}.webp",
+  "interactivePilot": {
+    "direction": "front_45",
+    "layer": "front_lights",
+    "format": "svg",
+    "path": "./front_45/front_lights.svg",
+    "mode": "emissive_overlay",
+    "status": "runtime_candidate"
+  },
   "layers": [
     {
       "id": "shadow",
