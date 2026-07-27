@@ -24,6 +24,10 @@ function wantsPlatform() {
   return getAppArgs().includes("--platform");
 }
 
+function wantsHeritageRuntimeTest() {
+  return getAppArgs().includes("--heritage-runtime-test");
+}
+
 function baseWebPreferences() {
   return {
     preload: path.join(__dirname, "preload.js"),
@@ -49,9 +53,69 @@ function attachNavigationGuards(win) {
   });
 }
 
-function createUserWindow() {
+async function runHeritageRuntimeTest(win) {
+  try {
+    const result = await win.webContents.executeJavaScript(`
+      (async () => {
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const waitFor = async (predicate, timeout = 10000) => {
+          const started = Date.now();
+          while (Date.now() - started < timeout) {
+            if (predicate()) return true;
+            await wait(50);
+          }
+          return false;
+        };
+        const loaded = await waitFor(() => window.__VROO_BOOT_OK === true);
+        if (!loaded) throw new Error("VROO boot timeout");
+        document.querySelector("#myPageButton")?.click();
+        const mounted = await waitFor(() => document.querySelectorAll("[data-garage-view]").length === 9);
+        if (!mounted) throw new Error("Garage nine-direction selector missing");
+
+        const expected = ["front","front_45","front_right","right","rear_right","rear","rear_left","left","front_left"];
+        const results = [];
+        for (const id of expected) {
+          const button = document.querySelector('[data-garage-view="' + id + '"]');
+          if (!button) throw new Error("Missing direction button: " + id);
+          button.click();
+          const image = document.querySelector("[data-garage-image]");
+          const ok = await waitFor(() => image && image.complete && image.naturalWidth > 0, 5000);
+          results.push({
+            id,
+            ok,
+            naturalWidth: image?.naturalWidth || 0,
+            naturalHeight: image?.naturalHeight || 0,
+            fallbackApplied: image?.dataset.fallbackApplied === "true",
+            pressed: button.getAttribute("aria-pressed") === "true"
+          });
+        }
+        return {
+          boot: window.__VROO_BOOT_OK === true,
+          selectorCount: document.querySelectorAll("[data-garage-view]").length,
+          results
+        };
+      })()
+    `, true);
+    const failed = result.results.filter(item =>
+      !item.ok ||
+      item.naturalWidth !== 2048 ||
+      item.naturalHeight !== 2048 ||
+      item.fallbackApplied ||
+      !item.pressed
+    );
+    console.log(`HERITAGE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
+    if (failed.length) throw new Error(`Heritage runtime failures: ${failed.map(item => item.id).join(", ")}`);
+    console.log("HERITAGE_RUNTIME_TEST_PASS");
+    app.exit(0);
+  } catch (error) {
+    console.error("HERITAGE_RUNTIME_TEST_FAIL", error);
+    app.exit(1);
+  }
+}
+
+function createUserWindow({ smokeTest = false } = {}) {
   if (userWindow && !userWindow.isDestroyed()) {
-    userWindow.focus();
+    if (!smokeTest) userWindow.focus();
     return userWindow;
   }
   userWindow = new BrowserWindow({
@@ -69,9 +133,14 @@ function createUserWindow() {
 
   userWindow.loadFile(path.join(__dirname, "app", "index.html"));
   userWindow.once("ready-to-show", () => {
-    userWindow.maximize();
-    userWindow.show();
+    if (!smokeTest) {
+      userWindow.maximize();
+      userWindow.show();
+    }
   });
+  if (smokeTest) {
+    userWindow.webContents.once("did-finish-load", () => runHeritageRuntimeTest(userWindow));
+  }
   attachNavigationGuards(userWindow);
   userWindow.on("closed", () => {
     userWindow = null;
@@ -150,9 +219,12 @@ app.whenReady().then(async () => {
     }
   );
 
-  buildAppMenu();
+  const heritageRuntimeTest = wantsHeritageRuntimeTest();
+  if (!heritageRuntimeTest) buildAppMenu();
 
-  if (wantsPlatform()) {
+  if (heritageRuntimeTest) {
+    createUserWindow({ smokeTest: true });
+  } else if (wantsPlatform()) {
     createUserWindow();
     createConsoleWindow();
   } else if (wantsConsole()) {
