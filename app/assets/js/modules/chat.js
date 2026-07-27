@@ -690,6 +690,16 @@ export function renderRooms(panel, state) {
   const showSpatial = filter === "all" || filter === "spatial";
   const showDirect = filter === "all" || filter === "direct";
   const showRoom = filter === "all" || filter === "room";
+  const liveDrivers = getUsers().filter(u => u?.id).slice(0, 6);
+  const mapMarkers = liveDrivers.map((u, index) => {
+    const x = [18, 69, 44, 77, 27, 54][index] || 50;
+    const y = [24, 18, 52, 64, 76, 84][index] || 50;
+    return `<button type="button" class="chat-map-driver ${u.online ? "is-online" : ""}" style="--x:${x}%;--y:${y}%" data-map-peer="${escapeHtml(u.id)}">
+      <span>${escapeHtml((u.nickname || "?").slice(0, 1))}</span>
+      <b>${escapeHtml(u.nickname || u.id)}</b>
+      <small>Lv.${u.level ?? "?"}</small>
+    </button>`;
+  }).join("");
 
   const roadSpace = roadCard.hasContextName
     ? `${escapeHtml(roadCard.roadName)} · ${escapeHtml(roadCard.directionLabel)}`
@@ -837,20 +847,58 @@ export function renderRooms(panel, state) {
     : "";
 
   panel.innerHTML = `
-    <div class="card">
-      <b>대화방</b>
-      <div class="muted">도로·GRID·주변 공간 대화와 1:1 지속 대화를 한곳에서 확인합니다.</div>
-      <div class="muted" style="margin-top:8px">읽지 않음 · 공간 ${by.road + by.nearby + by.grid} · 1:1 ${by.direct} · 일반 ${by.room}</div>
-    </div>
-    <div class="tabs rooms-filter-tabs" role="tablist">
-      <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
-      <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간 대화</button>
-      <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
-      <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">일반 대화방</button>
-    </div>
-    ${showSpatial ? `<div class="card section-label"><b>공간 대화</b></div>${currentRoadHtml}${nearbyHtml}${gridHtml}${historyHtml}` : ""}
-    ${directHtml}
-    ${roomHtml}`;
+    <div class="chat-command-shell">
+      <header class="chat-command-head">
+        <div>
+          <span class="chat-command-kicker">SOCIAL · SPATIAL CONVERSATION</span>
+          <b>대화방</b>
+          <small>도로·GRID·주변 차량과 대화를 한 화면에서 연결합니다.</small>
+        </div>
+        <div class="chat-command-unread">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></div>
+      </header>
+      <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist">
+        <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
+        <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간 대화</button>
+        <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
+        <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">일반 대화방</button>
+      </div>
+      <div class="chat-command-grid">
+        <section class="chat-road-scene" aria-label="도로 대화 장면">
+          <div class="chat-scene-top">
+            <span><i></i> 온라인 ${liveDrivers.filter(u => u.online).length}</span>
+            <div class="chat-view-switch"><b>주변</b><b class="active">도로</b><b>전체</b></div>
+          </div>
+          <div class="chat-road-copy">
+            <span>LIVE ROAD</span>
+            <h3>${roadCard.hasContextName ? escapeHtml(roadCard.roadName) : "현재 도로 대화"}</h3>
+            <p>${roadMeta}</p>
+          </div>
+          <div class="chat-road-bubble one">안전운전 하세요! 🙂</div>
+          <div class="chat-road-bubble two">여기서 만나요!</div>
+          <div class="chat-road-bubble three">오늘 날씨 좋다 🚗</div>
+          <picture class="chat-road-car"><source srcset="./assets/characters/05_Heritage/views/rear.webp" type="image/webp"><img src="./assets/characters/05_Heritage/views/rear.png" alt="Heritage S 도로 차량"></picture>
+          <div class="chat-road-lanes" aria-hidden="true"></div>
+          <button type="button" class="primary chat-road-open" data-open-road-scene>도로 대화 열기</button>
+        </section>
+
+        <section class="chat-grid-map" aria-label="공간 GRID 대화 지도">
+          <div class="chat-map-head"><div><small>공간 GRID</small><b>${escapeHtml(state.currentGrid || "MY GRID")}</b></div><button type="button" class="secondary" data-open-grid-map>위치 GRID 보기</button></div>
+          <div class="chat-map-grid-lines" aria-hidden="true"></div>
+          ${mapMarkers || '<div class="chat-map-empty">주변 차량을 찾는 중입니다.</div>'}
+          <button type="button" class="chat-my-location" data-open-nearby-map><span></span>나</button>
+          <div class="chat-map-footer"><button type="button" class="secondary" data-open-nearby-map>내 위치</button><button type="button" class="primary" data-open-grid-map>GRID</button><button type="button" class="secondary" data-open-nearby-map>참여자</button></div>
+        </section>
+
+        <aside class="chat-live-rail">
+          <div class="chat-live-rail-head"><b>실시간 대화</b><small>공간과 대화 기록은 기존 데이터 하나만 사용합니다.</small></div>
+          <div class="chat-live-scroll">
+            ${showSpatial ? currentRoadHtml + nearbyHtml + gridHtml + historyHtml : ""}
+            ${directHtml}
+            ${roomHtml}
+          </div>
+        </aside>
+      </div>
+    </div>`;
 
   panel.querySelectorAll("[data-rooms-filter]").forEach((b) => {
     b.onclick = () => {
@@ -865,11 +913,26 @@ export function renderRooms(panel, state) {
   panel.querySelector("#openRoadChatSpatial")?.addEventListener("click", () => {
     emit("roadchat:requestOpen");
   });
+  panel.querySelector("[data-open-road-scene]")?.addEventListener("click", () => {
+    emit("roadchat:requestOpen");
+  });
   panel.querySelector("#openNearbyChatContent")?.addEventListener("click", () => {
     openNearbyChatInContent(panel, state);
   });
   panel.querySelector("#openNearbySpatial")?.addEventListener("click", () => {
     emit("workspace:spatialHome");
+  });
+  panel.querySelectorAll("[data-open-nearby-map]").forEach((b) => {
+    b.onclick = () => emit("workspace:spatialHome");
+  });
+  panel.querySelectorAll("[data-open-grid-map]").forEach((b) => {
+    b.onclick = () => emit("grid:spatialOpen", {gridId: state.currentGridId});
+  });
+  panel.querySelectorAll("[data-map-peer]").forEach((b) => {
+    b.onclick = () => {
+      const id = b.dataset.mapPeer;
+      openChatWith(panel, state, liveUser(id));
+    };
   });
   panel.querySelectorAll("[data-grid-content]").forEach((b) => {
     b.onclick = () => openGridChat(panel, state, b.dataset.gridContent);
