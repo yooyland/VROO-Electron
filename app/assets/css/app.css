@@ -1074,17 +1074,28 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
     linear-gradient(145deg,#111722,#07090d 58%,#151208);
   box-shadow:inset 0 0 70px #000,0 18px 45px #0007
 }
-.garage-hero-copy{position:absolute;left:28px;top:25px;z-index:3}
+.garage-hero-copy{position:absolute;left:28px;top:25px;z-index:5}
 .garage-eyebrow{color:#d9ad45;font-size:11px;font-weight:900;letter-spacing:.18em}
 .garage-hero h3{margin:7px 0 3px;font-size:clamp(25px,3vw,42px);line-height:1}
 .garage-hero-copy p{margin:0;color:#aab3bf}
 .garage-level-row{display:grid;grid-template-columns:auto minmax(110px,220px) auto;align-items:center;gap:10px;margin-top:14px}
 .garage-level-row>b{color:#ffc400}.garage-level-row span{color:#b9c2cc;font-size:11px}
 .garage-exp{height:6px;overflow:hidden;border-radius:9px;background:#29313c}.garage-exp i{display:block;height:100%;background:linear-gradient(90deg,#9d6d0b,#ffd45c)}
-.garage-score{position:absolute;right:28px;top:25px;z-index:3;text-align:right}
+.garage-score{position:absolute;right:28px;top:25px;z-index:5;text-align:right}
 .garage-score small{display:block;color:#9da7b3;letter-spacing:.14em}.garage-score strong{display:block;color:#f2c04d;font-size:34px}
 .garage-vehicle-picture{position:absolute;inset:82px 2% 10px;z-index:2;display:flex;align-items:center;justify-content:center}
 .garage-vehicle-picture img{display:block;width:min(88%,1050px);height:100%;object-fit:contain;filter:drop-shadow(0 25px 22px #000c)}
+.garage-light-layer{
+  position:absolute;inset:82px 2% 10px;z-index:3;width:96%;height:calc(100% - 92px);
+  object-fit:contain;pointer-events:none;opacity:0;transition:opacity .18s ease;filter:drop-shadow(0 0 9px #bdefff)
+}
+.garage-light-layer.active{opacity:1}
+.garage-light-toggle{
+  position:absolute;right:28px;top:105px;z-index:5;display:flex;align-items:center;gap:7px;min-height:34px;
+  padding:7px 10px;border:1px solid #405060;border-radius:10px;background:#0b1119dc;color:#aeb8c5;font-size:10px;font-weight:900
+}
+.garage-light-toggle b{color:#9ca8b5}.garage-light-toggle.active{border-color:#83d9ff;color:#dff7ff;box-shadow:0 0 17px #5bc8ff55}.garage-light-toggle.active b{color:#dff8ff;text-shadow:0 0 9px #8fe2ff}
+.garage-light-toggle:disabled{opacity:.45;cursor:not-allowed}
 .garage-stage-glow{position:absolute;left:17%;right:17%;bottom:8%;height:16%;border-radius:50%;background:#d49a1b2b;filter:blur(30px)}
 .garage-view-selector{
   display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:7px;margin-top:10px;padding:8px;

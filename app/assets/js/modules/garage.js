@@ -1,6 +1,7 @@
 import {emit} from "../core/events.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
+const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
 const HERITAGE_VIEWS = [
   ["front", "정면"],
   ["front_45", "전면 45°"],
@@ -30,7 +31,8 @@ function vehicleImage(view) {
     <picture class="garage-vehicle-picture" data-garage-picture>
       <source srcset="${asset}.webp" type="image/webp" data-garage-webp>
       <img src="${asset}.png" alt="VROO Heritage Executive S ${activeView} view" data-garage-image>
-    </picture>`;
+    </picture>
+    <img class="garage-light-layer" src="${HERITAGE_LAYER_ROOT}/front_45/front_lights.svg" alt="" aria-hidden="true" data-garage-light-layer>`;
 }
 
 function viewSelector(activeView) {
@@ -69,6 +71,20 @@ function setVehicleView(root, view) {
   return activeView;
 }
 
+function syncLightLayer(root, state, view) {
+  const supported = view === "front_45";
+  const enabled = supported && state.garageLightsOn === true;
+  const layer = root.querySelector("[data-garage-light-layer]");
+  const button = root.querySelector("[data-garage-light-toggle]");
+  if (layer) layer.classList.toggle("active", enabled);
+  if (button) {
+    button.disabled = !supported;
+    button.classList.toggle("active", enabled);
+    button.setAttribute("aria-pressed", String(enabled));
+    button.querySelector("span").textContent = supported ? (enabled ? "LIGHTS ON" : "LIGHTS OFF") : "FRONT 45 ONLY";
+  }
+}
+
 function renderOverview(root, state, requestedView = "front_45") {
   const activeView = normalizeView(requestedView);
   const level = Math.max(1, metric(state.level, 1));
@@ -91,6 +107,9 @@ function renderOverview(root, state, requestedView = "front_45") {
         </div>
       </div>
       <div class="garage-score"><small>VEHICLE SCORE</small><strong>${score}</strong></div>
+      <button type="button" class="garage-light-toggle" data-garage-light-toggle aria-pressed="false">
+        <b>◉</b><span>LIGHTS OFF</span>
+      </button>
       ${vehicleImage(activeView)}
       <div class="garage-stage-glow" aria-hidden="true"></div>
     </section>
@@ -116,9 +135,17 @@ function renderOverview(root, state, requestedView = "front_45") {
   root.querySelector('[data-garage-action="customize"]').onclick = () => showNotice(root, "커스터마이즈 파츠를 준비 중입니다.");
   root.querySelector('[data-garage-action="collection"]').onclick = () => showNotice(root, "Heritage S가 대표 차량으로 선택되어 있습니다.");
   setVehicleView(root, activeView);
+  syncLightLayer(root, state, activeView);
+  root.querySelector("[data-garage-light-toggle]").onclick = () => {
+    if (normalizeView(state.garageView) !== "front_45") return;
+    state.garageLightsOn = state.garageLightsOn !== true;
+    syncLightLayer(root, state, "front_45");
+    emit("state:save");
+  };
   root.querySelectorAll("[data-garage-view]").forEach(button => {
     button.onclick = () => {
       state.garageView = setVehicleView(root, button.dataset.garageView);
+      syncLightLayer(root, state, state.garageView);
       emit("state:save");
     };
   });
