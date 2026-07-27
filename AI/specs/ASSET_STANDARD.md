@@ -50,7 +50,16 @@ All directions must preserve:
 - reflection
 
 ## 6. Runtime Priority
-`webp → png → svg → procedural fallback`
+`webp → png → svg → Three.js stage → Premium SVG fallback`
+
+## 6.1 Flagship Naming
+- officialName: `VROO Heritage Executive S`
+- displayName: `Heritage S`
+- role: `brand_flagship`
+- Do not use the nickname “VROO Model S”
+
+## 6.2 Master Gate
+Complete and lock `front_45` as the brand master before producing the remaining eight directions.
 
 ## 7. Acceptance Test
 - true transparent background

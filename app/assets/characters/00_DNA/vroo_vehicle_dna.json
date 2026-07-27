@@ -1,21 +1,75 @@
 {
-  "version": "1.0",
+  "version": "1.2",
   "brand": "VROO",
   "vehicle_family": "Executive S",
+  "flagship": {
+    "officialName": "VROO Heritage Executive S",
+    "displayName": "Heritage S",
+    "role": "brand_flagship",
+    "note": "Do not use the nickname VROO Model S"
+  },
   "immutable_dna": {
     "body_type": "premium fastback sports sedan",
     "stance": "wide, low, planted",
-    "front_signature": "wide black grille with restrained gold perimeter",
-    "headlight_signature": "sharp dual white LED with compact gold accent",
-    "rear_signature": "continuous slim red lamp",
-    "wheel_signature": "large multi-spoke heritage gold wheel",
+    "surface_language": "clean executive tension, controlled aggression",
     "roofline": "single flowing fastback arc",
-    "emblem": "VROO winged V shield",
     "primary_palette": [
       "midnight black",
       "heritage gold"
     ],
-    "surface_language": "clean executive tension, controlled aggression"
+    "grille": {
+      "id": "vroo_wide_hex_mesh",
+      "shape": "wide low hexagonal aperture, gently flattened top edge",
+      "mesh": "fine dark honeycomb, dense and even",
+      "frame": "thin continuous perimeter; grade may tint frame black / satin / heritage-gold but must not change outline",
+      "grade_rule": "Basic–Performance keep frame dark or satin; Heritage may use restrained gold perimeter only"
+    },
+    "emblem": {
+      "id": "vroo_winged_v_shield",
+      "placement": "grille center, vertical midpoint",
+      "form": "compact shield with winged V mark",
+      "grade_rule": "same silhouette all grades; material only may change (black / silver / heritage-gold)"
+    },
+    "headlamp": {
+      "id": "vroo_twin_blade_lamp",
+      "housing": "slim horizontal projector module, sharp outer corner, soft inner fade into fender",
+      "grade_rule": "housing silhouette locked for all grades; lens clarity and gold accent optional by grade"
+    },
+    "drl": {
+      "id": "vroo_twin_blade_drl",
+      "graphic": "two parallel cool-white LED blades; upper blade slightly longer; slight inward taper toward grille",
+      "accent": "optional thin heritage-gold eyelash under lower blade on Heritage only",
+      "grade_rule": "twin-blade graphic mandatory all grades; gold eyelash Heritage-only, never thicken DRL bars"
+    },
+    "front_signature": "wide hex mesh + winged-V shield + twin-blade DRL",
+    "headlight_signature": "vroo_twin_blade_lamp with vroo_twin_blade_drl",
+    "rear_signature": "continuous slim red lamp",
+    "wheel_signature": "large multi-spoke wheel; finish may vary by grade",
+    "gold_trim_language": {
+      "principle": "restrained premium — thin lines, never thick sport armor",
+      "allowed": [
+        "thin grille perimeter",
+        "thin lower lip highlight",
+        "subtle side-skirt pencil line",
+        "optional Heritage DRL gold eyelash"
+      ],
+      "forbidden": [
+        "thick bumper intake frames",
+        "heavy geometric gold armor",
+        "gold-filled lower intakes",
+        "excessive window surround plating"
+      ]
+    },
+    "bumper_language": {
+      "principle": "executive calm over aggression",
+      "form": "smooth continuous lower fascia, modest side intakes, no deep race splitter",
+      "grade_rule": "Performance may deepen intakes slightly; Heritage keeps executive calm with thin gold lip only"
+    }
   },
-  "upgrade_rule": "grades may add parts and performance cues but must never replace the family silhouette or light signatures"
+  "upgrade_rule": "grades may add parts and performance cues but must never replace the family silhouette, grille outline, emblem form, or twin-blade DRL graphic",
+  "production_gate": {
+    "masterView": "front_45",
+    "nineDirections": "deferred_until_master_approved",
+    "approvalKey": "approval.masterFront45"
+  }
 }
