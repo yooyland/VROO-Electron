@@ -1,64 +1,89 @@
-# Cursor Task — Verify Heritage S Front 45 Pass 3
+# Cursor Task — Heritage S Nine Directions Pass 1: Front
 
-## Scope
+## Authority and source of truth
 
-Review the candidate only:
+Produce one new candidate direction for the approved VROO flagship:
 
-`app/assets/characters/05_Heritage/views/front_45_pass3_candidate.png`
+- officialName: `VROO Heritage Executive S`
+- displayName: `Heritage S`
+- role: `brand_flagship`
 
-Compare it with:
+Immutable identity reference:
 
-- `app/assets/characters/05_Heritage/views/front_45.png`
+`app/assets/characters/05_Heritage/views/front_45.png`
+
+Supporting rules:
+
 - `app/assets/characters/05_Heritage/metadata.json`
 - `app/assets/characters/00_DNA/vroo_vehicle_dna.json`
-- `AI/reports/HERITAGE_FRONT45_PASS3_REVIEW.md`
-- `AI/reports/HERITAGE_ACCEPTANCE_CHECKLIST.md`
+- `AI/prompts/NINE_DIRECTION_PRODUCTION.md`
+- `AI/specs/ASSET_STANDARD.md`
 
-Preserve Garage V2 UI and vehicle data. Do not touch the local Garage WIP files
-unless a separate task explicitly authorizes it.
+Do not use the nickname “VROO Model S”.
 
-## Required verification
+## Scope — candidate only
 
-1. Confirm 2048 × 2048 RGBA and transparent corners.
-2. Inspect at 200% on black, white and checkerboard backgrounds.
-3. Confirm there is no magenta/green fringe, floor, shadow, reflection, text or watermark.
-4. Confirm one complete vehicle is visible with at least 8% safe margin.
-5. Confirm the front identity:
-   - wide low hex mesh grille
-   - compact Winged-V Shield
-   - Twin-Blade DRL
-   - restrained gold
-   - executive lower fascia
-6. Confirm the candidate is not loaded by the current Garage runtime.
+Create exactly one candidate:
 
-## If every check passes
+`app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
 
-Do not merge or replace the master automatically. Report:
+Do not replace or modify any approved runtime asset in this pass.
 
-`HERITAGE_FRONT45_PASS3_VERIFIED`
+Do not create `front.webp`.
 
-Include:
+Do not modify `metadata.json`.
 
-- exact image dimensions and mode
-- alpha corner values
-- visible bounding box and margins
-- fringe test result
-- the exact files that would change during final promotion
+Do not touch Garage V2 UI, vehicle data, JavaScript, CSS, SVG runtime assets, or local Garage WIP.
 
-Wait for the AI Project Manager approval before:
+## Required visual continuity
 
-- replacing `front_45.png`
-- creating `front_45.webp`
-- changing `polishPass.front_45`
-- setting `approval.masterFront45: true`
-- starting the remaining eight directions
+This must be the same vehicle rotated to an exact front view, not a redesign or a new car.
 
-## If any check fails
+Preserve from the approved `front_45` master:
+
+- identical wheelbase, roofline, greenhouse, hood height, width and ride height
+- midnight-black body and restrained Heritage gold trim
+- wide low Hex Mesh grille
+- compact Winged-V Shield emblem
+- Twin-Blade DRL and lamp geometry
+- Executive lower fascia; no exaggerated sports armor
+- identical wheel design, tire size, mirrors and body kit
+- centered number plate and emblem positions
+
+For geometry hidden by the source angle, infer the minimum necessary symmetric form. Do not invent new vents, lamps, badges, trim or aerodynamic parts.
+
+## Output standard
+
+- 2048 × 2048 px
+- RGBA 8-bit / sRGB
+- true-alpha transparent background
+- one complete vehicle only
+- exact front camera, level horizon, no yaw
+- centered pivot and consistent vehicle scale
+- minimum 8% safe margin
+- no environment, floor, shadow, reflection, text, border or watermark
+- clean alpha edge at 200% on black, white and checkerboard backgrounds
+
+## Verification evidence
 
 Report:
 
-`HERITAGE_FRONT45_PASS3_REJECTED`
+1. image dimensions and mode
+2. alpha values at all four corners
+3. visible alpha bounding box and margins
+4. centerline symmetry check
+5. fringe test result
+6. confirmation that approved `front_45.png` is unchanged
+7. confirmation that no runtime file references the candidate
+8. SHA-256 and Git blob SHA
+9. complete changed-file list
 
-List the failing criterion and exact evidence. Do not modify the approved runtime
-path or metadata approval values.
+## Stop gate
 
+If every check passes, report:
+
+`HERITAGE_FRONT_PASS1_CANDIDATE_READY`
+
+Then stop and wait for AI Project Manager review.
+
+Do not promote, convert to WebP, update metadata, start another direction, merge, or change approval values without explicit approval.
