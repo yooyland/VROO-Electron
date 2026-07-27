@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "vehicleId": "vroom_05_heritage_executive_s",
+  "displayName": "Heritage S",
+  "status": "contract_ready",
+  "canvas": {
+    "width": 2048,
+    "height": 2048,
+    "colorSpace": "sRGB",
+    "mode": "RGBA_8bit",
+    "pivot": {
+      "x": 0.5,
+      "y": 0.5
+    }
+  },
+  "sourceViews": [
+    "front",
+    "front_45",
+    "right",
+    "rear_right",
+    "rear",
+    "rear_left",
+    "left",
+    "front_left",
+    "front_right"
+  ],
+  "assetPattern": "./{direction}/{layer}.png",
+  "runtimePattern": "./{direction}/{layer}.webp",
+  "layers": [
+    {
+      "id": "shadow",
+      "zIndex": 10,
+      "required": false,
+      "blendMode": "multiply",
+      "interaction": null,
+      "status": "pending"
+    },
+    {
+      "id": "wheels",
+      "zIndex": 20,
+      "required": true,
+      "blendMode": "normal",
+      "interaction": "wheel_variant",
+      "partsPath": "../parts/wheels",
+      "status": "pending"
+    },
+    {
+      "id": "body",
+      "zIndex": 30,
+      "required": true,
+      "blendMode": "normal",
+      "interaction": "body_color",
+      "status": "pending"
+    },
+    {
+      "id": "windows",
+      "zIndex": 40,
+      "required": true,
+      "blendMode": "normal",
+      "interaction": "window_tint",
+      "status": "pending"
+    },
+    {
+      "id": "gold_trim",
+      "zIndex": 50,
+      "required": true,
+      "blendMode": "normal",
+      "interaction": "trim_variant",
+      "status": "pending"
+    },
+    {
+      "id": "front_lights",
+      "zIndex": 60,
+      "required": true,
+      "blendMode": "screen",
+      "interaction": "headlight_toggle",
+      "partsPath": "../parts/lights",
+      "status": "pending"
+    },
+    {
+      "id": "rear_lights",
+      "zIndex": 61,
+      "required": true,
+      "blendMode": "screen",
+      "interaction": "rear_light_toggle",
+      "partsPath": "../parts/lights",
+      "status": "pending"
+    },
+    {
+      "id": "spoiler",
+      "zIndex": 70,
+      "required": true,
+      "blendMode": "normal",
+      "interaction": "spoiler_variant",
+      "partsPath": "../parts/spoilers",
+      "status": "pending"
+    },
+    {
+      "id": "exhaust",
+      "zIndex": 80,
+      "required": true,
+      "blendMode": "normal",
+      "interaction": "exhaust_variant",
+      "partsPath": "../parts/exhausts",
+      "status": "pending"
+    },
+    {
+      "id": "reflection",
+      "zIndex": 90,
+      "required": false,
+      "blendMode": "screen",
+      "interaction": null,
+      "status": "pending"
+    }
+  ],
+  "acceptance": {
+    "pixelRegistrationTolerance": 0,
+    "compositeMustMatchApprovedView": true,
+    "compositeDifferencePolicy": "alpha-aware exact match except approved emissive light states",
+    "edgeFringeTolerance": 1,
+    "allRequiredLayersPresent": false
+  }
+}

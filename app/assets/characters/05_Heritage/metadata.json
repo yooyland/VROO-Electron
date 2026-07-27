@@ -52,6 +52,7 @@
   ],
   "viewsPath": "./views",
   "layersPath": "./layers",
+  "layersManifest": "./layers/manifest.json",
   "views": {
     "front": {
       "png": "./views/front.png",
