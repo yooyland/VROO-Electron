@@ -7,6 +7,12 @@
 - Candidate: `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
 - Identity reference (unchanged): `app/assets/characters/05_Heritage/views/front_45.png`
 
+## V4 change log
+- V3의 크기·위치·비례·디자인 고정, 알파 불변.
+- 왼쪽 미러 연결부 및 외곽의 보라/마젠타 색 오염만 정밀 중화.
+- 경계부(반투명+경계 인접 불투명)와 내부 불투명 픽셀 모두에 대해 마젠타 편향(R,B↑, G↓) 탐지·중화.
+- 골드 트림( R,G↑, B↓ )은 보존.
+
 ## V3 change log
 - V1 원본 차량 RGBA만 사용, 배경/체커보드 미포함.
 - 차량 RGBA를 균일 축소(~62.7%)하여 목표 BBox 높이 `720px`, 폭 `1071px` 확보.
@@ -42,7 +48,8 @@
 - pass: `True`
 
 ## 5. Fringe test
-- near-magenta fringe pixels: `0` (semi‑transparent edge only; 이진화 없음)
+- near-magenta (semi‑transparent edge): `0`
+- near-magenta (opaque near-boundary/interior): `0`
 - pass: `True`
 
 ## 6. Approved front_45.png unchanged
@@ -56,8 +63,8 @@
 - pass: `True`
 
 ## 8. Candidate hashes
-- SHA-256: `786390614b018287dbefda9df2b6c0148239d951af368269744631543bf3b3f8`
-- Git blob SHA (`git hash-object`): `f84520e85f48e650342d7a85259bb661630d7160`
+- SHA-256: `857ecb00eba3af480131c9681429c997c0a0d92745a5df1ff35d1b91a7abbcc6`
+- Git blob SHA (`git hash-object`): `d542ccba7a559256b5ac8892625a8a06f1532596`
 
 ## 9. Changed-file list (intended commit scope)
 - `app/assets/characters/05_Heritage/views/front_pass1_candidate.png`
@@ -70,4 +77,4 @@
 - Garage / JS / CSS touched: **no**
 - all checks pass: `True`
 
-HERITAGE_FRONT_PASS1_CANDIDATE_READY_V3
+HERITAGE_FRONT_PASS1_CANDIDATE_READY_V4
