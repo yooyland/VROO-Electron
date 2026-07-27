@@ -2,37 +2,36 @@
 
 - Candidate: `app/assets/characters/05_Heritage/views/rear_right_pass1_candidate.png`
 - References: approved Front 45 and Right assets
-- Produced by: OpenAI image generation with approved references; chroma-key removal and deterministic canvas normalization
+- Produced by: OpenAI image generation with approved references; chroma-key removal and 2048 canvas normalization
 
 ## Specification
 
 - size: `2048 × 2048`
 - mode: `RGBA 8-bit / sRGB`
-- bbox: `(256,721)–(1792,1326)` = `1536 × 605px`
+- bbox: `1536 × 605px` at `(256,721)`
 - margins: `256 / 721 / 256 / 722px`
-- transparent / partial / opaque: `3,518,846 / 15,026 / 660,432`
 - corners: `(0,0,0,0)`
+- true transparent background with partial-alpha edge
 
 ## Visual continuity
 
-- exact rear-right three-quarter view: pass
-- approved four-door fastback side geometry: pass
-- wheel, wheelbase, roofline and gold trim continuity: pass
-- restrained spoiler and Executive lower fascia: pass
-- full-width red rear lamp and centered Winged-V identity: pass
+- rear-right three-quarter view: pass
+- four-door fastback, wheelbase, roofline, wheels and gold trim: pass
+- restrained spoiler, rear lamp and centered Winged-V: pass
 - no floor, shadow, environment, text or watermark: pass
 
 ## Edge inspection
 
-- green-dominant visible residue: `1px`
-- magenta-dominant visible residue: `2px`
+- green-dominant residue before final optimization: `1px`
+- magenta-dominant residue before final optimization: `2px`
 - normal-scale visible fringe: none
 
 ## Integrity
 
-- SHA-256 before upload: `e4e45d859517c244b38e9b04bf0629c4ffea4d6482282916a6a957cd88c48cca`
-- GitHub blob: `b505421ffb1e0814c8bb1d5bf9b57d21fd37b490`
-- approved masters and runtime metadata: unchanged
+- final upload SHA-256: `66dc966b5c3206754a64538abc7dab02cdee8c088cb4f80e855b6cbd1e662781`
+- final GitHub blob: `1eea2f6d41df7194316eb2c16a5098cfac0a525f`
+- uploaded PNG integrity: verified after lossless container read
+- approved masters and metadata: unchanged
 - runtime candidate reference: none
 
 HERITAGE_REAR_RIGHT_PASS1_CANDIDATE_READY
