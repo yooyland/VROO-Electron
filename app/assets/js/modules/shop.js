@@ -7,10 +7,10 @@ import { BENEFIT_PRODUCTS } from "../data/benefit-products.js";
 const SHOP_CATEGORIES = [
   { id: "all", label: "전체상품", status: "prototype", kind: "cars" },
   { id: "car", label: "자동차", status: "prototype", kind: "cars" },
-  { id: "gift", label: "선물", status: "prototype", kind: "cars" },
-  { id: "feature", label: "기능", status: "prototype", kind: "cars" },
-  { id: "maintain", label: "유지관리", status: "prototype", kind: "cars" },
-  { id: "event", label: "이벤트", status: "prototype", kind: "cars" },
+  { id: "gift", label: "선물", status: "prototype", kind: "gifts" },
+  { id: "feature", label: "기능", status: "prototype", kind: "notice" },
+  { id: "maintain", label: "유지관리", status: "prototype", kind: "notice" },
+  { id: "event", label: "이벤트", status: "prototype", kind: "notice" },
   { id: "benefits", label: "혜택·쿠폰", status: "planned", kind: "benefits" },
   { id: "partner", label: "제휴상품", status: "planned", kind: "benefits" },
   { id: "care", label: "CARE 연계", status: "planned", kind: "notice" }
@@ -20,13 +20,26 @@ function badge(status) {
   return `<span class="muted" style="font-size:11px;margin-left:6px">[${statusBadgeText(status)}]</span>`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[ch]);
+}
+
 export function renderShop(panel, state) {
+  const initialCategory = SHOP_CATEGORIES.some((c) => c.id === state.shopCategory)
+    ? state.shopCategory
+    : "all";
   panel.innerHTML = `
     <div class="card muted" style="margin-bottom:10px;font-size:12px">
       STORE 프로토타입입니다. <b>준비 중</b> 카테고리는 미리보기만 가능하며 결제·발급이 없습니다.
     </div>
-    <div class="tabs">${SHOP_CATEGORIES.map((c, i) =>
-      `<button class="${i === 0 ? "active" : ""}" data-cat="${c.id}">${c.label}${c.status === "planned" ? " ·" : ""}</button>`
+    <div class="tabs">${SHOP_CATEGORIES.map((c) =>
+      `<button class="${c.id === initialCategory ? "active" : ""}" data-cat="${c.id}">${c.label}${c.status === "planned" ? " ·" : ""}</button>`
     ).join("")}</div>
     <div id="shopList"></div>`;
 
@@ -50,6 +63,16 @@ export function renderShop(panel, state) {
     ).join("") || `<div class="card muted">등록된 혜택 상품이 없습니다.</div>`;
   };
 
+  const renderGifts = () => {
+    const recipient = state.shopGiftRecipient;
+    const recipientHtml = recipient?.id
+      ? `<div class="card"><b>받는 차량</b><div class="muted">${escapeHtml(recipient.nickname || recipient.id)} · 선물 대상이 연결되었습니다.</div></div>`
+      : `<div class="card muted">주변 차량에서 선물 버튼을 누르면 받는 차량이 이곳에 연결됩니다.</div>`;
+    list.innerHTML = `${recipientHtml}
+      <div class="card product-row"><div class="avatar">📯</div><div><b>빵빵 사운드 선물</b><div class="muted">차량 소셜 아이템 ${badge("prototype")}</div></div><button disabled title="서버 연동 전">준비 중</button></div>
+      <div class="card product-row"><div class="avatar">🎁</div><div><b>VROO 드라이브 선물</b><div class="muted">쿠폰·혜택 선물 ${badge("planned")}</div></div><button disabled title="서버 연동 전">준비 중</button></div>`;
+  };
+
   const renderCareNotice = () => {
     list.innerHTML = `<div class="card">
       <b>CARE 연계 상품</b>${badge("planned")}
@@ -61,15 +84,21 @@ export function renderShop(panel, state) {
   const render = (catId) => {
     const cat = SHOP_CATEGORIES.find((c) => c.id === catId) || SHOP_CATEGORIES[0];
     if (cat.kind === "benefits") renderBenefits();
-    else if (cat.kind === "notice") renderCareNotice();
+    else if (cat.kind === "gifts") renderGifts();
+    else if (cat.id === "care") renderCareNotice();
+    else if (cat.kind === "notice") {
+      list.innerHTML = `<div class="card"><b>${escapeHtml(cat.label)}</b>${badge(cat.status)}<p class="muted">이 카테고리는 준비 중이며 자동차 선택과 중복되지 않습니다.</p></div>`;
+    }
     else renderCars(cat.label);
   };
 
   panel.querySelectorAll("[data-cat]").forEach((b) => {
     b.onclick = () => {
       panel.querySelectorAll("[data-cat]").forEach((x) => x.classList.toggle("active", x === b));
+      state.shopCategory = b.dataset.cat;
+      emit("state:save");
       render(b.dataset.cat);
     };
   });
-  render("all");
+  render(initialCategory);
 }
