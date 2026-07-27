@@ -14,13 +14,14 @@
     "front": 6,
     "front_45": 3,
     "target": "9.9_brand_master",
-    "nineDirections": "in_progress",
+    "nineDirections": "complete",
     "right": 1,
     "rear_right": 1,
     "rear": 1,
     "rear_left": 1,
     "left": 1,
-    "front_left": 1
+    "front_left": 1,
+    "front_right": 1
   },
   "pivot": {
     "x": 0.5,
@@ -91,6 +92,11 @@
       "png": "./views/front_left.png",
       "webp": "./views/front_left.webp",
       "svg": null
+    },
+    "front_right": {
+      "png": "./views/front_right.png",
+      "webp": "./views/front_right.webp",
+      "svg": null
     }
   },
   "designDNA": "../00_DNA/vroo_vehicle_dna.json",
@@ -109,7 +115,7 @@
   "release": "v1.0.0",
   "approval": {
     "masterFront45": true,
-    "nineDirections": false,
+    "nineDirections": true,
     "layers": false,
     "runtimeTest": false
   }
