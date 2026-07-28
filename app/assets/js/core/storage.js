@@ -80,6 +80,9 @@ export const defaults = {
   revealedPlateUserIds: [],
   connections: [],
   favoriteRooms: [],
+  favoritePlaceIds: [],
+  registeredPlaces: [],
+  nearbyTab: "friends",
   rooms: {},
   /** 도로 기반 대화 세션 — Spatial·Content 공유 */
   roadChat: null,
@@ -140,10 +143,25 @@ function sanitizeState(s) {
   const xp = Number(s.xp);
   s.xp = Number.isFinite(xp) ? Math.max(0, Math.min(100, Math.floor(xp))) : 0;
 
-  for (const key of ["joinedGrids", "connections", "favoriteRooms", "posts", "grids", "revealedPlateUserIds", "blockedUserIds"]) {
+  for (const key of ["joinedGrids", "connections", "favoriteRooms", "favoritePlaceIds", "registeredPlaces", "posts", "grids", "revealedPlateUserIds", "blockedUserIds"]) {
     if (!Array.isArray(s[key])) s[key] = structuredClone(defaults[key] || []);
   }
   s.revealedPlateUserIds = [...new Set(s.revealedPlateUserIds.map(String).filter(Boolean))];
+  s.favoritePlaceIds = [...new Set(s.favoritePlaceIds.map(String).filter(Boolean))];
+  s.registeredPlaces = s.registeredPlaces
+    .filter((p) => p && typeof p === "object")
+    .map((p, index) => ({
+      id: String(p.id || `pin-${index}`),
+      name: String(p.name || "내 등록지점"),
+      subtitle: String(p.subtitle || "사용자 등록 위치"),
+      kind: "place",
+      category: String(p.category || "favorite"),
+      lat: Number(p.lat),
+      lng: Number(p.lng),
+      createdAt: Number(p.createdAt) || Date.now()
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  if (!["friends", "poi", "fav", "pins"].includes(s.nearbyTab)) s.nearbyTab = "friends";
 
   // 구버전 GRID 이름 → id 마이그레이션
   const legacyNameToId = {
