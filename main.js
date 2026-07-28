@@ -267,8 +267,22 @@ async function runWorkspaceRuntimeTest(win) {
         const garage = {
           visible: true,
           viewCount: document.querySelectorAll("[data-garage-view]").length,
-          actionCount: document.querySelectorAll("[data-garage-action]").length
+          actionCount: document.querySelectorAll("[data-garage-action]").length,
+          rotationHint: Boolean(document.querySelector("[data-garage-rotate-hint]"))
         };
+        const garageStage = document.querySelector("[data-garage-stage]");
+        const viewBeforeDrag = document.querySelector("[data-garage-view].active")?.dataset.garageView;
+        garageStage.dispatchEvent(new PointerEvent("pointerdown", {
+          bubbles: true, pointerId: 7, button: 0, clientX: 500
+        }));
+        garageStage.dispatchEvent(new PointerEvent("pointermove", {
+          bubbles: true, pointerId: 7, clientX: 340
+        }));
+        garageStage.dispatchEvent(new PointerEvent("pointerup", {
+          bubbles: true, pointerId: 7, button: 0, clientX: 340
+        }));
+        await wait(100);
+        garage.dragRotation = document.querySelector("[data-garage-view].active")?.dataset.garageView !== viewBeforeDrag;
 
         await click('[data-garage-action="mission"]');
         garage.missionInternal = Boolean(document.querySelector('[data-room="mission"].active'));
@@ -310,6 +324,8 @@ async function runWorkspaceRuntimeTest(win) {
           garage.visible,
           garage.viewCount === 9,
           garage.actionCount === 4,
+          garage.rotationHint,
+          garage.dragRotation,
           garage.missionInternal,
           garage.collectionInternal,
           garage.customizeRoutesToStore,
