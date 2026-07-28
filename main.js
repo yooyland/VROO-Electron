@@ -174,11 +174,16 @@ async function runWorkspaceRuntimeTest(win) {
           filterCount: mapLegend.querySelectorAll("[data-map-filter]").length,
           layerCount: mapLegend.querySelectorAll("[data-layer]").length
         };
-        const [{ emit }, mapModule, dataModule] = await Promise.all([
+        const [{ emit }, mapModule, dataModule, conversationStore] = await Promise.all([
           import("./assets/js/core/events.js"),
           import("./assets/js/modules/map.js"),
-          import("./assets/js/modules/data.js")
+          import("./assets/js/modules/data.js"),
+          import("./assets/js/modules/conversation-store.js")
         ]);
+        const legacyOverlayState = { spatialOverlayConfig: { maxBubbles: 8 } };
+        map.overlayBubbleCapDefault = conversationStore.SPATIAL_OVERLAY_DEFAULTS.maxBubbles;
+        map.overlayBubbleCapMigrated =
+          conversationStore.ensureSpatialOverlayConfig(legacyOverlayState).maxBubbles;
         const mapPeerId = mapModule.getUsers()[0]?.id;
         emit("chat:activeRoomChanged", {
           type: "direct",
@@ -243,6 +248,8 @@ async function runWorkspaceRuntimeTest(win) {
           map.legendVisible,
           map.filterCount === 4,
           map.layerCount === 6,
+          map.overlayBubbleCapDefault === 2,
+          map.overlayBubbleCapMigrated === 2,
           map.directHighlight,
           map.gridHighlight,
           map.myHighlight,
