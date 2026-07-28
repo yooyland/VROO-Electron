@@ -117,7 +117,8 @@ async function runHeritageRuntimeTest(win) {
         const autoButton = document.querySelector("[data-garage-auto]");
         const autoPilot = {
           defaultEnabled: initialAutoEnabled,
-          clickedStart: document.querySelector("[data-garage-view].active")?.dataset.garageView === "right"
+          clickedStart: document.querySelector("[data-garage-view].active")?.dataset.garageView === "right",
+          runningShowsStop: autoButton?.textContent?.trim() === "■STOP"
         };
         await wait(1950);
         autoPilot.advancesFromClickedView =
@@ -127,7 +128,8 @@ async function runHeritageRuntimeTest(win) {
         await wait(1950);
         autoPilot.stopHoldsView =
           autoButton?.getAttribute("aria-pressed") === "false" &&
-          document.querySelector("[data-garage-view].active")?.dataset.garageView === stoppedView;
+          document.querySelector("[data-garage-view].active")?.dataset.garageView === stoppedView &&
+          autoButton?.textContent?.trim() === "▶AUTO";
         return {
           boot: window.__VROO_BOOT_OK === true,
           selectorCount: document.querySelectorAll("[data-garage-view]").length,
@@ -154,6 +156,7 @@ async function runHeritageRuntimeTest(win) {
     const autoFailed =
       !result.autoPilot?.defaultEnabled ||
       !result.autoPilot?.clickedStart ||
+      !result.autoPilot?.runningShowsStop ||
       !result.autoPilot?.advancesFromClickedView ||
       !result.autoPilot?.stopHoldsView;
     console.log(`HERITAGE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);

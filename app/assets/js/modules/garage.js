@@ -140,7 +140,7 @@ function syncGarageAutoControl(root, state) {
   if (!button) return;
   button.classList.toggle("active", enabled);
   button.setAttribute("aria-pressed", String(enabled));
-  button.innerHTML = enabled ? "<b>▶</b><span>AUTO</span>" : "<b>■</b><span>STOP</span>";
+  button.innerHTML = enabled ? "<b>■</b><span>STOP</span>" : "<b>▶</b><span>AUTO</span>";
   button.setAttribute("aria-label", enabled ? "자동 회전 중지" : "자동 회전 시작");
 }
 
@@ -202,7 +202,7 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
       ${vehicleImage(activeView)}
       <div class="garage-stage-glow" aria-hidden="true"></div>
       <button type="button" class="garage-auto-control" data-garage-auto aria-pressed="true">
-        <b>▶</b><span>AUTO</span>
+        <b>■</b><span>STOP</span>
       </button>
     </section>
 
