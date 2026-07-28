@@ -1,3 +1,4 @@
+import * as THREE from "../../../../node_modules/three/build/three.module.js";
 import {on} from "../core/events.js";
 import {MY_USER_ID} from "./data.js";
 
@@ -716,7 +717,7 @@ export function initRoad(state, users) {
     syncRoadUsers(usersRef);
     return;
   }
-  if (!window.THREE) throw new Error("Three.js를 불러오지 못했습니다.");
+  if (!THREE?.Scene) throw new Error("Three.js 모듈을 초기화하지 못했습니다.");
   const host = document.querySelector("#threeHost");
   if (!host) throw new Error("도로 모드 영역을 찾을 수 없습니다.");
 
