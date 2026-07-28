@@ -75,6 +75,8 @@ async function runHeritageRuntimeTest(win) {
         document.querySelector("#myPageButton")?.click();
         const mounted = await waitFor(() => document.querySelectorAll("[data-garage-view]").length === 9);
         if (!mounted) throw new Error("Garage nine-direction selector missing");
+        const initialAutoEnabled =
+          document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true";
 
         const expected = ["front","front_45","front_right","right","rear_right","rear","rear_left","left","front_left"];
         const results = [];
@@ -114,7 +116,7 @@ async function runHeritageRuntimeTest(win) {
         lightPilot.hiddenOutsideFront45 = !lightLayer?.classList.contains("active");
         const autoButton = document.querySelector("[data-garage-auto]");
         const autoPilot = {
-          defaultEnabled: autoButton?.getAttribute("aria-pressed") === "true",
+          defaultEnabled: initialAutoEnabled,
           clickedStart: document.querySelector("[data-garage-view].active")?.dataset.garageView === "right"
         };
         await wait(1950);
@@ -349,12 +351,14 @@ async function runWorkspaceRuntimeTest(win) {
 
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
+        await click('[data-garage-view="front"]');
         const garage = {
           visible: true,
           viewCount: document.querySelectorAll("[data-garage-view]").length,
           actionCount: document.querySelectorAll("[data-garage-action]").length,
           autoControl: Boolean(document.querySelector("[data-garage-auto]")),
-          autoDefault: document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true"
+          directionRestartsAuto:
+            document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true"
         };
         const garageStage = document.querySelector("[data-garage-stage]");
         const viewBeforeDrag = document.querySelector("[data-garage-view].active")?.dataset.garageView;
@@ -422,7 +426,7 @@ async function runWorkspaceRuntimeTest(win) {
           garage.viewCount === 9,
           garage.actionCount === 4,
           garage.autoControl,
-          garage.autoDefault,
+          garage.directionRestartsAuto,
           garage.dragRotation,
           garage.missionInternal,
           garage.collectionInternal,
