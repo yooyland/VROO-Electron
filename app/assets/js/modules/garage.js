@@ -15,6 +15,13 @@ const HERITAGE_VIEWS = [
 ];
 const HERITAGE_VIEW_IDS = new Set(HERITAGE_VIEWS.map(([id]) => id));
 const GARAGE_ROTATE_STEP_PX = 72;
+const GARAGE_AUTO_INTERVAL_MS = 1800;
+let garageAutoTimer = 0;
+
+function stopGarageAutoTimer() {
+  if (garageAutoTimer) clearInterval(garageAutoTimer);
+  garageAutoTimer = 0;
+}
 
 function metric(value, fallback) {
   const number = Number(value);
@@ -74,7 +81,7 @@ function setVehicleView(root, view) {
   return activeView;
 }
 
-function bindGarageRotation(root, state) {
+function bindGarageRotation(root, state, restartAuto) {
   const stage = root.querySelector("[data-garage-stage]");
   const image = root.querySelector("[data-garage-image]");
   if (!stage) return;
@@ -89,7 +96,10 @@ function bindGarageRotation(root, state) {
     if (pointerId == null) return;
     pointerId = null;
     stage.classList.remove("is-dragging");
-    if (changed) emit("state:save");
+    if (changed) {
+      emit("state:save");
+      restartAuto();
+    }
   };
 
   stage.addEventListener("pointerdown", event => {
@@ -122,6 +132,32 @@ function bindGarageRotation(root, state) {
   stage.addEventListener("pointerup", finish);
   stage.addEventListener("pointercancel", finish);
   stage.addEventListener("lostpointercapture", finish);
+}
+
+function syncGarageAutoControl(root, state) {
+  const button = root.querySelector("[data-garage-auto]");
+  const enabled = state.garageAutoRotate !== false;
+  if (!button) return;
+  button.classList.toggle("active", enabled);
+  button.setAttribute("aria-pressed", String(enabled));
+  button.innerHTML = enabled ? "<b>▶</b><span>AUTO</span>" : "<b>■</b><span>STOP</span>";
+  button.setAttribute("aria-label", enabled ? "자동 회전 중지" : "자동 회전 시작");
+}
+
+function startGarageAuto(root, state) {
+  stopGarageAutoTimer();
+  syncGarageAutoControl(root, state);
+  if (state.garageAutoRotate === false) return;
+  garageAutoTimer = setInterval(() => {
+    if (!root.isConnected) {
+      stopGarageAutoTimer();
+      return;
+    }
+    const current = HERITAGE_VIEWS.findIndex(([id]) => id === normalizeView(state.garageView));
+    const next = HERITAGE_VIEWS[(Math.max(0, current) + 1) % HERITAGE_VIEWS.length][0];
+    state.garageView = setVehicleView(root, next);
+    syncLightLayer(root, state, next);
+  }, GARAGE_AUTO_INTERVAL_MS);
 }
 
 function syncLightLayer(root, state, view) {
@@ -165,7 +201,9 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
       </button>
       ${vehicleImage(activeView)}
       <div class="garage-stage-glow" aria-hidden="true"></div>
-      <div class="garage-rotate-hint" data-garage-rotate-hint>↔ 드래그하여 차량 회전</div>
+      <button type="button" class="garage-auto-control" data-garage-auto aria-pressed="true">
+        <b>▶</b><span>AUTO</span>
+      </button>
     </section>
 
     ${viewSelector(activeView)}
@@ -199,11 +237,19 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
   root.querySelectorAll("[data-garage-view]").forEach(button => {
     button.onclick = () => {
       state.garageView = setVehicleView(root, button.dataset.garageView);
+      state.garageAutoRotate = true;
       syncLightLayer(root, state, state.garageView);
       emit("state:save");
+      startGarageAuto(root, state);
     };
   });
-  bindGarageRotation(root, state);
+  root.querySelector("[data-garage-auto]").onclick = () => {
+    state.garageAutoRotate = state.garageAutoRotate === false;
+    emit("state:save");
+    startGarageAuto(root, state);
+  };
+  bindGarageRotation(root, state, () => startGarageAuto(root, state));
+  startGarageAuto(root, state);
 }
 
 function showNotice(root, message) {
@@ -261,6 +307,7 @@ function renderRecord(root, state) {
 
 export function renderGarage(panel, state) {
   if (!panel) return;
+  stopGarageAutoTimer();
   const validRooms = new Set(["garage", "inventory", "mission", "friends", "record"]);
   panel.innerHTML = `
     <div class="garage-shell">
@@ -281,6 +328,7 @@ export function renderGarage(panel, state) {
     panel.querySelectorAll("[data-room]").forEach(button => {
       button.classList.toggle("active", button.dataset.room === activeRoom);
     });
+    if (activeRoom !== "garage") stopGarageAutoTimer();
     if (activeRoom === "inventory") renderInventory(content);
     else if (activeRoom === "mission") renderMission(content);
     else if (activeRoom === "friends") renderFriends(content, state);
