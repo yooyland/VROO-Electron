@@ -414,7 +414,20 @@ function unreadByType(state) {
   return out;
 }
 
+function syncCommandUnreadBadge(state) {
+  const shell = commandShellFor(activePanel) || document.querySelector(".chat-command-shell");
+  if (!shell || !state) return;
+  const by = unreadByType(state);
+  const n = by.direct + by.room + by.grid + by.road + by.nearby;
+  const host = shell.querySelector(".chat-command-unread");
+  const strong = host?.querySelector("strong");
+  if (strong) strong.textContent = n > 99 ? "99+" : String(n);
+  host?.classList.toggle("has-unread", n > 0);
+  host?.setAttribute("aria-label", `읽지 않은 메시지 ${n}개`);
+}
+
 function updateNavBadge(state) {
+  syncCommandUnreadBadge(state);
   const btn = document.querySelector('#mainMenu [data-screen="chat"]');
   if (!btn) return;
   const by = unreadByType(state);
