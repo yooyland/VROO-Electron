@@ -704,6 +704,18 @@ export function renderRooms(panel, state) {
   const roadMeta = roadCard.hasContextName
     ? `참여 차량 ${roadCard.participantCount}대`
     : `주변 차량 ${roadCard.participantCount}대`;
+  const roadPreviewMessages = ensureRoadChat(state).messages
+    .filter((message) => String(message?.text || "").trim())
+    .slice(-2);
+  const roadPreviewHtml = roadPreviewMessages
+    .map((message, index) => `<div class="chat-road-bubble ${index === 0 ? "one" : "two"} ${message.mine ? "mine" : ""}">${escapeHtml(String(message.text).slice(0, 54))}</div>`)
+    .join("");
+  const nearbyPreviewMessages = ensureNearbyChat(state).messages
+    .filter((message) => String(message?.text || "").trim())
+    .slice(-2);
+  const nearbyPreviewHtml = nearbyPreviewMessages
+    .map((message, index) => `<div class="chat-map-message ${index === 0 ? "one" : "two"} ${message.mine ? "mine" : ""}">${escapeHtml(String(message.text).slice(0, 46))}</div>`)
+    .join("");
 
   const historyHtml =
     showSpatial && history.length
@@ -811,9 +823,7 @@ export function renderRooms(panel, state) {
             <h3>${roadCard.hasContextName ? escapeHtml(roadCard.roadName) : "현재 도로 대화"}</h3>
             <p>${roadMeta}</p>
           </div>
-          <div class="chat-road-bubble one">안전운전 하세요! 🙂</div>
-          <div class="chat-road-bubble two">여기서 만나요!</div>
-          <div class="chat-road-bubble three">오늘 날씨 좋다 🚗</div>
+          ${roadPreviewHtml || '<div class="chat-road-empty">현재 도로 대화를 시작해 보세요.</div>'}
           <picture class="chat-road-car"><source srcset="./assets/characters/05_Heritage/views/rear.webp" type="image/webp"><img src="./assets/characters/05_Heritage/views/rear.png" alt="Heritage S 도로 차량"></picture>
           <div class="chat-road-lanes" aria-hidden="true"></div>
           <button type="button" class="primary chat-road-open" data-open-road-scene>도로 대화 열기</button>
@@ -828,6 +838,7 @@ export function renderRooms(panel, state) {
             </div>
           </div>
           <div class="chat-map-grid-lines" aria-hidden="true"></div>
+          ${nearbyPreviewHtml}
           ${mapMarkers || '<div class="chat-map-empty">주변 차량을 찾는 중입니다.</div>'}
           <button type="button" class="chat-my-location" data-open-nearby-map><span></span>나</button>
           <div class="chat-map-footer"><button type="button" class="secondary" data-open-nearby-map>내 위치</button><button type="button" class="primary" data-open-grid-map>GRID</button><button type="button" class="secondary" data-open-nearby-map>참여자</button></div>
