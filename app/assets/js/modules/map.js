@@ -288,7 +288,11 @@ function bindMapChatEvents() {
   mapChatListenersBound = true;
   on("chat:activeRoomChanged", (detail) => {
     activeMapConversation = {
+      roomId: detail?.roomId || null,
       type: detail?.type || null,
+      peerId: detail?.peerId || null,
+      gridId: detail?.gridId || null,
+      gridTitle: detail?.gridTitle || null,
       participantIds: Array.isArray(detail?.participantIds)
         ? detail.participantIds.map(String)
         : []
