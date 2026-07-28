@@ -1275,3 +1275,8 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 @media(max-width:800px){
   .chat-command-control-row{display:flex;flex-wrap:wrap}
 }
+
+
+/* Conversation preview bubbles fade without deleting chat history */
+.chat-road-bubble,.chat-map-message{transition:opacity .28s ease,transform .28s ease}
+.chat-road-bubble.is-fading,.chat-map-message.is-fading{opacity:0;transform:translateY(-4px)}
