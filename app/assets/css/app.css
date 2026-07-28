@@ -1234,3 +1234,11 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .chat-custom-phrase input{min-width:0}
 .chat-live-rail .chat-shell{height:100%;min-height:0;display:flex;flex-direction:column}
 .chat-live-rail .chat-shell .chat-scroll{flex:1;min-height:120px}
+
+
+/* Utilities remain visible while the third pane shows the room list */
+.chat-list-gift-shelf{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid #253241;border-bottom:1px solid #253241;background:#0c131c;overflow:hidden}
+.chat-list-phrase-drawer{flex:0 0 auto;border-top:1px solid #293545;background:#0b1119}
+.chat-list-phrase-drawer .chat-phrase-panel{display:none}
+.chat-list-phrase-drawer.is-open .chat-phrase-panel{display:block}
+.chat-list-phrase-drawer.is-open .chat-pinned-phrases{border-bottom:1px solid #263140}
