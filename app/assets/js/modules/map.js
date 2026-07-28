@@ -56,6 +56,7 @@ let markerMode = "near";
 let lastMapViewMode = "near";
 let legendOpen = false;
 let legendOutsideBound = false;
+let spatialBubbleExpiryTimer = 0;
 
 let markersNear = new Map();
 const markersAll = new Map();
@@ -757,6 +758,7 @@ function syncSpatialOverlays(targetMap, layer) {
 }
 
 function refreshSpatialOverlays() {
+  clearTimeout(spatialBubbleExpiryTimer);
   try {
     if (map && spatialOverlayLayerNear) syncSpatialOverlays(map, spatialOverlayLayerNear);
   } catch (e) {
@@ -766,6 +768,16 @@ function refreshSpatialOverlays() {
     if (allMap && spatialOverlayLayerAll) syncSpatialOverlays(allMap, spatialOverlayLayerAll);
   } catch (e) {
     warnRare("[VROO map] spatial all", e);
+  }
+  const nextExpiry = (stateRef?.spatialMessageOverlays || [])
+    .map((item) => Number(item.bubbleVisibleUntil) || (Number(item.createdAt) || 0) + 5_000)
+    .filter((expiresAt) => expiresAt > Date.now())
+    .sort((a, b) => a - b)[0];
+  if (nextExpiry) {
+    spatialBubbleExpiryTimer = setTimeout(
+      refreshSpatialOverlays,
+      Math.max(20, nextExpiry - Date.now() + 20)
+    );
   }
 }
 
