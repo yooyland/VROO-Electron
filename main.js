@@ -181,6 +181,7 @@ async function runWorkspaceRuntimeTest(win) {
           import("./assets/js/modules/conversation-store.js"),
           import("./assets/js/core/storage.js")
         ]);
+        await click('[data-screen="nearby"]');
         await click('[data-nearby-tab="poi"]');
         map.nearbyPoiTab = Boolean(await waitFor(
           () => document.querySelector(".nearby-place-row [data-place-view]"),
