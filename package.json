@@ -6,6 +6,10 @@
   "author": "VROO",
   "license": "UNLICENSED",
   "private": true,
+  "dependencies": {
+    "leaflet": "1.9.4",
+    "three": "0.160.0"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
