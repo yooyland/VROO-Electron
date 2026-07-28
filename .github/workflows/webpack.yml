@@ -19,13 +19,10 @@ jobs:
         node-version: 22.x
 
     - name: Install dependencies
-      run: npm install
+      run: npm ci
 
     - name: Check JavaScript syntax
-      run: |
-        node --check main.js
-        node --check preload.js
-        find app console shared -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      run: npm run check:syntax
 
     - name: Check Heritage Garage runtime
       run: xvfb-run --auto-servernum npx electron --no-sandbox . -- --heritage-runtime-test
