@@ -1099,6 +1099,7 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .garage-score small{display:block;color:#9da7b3;letter-spacing:.14em}.garage-score strong{display:block;color:#f2c04d;font-size:34px}
 .garage-vehicle-picture{position:absolute;inset:82px 2% 10px;z-index:2;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .garage-vehicle-picture picture{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.garage-vehicle-picture.is-mirrored picture{transform:scaleX(-1)}
 .garage-vehicle-picture picture img{
   display:block;width:min(94%,1500px);height:auto;max-width:none;max-height:none;object-fit:contain;
   filter:drop-shadow(0 25px 22px #000c);pointer-events:none
