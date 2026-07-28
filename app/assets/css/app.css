@@ -1208,3 +1208,29 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 @media(max-width:800px){
   .chat-command-grid{display:flex;flex-direction:column;min-height:0}.chat-road-scene,.chat-grid-map{min-height:520px}.chat-live-rail{min-height:420px}.chat-command-head{align-items:start}
 }
+
+
+/* Chat third-pane utilities: favorite gifts + expandable user phrases */
+.chat-gift-shelf{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid #253241;background:#0c131c;overflow:hidden}
+.chat-utility-label{flex:0 0 auto;color:#f3c438;font-size:11px;font-weight:800}
+.chat-gift-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.chat-gift-row::-webkit-scrollbar{display:none}
+.chat-gift-chip{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid #415064;border-radius:999px;background:#151e29;color:#f5f7fa;padding:6px 9px;font-size:11px}
+.chat-gift-chip:hover{border-color:#f3bd20;color:#ffd34d}
+.chat-phrase-drawer{border-top:1px solid #293545;background:#0b1119}
+.chat-phrase-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;border:0;background:#111a25;color:#f4f6f8;padding:8px 10px;font-weight:800}
+.chat-phrase-toggle small{color:#8c99aa;font-weight:500}
+.chat-pinned-phrases{display:flex;gap:6px;padding:7px 8px;overflow-x:auto;scrollbar-width:none}
+.chat-pinned-phrases::-webkit-scrollbar{display:none}
+.chat-pinned-phrases button,.chat-phrase-item>button:first-child{white-space:nowrap;border:1px solid #3a4656;border-radius:10px;background:#18212c;color:#e8edf3;padding:6px 8px;font-size:11px}
+.chat-phrase-panel{display:none;padding:8px;border-top:1px solid #263140}
+.chat-phrase-drawer.is-open .chat-phrase-panel{display:block}
+.chat-phrase-list{max-height:150px;overflow:auto;display:grid;gap:5px}
+.chat-phrase-item{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:5px}
+.chat-phrase-item>button:first-child{overflow:hidden;text-overflow:ellipsis;text-align:left}
+.chat-phrase-pin{border:1px solid #3a4656;border-radius:8px;background:#151d27;color:#8591a0}
+.chat-phrase-pin.active{border-color:#f3bd20;color:#ffc928}
+.chat-custom-phrase{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;margin-top:8px}
+.chat-custom-phrase input{min-width:0}
+.chat-live-rail .chat-shell{height:100%;min-height:0;display:flex;flex-direction:column}
+.chat-live-rail .chat-shell .chat-scroll{flex:1;min-height:120px}
