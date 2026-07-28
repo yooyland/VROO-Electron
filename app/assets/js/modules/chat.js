@@ -699,6 +699,108 @@ export function openConversationById(panel, state, conversationId) {
   return renderRooms(panel, state);
 }
 
+
+const CHAT_FAVORITE_GIFTS = [
+  { id: "coffee", icon: "☕", label: "커피" },
+  { id: "fuel", icon: "⛽", label: "주유" },
+  { id: "coupon", icon: "🎟️", label: "쿠폰" },
+  { id: "event", icon: "🎁", label: "이벤트" }
+];
+const CHAT_DEFAULT_PHRASES = ["안전운전하세요 😊", "여기서 만나요!", "확인했습니다.", "잠시 후 연락드릴게요."];
+
+function ensureChatUtilities(state) {
+  if (!state.chatUtilities || typeof state.chatUtilities !== "object") state.chatUtilities = {};
+  const util = state.chatUtilities;
+  if (!Array.isArray(util.customPhrases)) util.customPhrases = [];
+  if (!Array.isArray(util.pinnedPhrases) || !util.pinnedPhrases.length) {
+    util.pinnedPhrases = CHAT_DEFAULT_PHRASES.slice(0, 3);
+  }
+  if (typeof util.phraseDrawerOpen !== "boolean") util.phraseDrawerOpen = false;
+  return util;
+}
+
+function mountChatUtilities(panel, state, options = {}) {
+  const shell = panel?.querySelector?.(".chat-shell");
+  const compose = shell?.querySelector?.(".chat-compose");
+  const textarea = shell?.querySelector?.("#chatText");
+  if (!shell || !compose || !textarea) return;
+
+  const util = ensureChatUtilities(state);
+  shell.querySelector(".chat-gift-shelf")?.remove();
+  shell.querySelector(".chat-phrase-drawer")?.remove();
+
+  const gifts = document.createElement("div");
+  gifts.className = "chat-gift-shelf";
+  gifts.setAttribute("aria-label", "자주 쓰는 선물");
+  gifts.innerHTML = `<span class="chat-utility-label">자주 쓰는 상품</span>
+    <div class="chat-gift-row">${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" class="chat-gift-chip" data-chat-gift="${escapeHtml(g.id)}"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}</div>`;
+  compose.before(gifts);
+
+  const allPhrases = [...CHAT_DEFAULT_PHRASES, ...util.customPhrases]
+    .filter((phrase, index, list) => phrase && list.indexOf(phrase) === index);
+  const drawer = document.createElement("div");
+  drawer.className = `chat-phrase-drawer ${util.phraseDrawerOpen ? "is-open" : ""}`;
+  drawer.innerHTML = `
+    <button type="button" class="chat-phrase-toggle" aria-expanded="${util.phraseDrawerOpen}">
+      <span>${util.phraseDrawerOpen ? "▼" : "▲"} 상용구</span>
+      <small>자주 쓰는 문장을 선택해 바로 전송</small>
+    </button>
+    <div class="chat-pinned-phrases">
+      ${util.pinnedPhrases.map(p => `<button type="button" data-chat-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
+    </div>
+    <div class="chat-phrase-panel">
+      <div class="chat-phrase-list">
+        ${allPhrases.map(p => `<div class="chat-phrase-item"><button type="button" data-chat-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button><button type="button" class="chat-phrase-pin ${util.pinnedPhrases.includes(p) ? "active" : ""}" data-pin-phrase="${escapeHtml(p)}" aria-label="하단 진열">${util.pinnedPhrases.includes(p) ? "★" : "☆"}</button></div>`).join("")}
+      </div>
+      <div class="chat-custom-phrase">
+        <input type="text" maxlength="60" placeholder="사용자 상용구 만들기" data-custom-phrase-input>
+        <button type="button" class="primary" data-add-custom-phrase>추가</button>
+      </div>
+    </div>`;
+  compose.after(drawer);
+
+  gifts.querySelectorAll("[data-chat-gift]").forEach(button => {
+    button.onclick = () => {
+      const gift = CHAT_FAVORITE_GIFTS.find(item => item.id === button.dataset.chatGift);
+      if (!gift) return;
+      textarea.value = `[선물] ${gift.icon} ${gift.label}`;
+      textarea.focus();
+      shell.querySelector("#sendChat")?.click();
+    };
+  });
+  drawer.querySelector(".chat-phrase-toggle").onclick = () => {
+    util.phraseDrawerOpen = !util.phraseDrawerOpen;
+    emit("state:save");
+    mountChatUtilities(panel, state, options);
+  };
+  drawer.querySelectorAll("[data-chat-phrase]").forEach(button => {
+    button.onclick = () => {
+      textarea.value = button.dataset.chatPhrase || "";
+      textarea.focus();
+      shell.querySelector("#sendChat")?.click();
+    };
+  });
+  drawer.querySelectorAll("[data-pin-phrase]").forEach(button => {
+    button.onclick = () => {
+      const phrase = button.dataset.pinPhrase || "";
+      util.pinnedPhrases = util.pinnedPhrases.includes(phrase)
+        ? util.pinnedPhrases.filter(item => item !== phrase)
+        : [...util.pinnedPhrases, phrase].slice(-5);
+      emit("state:save");
+      mountChatUtilities(panel, state, options);
+    };
+  });
+  drawer.querySelector("[data-add-custom-phrase]").onclick = () => {
+    const input = drawer.querySelector("[data-custom-phrase-input]");
+    const phrase = String(input?.value || "").trim();
+    if (!phrase) return;
+    if (!util.customPhrases.includes(phrase)) util.customPhrases.push(phrase);
+    util.pinnedPhrases = [...util.pinnedPhrases.filter(item => item !== phrase), phrase].slice(-5);
+    emit("state:save");
+    mountChatUtilities(panel, state, options);
+  };
+}
+
 export function renderRooms(panel, state) {
   bindUsersListener();
   stopVoice();
@@ -1089,6 +1191,7 @@ function renderChat(panel, state, peerId) {
   });
 
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, peerId);
+  mountChatUtilities(panel, state, { type: "direct", peerId });
 
   requestAnimationFrame(() => {
     const s = panel.querySelector("#chatScroll");
@@ -1316,6 +1419,7 @@ function renderGridChat(panel, state, gridId) {
     doSend();
   });
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
+  mountChatUtilities(panel, state, { type: "grid", gridId });
 
   requestAnimationFrame(() => {
     const s = panel.querySelector("#chatScroll");
