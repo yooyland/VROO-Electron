@@ -13,6 +13,20 @@ const HERITAGE_VIEWS = [
   ["left", "좌측"],
   ["front_left", "전면 좌측"]
 ];
+/**
+ * front_right는 현재 승인된 front_45와 동일한 에셋이다.
+ * 버튼은 유지하되 AUTO에서는 중복 프레임을 건너뛰어 멈춘 것처럼 보이지 않게 한다.
+ */
+const HERITAGE_AUTO_VIEW_IDS = [
+  "front",
+  "front_45",
+  "right",
+  "rear_right",
+  "rear",
+  "rear_left",
+  "left",
+  "front_left"
+];
 const HERITAGE_VIEW_IDS = new Set(HERITAGE_VIEWS.map(([id]) => id));
 const GARAGE_ROTATE_STEP_PX = 72;
 const GARAGE_AUTO_INTERVAL_MS = 1800;
@@ -153,8 +167,10 @@ function startGarageAuto(root, state) {
       stopGarageAutoTimer();
       return;
     }
-    const current = HERITAGE_VIEWS.findIndex(([id]) => id === normalizeView(state.garageView));
-    const next = HERITAGE_VIEWS[(Math.max(0, current) + 1) % HERITAGE_VIEWS.length][0];
+    const activeView = normalizeView(state.garageView);
+    const current = HERITAGE_AUTO_VIEW_IDS.indexOf(activeView);
+    const nextIndex = current >= 0 ? (current + 1) % HERITAGE_AUTO_VIEW_IDS.length : 0;
+    const next = HERITAGE_AUTO_VIEW_IDS[nextIndex];
     state.garageView = setVehicleView(root, next);
     syncLightLayer(root, state, next);
   }, GARAGE_AUTO_INTERVAL_MS);
