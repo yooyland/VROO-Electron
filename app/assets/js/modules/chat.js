@@ -731,6 +731,8 @@ function mountChatUtilities(panel, state, options = {}) {
     util.pendingText = "";
     emit("state:save");
   }
+  const embeddedInThirdPane = panel?.matches?.("[data-chat-room-host]");
+  if (embeddedInThirdPane) return;
   shell.querySelector(".chat-gift-shelf")?.remove();
   shell.querySelector(".chat-phrase-drawer")?.remove();
 
@@ -1044,10 +1046,19 @@ export function renderRooms(panel, state) {
   });
   panel.querySelectorAll("[data-list-gift],[data-list-phrase]").forEach(button => {
     button.onclick = () => {
-      state.chatUtilities.pendingText = button.dataset.listPhrase || (() => {
+      const text = button.dataset.listPhrase || (() => {
         const gift = CHAT_FAVORITE_GIFTS.find(item => item.id === button.dataset.listGift);
         return gift ? `[선물] ${gift.icon} ${gift.label}` : "";
       })();
+      const openTextarea = roomHost?.querySelector?.("#chatText");
+      const openSend = roomHost?.querySelector?.("#sendChat");
+      if (openTextarea && openSend) {
+        openTextarea.value = text;
+        openTextarea.focus();
+        openSend.click();
+        return;
+      }
+      state.chatUtilities.pendingText = text;
       emit("state:save");
       showSystemMessage("보낼 대화방을 선택하세요.");
     };
@@ -1082,23 +1093,44 @@ export function renderRooms(panel, state) {
   });
   panel.querySelectorAll("[data-map-peer]").forEach((b) => {
     b.onclick = () => {
+      state.chatRoomListRequested = false;
       const id = b.dataset.mapPeer;
       openChatWith(roomHost, state, liveUser(id));
     };
   });
   panel.querySelectorAll("[data-grid-content]").forEach((b) => {
-    b.onclick = () => openGridChat(roomHost, state, b.dataset.gridContent);
+    b.onclick = () => {
+      state.chatRoomListRequested = false;
+      openGridChat(roomHost, state, b.dataset.gridContent);
+    };
   });
   panel.querySelectorAll("[data-open-grid]").forEach((b) => {
     b.onclick = () => emit("grid:spatialOpen", { gridId: b.dataset.openGrid });
   });
   panel.querySelectorAll("[data-room]").forEach((b) => {
     b.onclick = () => {
+      state.chatRoomListRequested = false;
       const id = b.dataset.room;
       openChatWith(roomHost, state, liveUser(id, state.rooms[id]?.user));
     };
   });
   updateNavBadge(state);
+
+  if (!state.chatRoomListRequested) {
+    const preferred = directs
+      .slice()
+      .sort((a, b) => {
+        const messageDiff = (b.messages?.length || 0) - (a.messages?.length || 0);
+        if (messageDiff) return messageDiff;
+        return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
+      })[0];
+    if (preferred) {
+      requestAnimationFrame(() => {
+        if (!roomHost?.isConnected || roomHost.querySelector(".chat-shell")) return;
+        openChatWith(roomHost, state, liveUser(preferred.peerId || preferred.id, preferred.user));
+      });
+    }
+  }
 }
 
 /**
@@ -1197,6 +1229,7 @@ function renderChat(panel, state, peerId) {
   </div>`;
 
   panel.querySelector("#chatBack").onclick = () => {
+    state.chatRoomListRequested = true;
     stopVoice();
     clearReplyTimer(peerId);
     closeActiveChat(state);
@@ -1429,6 +1462,7 @@ function renderGridChat(panel, state, gridId) {
   </div>`;
 
   panel.querySelector("#chatBack").onclick = () => {
+    state.chatRoomListRequested = true;
     stopVoice();
     clearReplyTimer(roomId);
     closeActiveChat(state);
