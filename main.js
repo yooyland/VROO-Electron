@@ -112,11 +112,26 @@ async function runHeritageRuntimeTest(win) {
         document.querySelector('[data-garage-view="right"]')?.click();
         lightPilot.disabledOutsideFront45 = lightButton?.disabled === true;
         lightPilot.hiddenOutsideFront45 = !lightLayer?.classList.contains("active");
+        const autoButton = document.querySelector("[data-garage-auto]");
+        const autoPilot = {
+          defaultEnabled: autoButton?.getAttribute("aria-pressed") === "true",
+          clickedStart: document.querySelector("[data-garage-view].active")?.dataset.garageView === "right"
+        };
+        await wait(1950);
+        autoPilot.advancesFromClickedView =
+          document.querySelector("[data-garage-view].active")?.dataset.garageView === "rear_right";
+        autoButton?.click();
+        const stoppedView = document.querySelector("[data-garage-view].active")?.dataset.garageView;
+        await wait(1950);
+        autoPilot.stopHoldsView =
+          autoButton?.getAttribute("aria-pressed") === "false" &&
+          document.querySelector("[data-garage-view].active")?.dataset.garageView === stoppedView;
         return {
           boot: window.__VROO_BOOT_OK === true,
           selectorCount: document.querySelectorAll("[data-garage-view]").length,
           results,
-          lightPilot
+          lightPilot,
+          autoPilot
         };
       })()
     `, true);
@@ -134,9 +149,16 @@ async function runHeritageRuntimeTest(win) {
       result.lightPilot?.naturalHeight !== 2048 ||
       !result.lightPilot?.disabledOutsideFront45 ||
       !result.lightPilot?.hiddenOutsideFront45;
+    const autoFailed =
+      !result.autoPilot?.defaultEnabled ||
+      !result.autoPilot?.clickedStart ||
+      !result.autoPilot?.advancesFromClickedView ||
+      !result.autoPilot?.stopHoldsView;
     console.log(`HERITAGE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
-    if (failed.length || lightFailed) {
-      const details = failed.map(item => item.id).concat(lightFailed ? ["front_45_light_pilot"] : []);
+    if (failed.length || lightFailed || autoFailed) {
+      const details = failed.map(item => item.id)
+        .concat(lightFailed ? ["front_45_light_pilot"] : [])
+        .concat(autoFailed ? ["garage_auto_rotation"] : []);
       throw new Error(`Heritage runtime failures: ${details.join(", ")}`);
     }
     console.log("HERITAGE_RUNTIME_TEST_PASS");
@@ -331,7 +353,8 @@ async function runWorkspaceRuntimeTest(win) {
           visible: true,
           viewCount: document.querySelectorAll("[data-garage-view]").length,
           actionCount: document.querySelectorAll("[data-garage-action]").length,
-          rotationHint: Boolean(document.querySelector("[data-garage-rotate-hint]"))
+          autoControl: Boolean(document.querySelector("[data-garage-auto]")),
+          autoDefault: document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true"
         };
         const garageStage = document.querySelector("[data-garage-stage]");
         const viewBeforeDrag = document.querySelector("[data-garage-view].active")?.dataset.garageView;
@@ -398,7 +421,8 @@ async function runWorkspaceRuntimeTest(win) {
           garage.visible,
           garage.viewCount === 9,
           garage.actionCount === 4,
-          garage.rotationHint,
+          garage.autoControl,
+          garage.autoDefault,
           garage.dragRotation,
           garage.missionInternal,
           garage.collectionInternal,
