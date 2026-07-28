@@ -13,20 +13,7 @@ const HERITAGE_VIEWS = [
   ["left", "좌측"],
   ["front_left", "전면 좌측"]
 ];
-/**
- * front_right는 현재 승인된 front_45와 동일한 에셋이다.
- * 버튼은 유지하되 AUTO에서는 중복 프레임을 건너뛰어 멈춘 것처럼 보이지 않게 한다.
- */
-const HERITAGE_AUTO_VIEW_IDS = [
-  "front",
-  "front_45",
-  "right",
-  "rear_right",
-  "rear",
-  "rear_left",
-  "left",
-  "front_left"
-];
+const HERITAGE_AUTO_VIEW_IDS = HERITAGE_VIEWS.map(([id]) => id);
 const HERITAGE_VIEW_IDS = new Set(HERITAGE_VIEWS.map(([id]) => id));
 const GARAGE_ROTATE_STEP_PX = 72;
 const GARAGE_AUTO_INTERVAL_MS = 1800;
@@ -46,11 +33,20 @@ function normalizeView(view) {
   return HERITAGE_VIEW_IDS.has(view) ? view : "front";
 }
 
-function vehicleImage(view) {
+function resolveViewAsset(view) {
   const activeView = normalizeView(view);
-  const asset = `${HERITAGE_VIEW_ROOT}/${activeView}`;
+  return {
+    activeView,
+    assetView: activeView === "front_right" ? "front_left" : activeView,
+    mirrored: activeView === "front_right"
+  };
+}
+
+function vehicleImage(view) {
+  const {activeView, assetView, mirrored} = resolveViewAsset(view);
+  const asset = `${HERITAGE_VIEW_ROOT}/${assetView}`;
   return `
-    <div class="garage-vehicle-picture" data-garage-picture>
+    <div class="garage-vehicle-picture ${mirrored ? "is-mirrored" : ""}" data-garage-picture>
       <picture>
         <source srcset="${asset}.webp" type="image/webp" data-garage-webp>
         <img src="${asset}.png" alt="VROO Heritage Executive S ${activeView} view" data-garage-image>
@@ -70,10 +66,12 @@ function viewSelector(activeView) {
 }
 
 function setVehicleView(root, view) {
-  const activeView = normalizeView(view);
-  const asset = `${HERITAGE_VIEW_ROOT}/${activeView}`;
+  const {activeView, assetView, mirrored} = resolveViewAsset(view);
+  const asset = `${HERITAGE_VIEW_ROOT}/${assetView}`;
+  const picture = root.querySelector("[data-garage-picture]");
   const source = root.querySelector("[data-garage-webp]");
   const image = root.querySelector("[data-garage-image]");
+  if (picture) picture.classList.toggle("is-mirrored", mirrored);
   if (source) source.srcset = `${asset}.webp`;
   if (image) {
     image.dataset.fallbackApplied = "false";
@@ -83,6 +81,7 @@ function setVehicleView(root, view) {
       if (image.dataset.fallbackApplied === "true") return;
       image.dataset.fallbackApplied = "true";
       if (source) source.removeAttribute("srcset");
+      if (picture) picture.classList.remove("is-mirrored");
       image.src = `${HERITAGE_VIEW_ROOT}/front_45.png`;
       showNotice(root, "선택 방향을 불러오지 못해 승인된 전면 45° 마스터를 표시합니다.");
     };
