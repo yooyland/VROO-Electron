@@ -37,6 +37,7 @@ let sendBusy = false;
 const replyTimers = new Map();
 let usersListenerBound = false;
 let msgIdSeq = 0;
+let commandPreviewHideTimer = null;
 
 function commandShellFor(panel) {
   if (!panel) return null;
@@ -83,6 +84,20 @@ function syncCommandSpatialPreviews(panel, state) {
   }
 }
 
+
+function scheduleCommandPreviewHide(panel) {
+  if (commandPreviewHideTimer) clearTimeout(commandPreviewHideTimer);
+  commandPreviewHideTimer = setTimeout(() => {
+    const shell = commandShellFor(panel);
+    if (!shell) return;
+    const bubbles = shell.querySelectorAll(".chat-road-bubble,.chat-map-message");
+    bubbles.forEach((bubble) => bubble.classList.add("is-fading"));
+    setTimeout(() => {
+      bubbles.forEach((bubble) => bubble.remove());
+    }, 280);
+  }, 5000);
+}
+
 on("roadchat:changed", () => {
   try {
     syncCommandSpatialPreviews(activePanel, activeState);
@@ -96,6 +111,7 @@ on("chat:messagePreview", (detail) => {
     const activeId = activeState?.activeConversationContext?.roomId;
     if (activeId && detail?.roomId && String(activeId) !== String(detail.roomId)) return;
     syncCommandSpatialPreviews(activePanel, activeState);
+    scheduleCommandPreviewHide(activePanel);
   } catch (e) {
     console.warn("[VROO chat] active message preview sync", e);
   }
