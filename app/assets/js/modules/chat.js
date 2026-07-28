@@ -1241,19 +1241,25 @@ export function renderRooms(panel, state) {
   updateNavBadge(state);
 
   if (!state.chatRoomListRequested) {
-    const preferred = directs
-      .slice()
+    const preferred = [...directs, ...grids, ...rooms]
       .sort((a, b) => {
         const messageDiff = (b.messages?.length || 0) - (a.messages?.length || 0);
         if (messageDiff) return messageDiff;
         return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
       })[0];
-    if (preferred) {
-      requestAnimationFrame(() => {
-        if (!roomHost?.isConnected || roomHost.querySelector(".chat-shell")) return;
+    const fallbackPeer = liveDrivers[0];
+    requestAnimationFrame(() => {
+      if (!roomHost?.isConnected || roomHost.querySelector(".chat-shell")) return;
+      if (preferred?.type === "grid") {
+        openGridChat(roomHost, state, preferred.gridId || preferred.id.replace(/^grid:/, ""));
+        return;
+      }
+      if (preferred) {
         openChatWith(roomHost, state, liveUser(preferred.peerId || preferred.id, preferred.user));
-      });
-    }
+        return;
+      }
+      if (fallbackPeer) openChatWith(roomHost, state, fallbackPeer);
+    });
   }
 }
 
