@@ -117,7 +117,8 @@ export const defaults = {
   },
   location: {lat: 37.5665, lng: 126.9780},
   hornEnabled: true,
-  mapBearing: 0
+  mapBearing: 0,
+  garageAutoRotate: true
 };
 
 function merge(base, value) {
