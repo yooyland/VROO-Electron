@@ -14,6 +14,7 @@ const HERITAGE_VIEWS = [
   ["front_left", "전면 좌측"]
 ];
 const HERITAGE_VIEW_IDS = new Set(HERITAGE_VIEWS.map(([id]) => id));
+const GARAGE_ROTATE_STEP_PX = 72;
 
 function metric(value, fallback) {
   const number = Number(value);
@@ -28,11 +29,13 @@ function vehicleImage(view) {
   const activeView = normalizeView(view);
   const asset = `${HERITAGE_VIEW_ROOT}/${activeView}`;
   return `
-    <picture class="garage-vehicle-picture" data-garage-picture>
-      <source srcset="${asset}.webp" type="image/webp" data-garage-webp>
-      <img src="${asset}.png" alt="VROO Heritage Executive S ${activeView} view" data-garage-image>
-    </picture>
-    <img class="garage-light-layer" src="${HERITAGE_LAYER_ROOT}/front_45/front_lights.svg" alt="" aria-hidden="true" data-garage-light-layer>`;
+    <div class="garage-vehicle-picture" data-garage-picture>
+      <picture>
+        <source srcset="${asset}.webp" type="image/webp" data-garage-webp>
+        <img src="${asset}.png" alt="VROO Heritage Executive S ${activeView} view" data-garage-image>
+      </picture>
+      <img class="garage-light-layer" src="${HERITAGE_LAYER_ROOT}/front_45/front_lights.svg" alt="" aria-hidden="true" data-garage-light-layer>
+    </div>`;
 }
 
 function viewSelector(activeView) {
@@ -71,6 +74,56 @@ function setVehicleView(root, view) {
   return activeView;
 }
 
+function bindGarageRotation(root, state) {
+  const stage = root.querySelector("[data-garage-stage]");
+  const image = root.querySelector("[data-garage-image]");
+  if (!stage) return;
+  if (image) image.draggable = false;
+
+  let pointerId = null;
+  let startX = 0;
+  let startIndex = 0;
+  let changed = false;
+
+  const finish = () => {
+    if (pointerId == null) return;
+    pointerId = null;
+    stage.classList.remove("is-dragging");
+    if (changed) emit("state:save");
+  };
+
+  stage.addEventListener("pointerdown", event => {
+    if (event.button != null && event.button !== 0) return;
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startIndex = Math.max(0, HERITAGE_VIEWS.findIndex(([id]) => id === normalizeView(state.garageView)));
+    changed = false;
+    stage.classList.add("is-dragging");
+    try {
+      stage.setPointerCapture(pointerId);
+    } catch {
+      /* synthetic events and older WebViews */
+    }
+  });
+
+  stage.addEventListener("pointermove", event => {
+    if (pointerId == null || event.pointerId !== pointerId) return;
+    const steps = Math.trunc((startX - event.clientX) / GARAGE_ROTATE_STEP_PX);
+    if (!steps) return;
+    const total = HERITAGE_VIEWS.length;
+    const nextIndex = ((startIndex + steps) % total + total) % total;
+    const nextView = HERITAGE_VIEWS[nextIndex][0];
+    if (nextView === state.garageView) return;
+    state.garageView = setVehicleView(root, nextView);
+    syncLightLayer(root, state, state.garageView);
+    changed = true;
+  });
+
+  stage.addEventListener("pointerup", finish);
+  stage.addEventListener("pointercancel", finish);
+  stage.addEventListener("lostpointercapture", finish);
+}
+
 function syncLightLayer(root, state, view) {
   const supported = view === "front_45";
   const enabled = supported && state.garageLightsOn === true;
@@ -95,7 +148,7 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
   const battery = metric(state.batteryLevel, 82);
 
   root.innerHTML = `
-    <section class="garage-hero" aria-label="MY CAR Garage">
+    <section class="garage-hero" aria-label="MY CAR Garage" data-garage-stage>
       <div class="garage-hero-copy">
         <span class="garage-eyebrow">VROO FLAGSHIP · HERITAGE</span>
         <h3>Heritage Executive S</h3>
@@ -112,6 +165,7 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
       </button>
       ${vehicleImage(activeView)}
       <div class="garage-stage-glow" aria-hidden="true"></div>
+      <div class="garage-rotate-hint" data-garage-rotate-hint>↔ 드래그하여 차량 회전</div>
     </section>
 
     ${viewSelector(activeView)}
@@ -149,6 +203,7 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
       emit("state:save");
     };
   });
+  bindGarageRotation(root, state);
 }
 
 function showNotice(root, message) {
