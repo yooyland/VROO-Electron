@@ -174,16 +174,59 @@ async function runWorkspaceRuntimeTest(win) {
           filterCount: mapLegend.querySelectorAll("[data-map-filter]").length,
           layerCount: mapLegend.querySelectorAll("[data-layer]").length
         };
-        const [{ emit }, mapModule, dataModule, conversationStore] = await Promise.all([
+        const [{ emit }, mapModule, dataModule, conversationStore, storageModule] = await Promise.all([
           import("./assets/js/core/events.js"),
           import("./assets/js/modules/map.js"),
           import("./assets/js/modules/data.js"),
-          import("./assets/js/modules/conversation-store.js")
+          import("./assets/js/modules/conversation-store.js"),
+          import("./assets/js/core/storage.js")
         ]);
         const legacyOverlayState = { spatialOverlayConfig: { maxBubbles: 8 } };
         map.overlayBubbleCapDefault = conversationStore.SPATIAL_OVERLAY_DEFAULTS.maxBubbles;
         map.overlayBubbleCapMigrated =
           conversationStore.ensureSpatialOverlayConfig(legacyOverlayState).maxBubbles;
+        const storageKeys = [
+          storageModule.STORAGE_KEY,
+          storageModule.STORAGE_BACKUP_KEY,
+          storageModule.STORAGE_CORRUPT_KEY
+        ];
+        const storageSnapshot = Object.fromEntries(
+          storageKeys.map(key => [key, localStorage.getItem(key)])
+        );
+        localStorage.setItem(storageModule.STORAGE_KEY, JSON.stringify({ credits: 111 }));
+        storageModule.saveState({ ...structuredClone(storageModule.defaults), credits: 222 });
+        const promotedBackup = JSON.parse(
+          localStorage.getItem(storageModule.STORAGE_BACKUP_KEY) || "{}"
+        );
+        localStorage.setItem(storageModule.STORAGE_BACKUP_KEY, JSON.stringify({
+          credits: 333,
+          roadChat: {
+            session: { conversationId: "road-session-current" },
+            messages: [{ id: "road-recovery", body: "도로 대화 보존", createdAt: Date.now() }]
+          },
+          rooms: {
+            "peer-recovery": {
+              type: "direct",
+              messages: [{ id: "room-recovery", text: "일반 대화 보존", createdAt: Date.now() }]
+            }
+          }
+        }));
+        localStorage.setItem(storageModule.STORAGE_KEY, "{broken-json");
+        const recoveredState = storageModule.loadState();
+        map.storageSchemaVersion =
+          recoveredState._schemaVersion === storageModule.STORAGE_SCHEMA_VERSION;
+        map.storagePromotesBackup = promotedBackup.credits === 111;
+        map.storageRecoversRoadSeparately =
+          recoveredState.roadChat?.messages?.[0]?.body === "도로 대화 보존";
+        map.storageRecoversRoomSeparately =
+          recoveredState.rooms?.["peer-recovery"]?.messages?.[0]?.text === "일반 대화 보존";
+        map.storageQuarantinesCorrupt =
+          localStorage.getItem(storageModule.STORAGE_CORRUPT_KEY) === "{broken-json";
+        for (const key of storageKeys) {
+          const value = storageSnapshot[key];
+          if (value == null) localStorage.removeItem(key);
+          else localStorage.setItem(key, value);
+        }
         const mapPeerId = mapModule.getUsers()[0]?.id;
         emit("chat:activeRoomChanged", {
           type: "direct",
@@ -250,6 +293,11 @@ async function runWorkspaceRuntimeTest(win) {
           map.layerCount === 6,
           map.overlayBubbleCapDefault === 2,
           map.overlayBubbleCapMigrated === 2,
+          map.storageSchemaVersion,
+          map.storagePromotesBackup,
+          map.storageRecoversRoadSeparately,
+          map.storageRecoversRoomSeparately,
+          map.storageQuarantinesCorrupt,
           map.directHighlight,
           map.gridHighlight,
           map.myHighlight,
