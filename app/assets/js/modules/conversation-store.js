@@ -133,7 +133,7 @@ export const PHRASE_SUGGESTIONS = Object.freeze([
 ]);
 
 export const SPATIAL_OVERLAY_DEFAULTS = Object.freeze({
-  maxBubbles: 4,
+  maxBubbles: 2,
   clusterZoomBelow: 15,
   bubbleVisibleMs: 5_000,
   ttlMs: Object.freeze({
@@ -307,7 +307,14 @@ export function ensureSpatialOverlayConfig(state) {
     };
   }
   const c = state.spatialOverlayConfig;
-  c.maxBubbles = Math.max(1, Math.min(8, Math.floor(Number(c.maxBubbles) || SPATIAL_OVERLAY_DEFAULTS.maxBubbles)));
+  // 저장된 이전 값이 3개 이상이어도 지도 혼잡 방지 정책(최대 2개)을 우선한다.
+  c.maxBubbles = Math.max(
+    1,
+    Math.min(
+      SPATIAL_OVERLAY_DEFAULTS.maxBubbles,
+      Math.floor(Number(c.maxBubbles) || SPATIAL_OVERLAY_DEFAULTS.maxBubbles)
+    )
+  );
   c.clusterZoomBelow = Math.max(10, Math.min(18, Math.floor(Number(c.clusterZoomBelow) || 15)));
   if (!c.ttlMs || typeof c.ttlMs !== "object") c.ttlMs = { ...SPATIAL_OVERLAY_DEFAULTS.ttlMs };
   return c;
