@@ -2,9 +2,13 @@ import {on} from "../core/events.js";
 import {MY_USER_ID} from "./data.js";
 
 const LANES = [-9, 0, 9];
-const ME_BEAM_COLOR = 0x00cb51;
+const ME_BEAM_COLOR = 0xffc400;
+const DIRECT_BEAM_COLOR = 0x2ca9ff;
+const GRID_BEAM_COLOR = 0x8e63d9;
 const ME_BODY_COLOR = 0x149cff;
 const BUBBLE_TTL_MS = 5000;
+const BUBBLE_FADE_MS = 350;
+const MAX_ROAD_BUBBLES = 2;
 const PEER_BEAM_PALETTE = [0xff344e, 0x2ca9ff, 0xffc400, 0x8e63d9, 0xff7a18, 0x48c774];
 
 let scene;
@@ -68,7 +72,7 @@ function colorForUserId(userId) {
 
 function beamColorForUserId(userId) {
   if (userId === MY_USER_ID) return ME_BEAM_COLOR;
-  return PEER_BEAM_PALETTE[hashHue(userId) % PEER_BEAM_PALETTE.length];
+  return activeConversation?.type === "grid" ? GRID_BEAM_COLOR : DIRECT_BEAM_COLOR;
 }
 
 function carTier(level) {
@@ -435,21 +439,39 @@ function hideAllBubbles() {
   }
 }
 
+function removeBubbleForUser(userId) {
+  const timer = roadBubbleTimers.get(userId);
+  if (timer) clearTimeout(timer);
+  roadBubbleTimers.delete(userId);
+  roadBubbleOverlays.get(userId)?.remove();
+  roadBubbleOverlays.delete(userId);
+}
+
 function showBubbleForUser(userId, text, messageId) {
   if (!userId || !text) return;
   if (messageId && displayedMessageIds.has(messageId)) return;
-  if (messageId) displayedMessageIds.add(messageId);
+  if (messageId) {
+    displayedMessageIds.add(messageId);
+    if (displayedMessageIds.size > 200) {
+      displayedMessageIds.delete(displayedMessageIds.values().next().value);
+    }
+  }
 
   const layer = ensureBubbleLayer();
   if (!layer) return;
 
   let el = roadBubbleOverlays.get(userId);
+  if (!el && roadBubbleOverlays.size >= MAX_ROAD_BUBBLES) {
+    removeBubbleForUser(roadBubbleOverlays.keys().next().value);
+  }
   if (!el) {
     el = document.createElement("div");
     el.className = "road-chat-bubble";
     layer.appendChild(el);
-    roadBubbleOverlays.set(userId, el);
   }
+  // 갱신된 차량을 Map의 마지막으로 옮겨 최대 2개 퇴출 순서를 보장한다.
+  roadBubbleOverlays.delete(userId);
+  roadBubbleOverlays.set(userId, el);
 
   const prev = roadBubbleTimers.get(userId);
   if (prev) clearTimeout(prev);
@@ -465,11 +487,9 @@ function showBubbleForUser(userId, text, messageId) {
   const timer = setTimeout(() => {
     el.classList.add("fade-out");
     setTimeout(() => {
-      el.remove();
-      roadBubbleOverlays.delete(userId);
-      roadBubbleTimers.delete(userId);
-    }, 400);
-  }, BUBBLE_TTL_MS);
+      removeBubbleForUser(userId);
+    }, BUBBLE_FADE_MS);
+  }, BUBBLE_TTL_MS - BUBBLE_FADE_MS);
   roadBubbleTimers.set(userId, timer);
 }
 
