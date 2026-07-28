@@ -38,6 +38,47 @@ const replyTimers = new Map();
 let usersListenerBound = false;
 let msgIdSeq = 0;
 
+function commandShellFor(panel) {
+  if (!panel) return null;
+  if (panel.matches?.(".chat-command-shell")) return panel;
+  return panel.closest?.(".chat-command-shell") || panel.querySelector?.(".chat-command-shell") || null;
+}
+
+function syncCommandSpatialPreviews(panel, state) {
+  const shell = commandShellFor(panel);
+  if (!shell || !state) return;
+
+  const roadScene = shell.querySelector(".chat-road-scene");
+  if (roadScene) {
+    roadScene.querySelectorAll(".chat-road-bubble,.chat-road-empty").forEach((node) => node.remove());
+    const messages = ensureRoadChat(state).messages
+      .filter((message) => String(message?.text || "").trim())
+      .slice(-2);
+    const html = messages.length
+      ? messages.map((message, index) => `<div class="chat-road-bubble ${index === 0 ? "one" : "two"} ${message.mine ? "mine" : ""}">${escapeHtml(String(message.text).slice(0, 54))}</div>`).join("")
+      : '<div class="chat-road-empty">현재 도로 대화를 시작해 보세요.</div>';
+    roadScene.querySelector(".chat-road-copy")?.insertAdjacentHTML("afterend", html);
+  }
+
+  const mapScene = shell.querySelector(".chat-grid-map");
+  if (mapScene) {
+    mapScene.querySelectorAll(".chat-map-message").forEach((node) => node.remove());
+    const messages = ensureNearbyChat(state).messages
+      .filter((message) => String(message?.text || "").trim())
+      .slice(-2);
+    const html = messages.map((message, index) => `<div class="chat-map-message ${index === 0 ? "one" : "two"} ${message.mine ? "mine" : ""}">${escapeHtml(String(message.text).slice(0, 46))}</div>`).join("");
+    mapScene.querySelector(".chat-map-grid-lines")?.insertAdjacentHTML("afterend", html);
+  }
+}
+
+on("roadchat:changed", () => {
+  try {
+    syncCommandSpatialPreviews(activePanel, activeState);
+  } catch (e) {
+    console.warn("[VROO chat] command preview sync", e);
+  }
+});
+
 function nextMessageId() {
   msgIdSeq += 1;
   return `m_${Date.now().toString(36)}_${msgIdSeq.toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -623,6 +664,7 @@ export function openNearbyChatInContent(panel, state) {
       });
     }
     emit("state:save");
+    syncCommandSpatialPreviews(panel, state);
     openNearbyChatInContent(panel, state);
   };
   panel.querySelector("#nearbySend").onclick = sendNearby;
