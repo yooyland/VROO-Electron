@@ -168,6 +168,12 @@ async function runWorkspaceRuntimeTest(win) {
         };
 
         await waitFor(() => window.__VROO_BOOT_OK === true, "VROO boot");
+        const mapLegend = await waitFor(() => document.querySelector("#mapLegend"), "map display filters");
+        const map = {
+          legendVisible: Boolean(mapLegend.querySelector("#mapLegendToggle")),
+          filterCount: mapLegend.querySelectorAll("[data-map-filter]").length,
+          layerCount: mapLegend.querySelectorAll("[data-layer]").length
+        };
         await click('[data-screen="chat"]');
         const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
         const chat = {
@@ -214,6 +220,9 @@ async function runWorkspaceRuntimeTest(win) {
         garage.upgradeRoutesToGame = Boolean(await waitFor(() => document.querySelector("#levelUp"), "Game upgrade"));
 
         const checks = [
+          map.legendVisible,
+          map.filterCount === 4,
+          map.layerCount === 6,
           chat.zoneCount === 3,
           chat.filterCount === 4,
           chat.roomHost,
@@ -228,7 +237,7 @@ async function runWorkspaceRuntimeTest(win) {
           garage.customizeRoutesToStore,
           garage.upgradeRoutesToGame
         ];
-        return { boot: true, chat, garage, pass: checks.every(Boolean) };
+        return { boot: true, map, chat, garage, pass: checks.every(Boolean) };
       })()
     `, true);
     console.log(`WORKSPACE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);

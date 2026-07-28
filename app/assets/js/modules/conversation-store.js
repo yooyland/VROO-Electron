@@ -135,6 +135,7 @@ export const PHRASE_SUGGESTIONS = Object.freeze([
 export const SPATIAL_OVERLAY_DEFAULTS = Object.freeze({
   maxBubbles: 4,
   clusterZoomBelow: 15,
+  bubbleVisibleMs: 5_000,
   ttlMs: Object.freeze({
     normal: 30_000,
     warning: 120_000,
@@ -605,6 +606,7 @@ export function pushSpatialOverlay(state, payload) {
     Number.isFinite(ttlSec) && ttlSec > 0
       ? ttlSec * 1000
       : state.spatialOverlayConfig.ttlMs?.[payload.spatialPriority] || SPATIAL_OVERLAY_DEFAULTS.ttlMs.normal;
+  const createdAt = Number(payload.createdAt) || Date.now();
   const entry = {
     id: payload.id || `overlay-${Date.now().toString(36)}`,
     conversationId: payload.conversationId,
@@ -615,7 +617,10 @@ export function pushSpatialOverlay(state, payload) {
     spatialVisibility: payload.spatialVisibility || "marker",
     spatialPriority: payload.spatialPriority || "normal",
     category: payload.category || null,
-    createdAt: payload.createdAt || Date.now(),
+    createdAt,
+    // 지도 말풍선은 잠깐만 보여 주고, 상황 집계/대화 기록은 expiresAt까지 유지한다.
+    bubbleVisibleUntil:
+      Number(payload.bubbleVisibleUntil) || createdAt + SPATIAL_OVERLAY_DEFAULTS.bubbleVisibleMs,
     expiresAt: payload.expiresAt != null ? payload.expiresAt : Date.now() + ttl,
     anchorVehicleId: payload.anchorVehicleId || payload.senderVehicleId || null
   };
@@ -671,7 +676,15 @@ export function getActiveSpatialOverlays(state, zoom) {
   return {
     mode: "bubbles",
     count: list.length,
-    items: list.slice(0, cfg.maxBubbles),
+    items: list
+      .filter((o) => {
+        const createdAt = Number(o.createdAt) || 0;
+        const visibleUntil =
+          Number(o.bubbleVisibleUntil) ||
+          createdAt + SPATIAL_OVERLAY_DEFAULTS.bubbleVisibleMs;
+        return visibleUntil > Date.now();
+      })
+      .slice(0, cfg.maxBubbles),
     situationClusters
   };
 }
