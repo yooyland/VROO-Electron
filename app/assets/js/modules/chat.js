@@ -1579,7 +1579,7 @@ function renderGridChat(panel, state, gridId) {
     emit("spatialChat:back");
   };
   panel.querySelector("#gridOpenSpatial").onclick = () => {
-    emit("grid:chatOpen", { gridId });
+    emit("grid:spatialOpen", { gridId });
   };
 
   panel.querySelector("#favoriteRoom").onclick = () => {
