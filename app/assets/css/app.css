@@ -500,6 +500,12 @@ body[data-map-view="all"] .view-guidebar .environment-select{
   background:#0a1628;border:2px solid #2b91df;display:flex;align-items:center;justify-content:center;color:#7ec4ff
 }
 .vroo-marker--vehicle.is-selected .vroo-marker-vehicle-icon{border-color:#6ec1ff;box-shadow:0 0 0 2px #2b91df88}
+.vroo-marker--vehicle.is-chatting-direct .vroo-marker-vehicle-icon{
+  border-color:#2ca9ff;box-shadow:0 0 0 3px #2ca9ff55,0 0 18px #2ca9ffaa
+}
+.vroo-marker--vehicle.is-chatting-grid .vroo-marker-vehicle-icon{
+  border-color:#a77bff;box-shadow:0 0 0 3px #8e63d955,0 0 18px #8e63d9bb
+}
 .vroo-marker--vehicle.is-offline .vroo-marker-vehicle-icon{border-color:#697481;opacity:.85}
 .vroo-marker-car-emoji{position:absolute;font-size:16px;line-height:1;pointer-events:none}
 .vroo-marker-vehicle-icon .vroo-ico{opacity:.35;width:28px;height:28px}
@@ -527,6 +533,12 @@ body[data-map-view="all"] .view-guidebar .environment-select{
 .vroo-me-label{
   margin-top:4px;font-size:10px;font-weight:800;color:#ffc400;
   background:#0b1520cc;border:1px solid #c9a22788;border-radius:999px;padding:2px 7px
+}
+.vroo-marker--me.is-chatting-me .vroo-me-core{
+  box-shadow:0 0 0 4px #ffc40044,0 0 20px #ffc400
+}
+.vroo-marker--me.is-chatting-me .vroo-me-pulse{
+  border-color:#ffc400;animation-duration:1.2s
 }
 @media (prefers-reduced-motion:reduce){.vroo-me-pulse{animation:none}}
 @keyframes vrooMePulse{0%{transform:scale(.7);opacity:.8}100%{transform:scale(1.6);opacity:0}}

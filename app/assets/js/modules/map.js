@@ -1,4 +1,4 @@
-import {emit} from "../core/events.js";
+import {emit, on} from "../core/events.js";
 import {carInfo, makeDemoUsers, updateDemoUserPositions, MY_USER_ID} from "./data.js";
 import {
   placesForZoomDetail,
@@ -57,6 +57,8 @@ let lastMapViewMode = "near";
 let legendOpen = false;
 let legendOutsideBound = false;
 let spatialBubbleExpiryTimer = 0;
+let mapChatListenersBound = false;
+let activeMapConversation = null;
 
 let markersNear = new Map();
 const markersAll = new Map();
@@ -229,6 +231,11 @@ function iconFor(user, me = false) {
   const same = sameDirectionAsMe(user);
   const carEmoji = carInfo(user.car).emoji;
   const unreadBadge = convoIndicatorHtml(statusInfo);
+  const conversationTone = activeMapConversation?.participantIds?.includes(String(user.id))
+    ? activeMapConversation.type === "grid"
+      ? "is-chatting-grid"
+      : "is-chatting-direct"
+    : "";
   const preview =
     selected && statusInfo?.lastMessage
       ? `<div class="map-convo-preview">${escapeHtml(String(statusInfo.lastMessage).slice(0, 36))}</div>`
@@ -242,7 +249,7 @@ function iconFor(user, me = false) {
   const aria = `차량, ${user.nickname || "차량"}, 레벨 ${level}`;
   return L.divIcon({
     className: "vroo-marker-wrap",
-    html: `<div class="vroo-marker vroo-marker--vehicle ${selected ? "is-selected" : ""} ${online ? "is-online" : "is-offline"}" role="img" aria-label="${escapeHtml(aria)}" aria-selected="${selected}">
+    html: `<div class="vroo-marker vroo-marker--vehicle ${conversationTone} ${selected ? "is-selected" : ""} ${online ? "is-online" : "is-offline"}" role="img" aria-label="${escapeHtml(aria)}" aria-selected="${selected}">
       <div class="vroo-marker-vehicle-icon" aria-hidden="true">
         ${PLACE_CATEGORY_SVG.vehicle}
         <span class="vroo-marker-car-emoji">${carEmoji}</span>
@@ -263,15 +270,34 @@ function iconFor(user, me = false) {
 
 function myLocationIcon() {
   const nick = escapeHtml(stateRef?.profile?.nickname || "나");
+  const active = activeMapConversation?.participantIds?.includes(String(MY_USER_ID));
   return L.divIcon({
     className: "vroo-marker-wrap",
-    html: `<div class="vroo-marker vroo-marker--me" role="img" aria-label="내 위치, ${nick}">
+    html: `<div class="vroo-marker vroo-marker--me ${active ? "is-chatting-me" : ""}" role="img" aria-label="내 위치, ${nick}">
       <span class="vroo-me-pulse" aria-hidden="true"></span>
       <span class="vroo-me-core" aria-hidden="true"></span>
       <span class="vroo-me-label">내 위치</span>
     </div>`,
     iconSize: [72, 56],
     iconAnchor: [36, 28]
+  });
+}
+
+function bindMapChatEvents() {
+  if (mapChatListenersBound) return;
+  mapChatListenersBound = true;
+  on("chat:activeRoomChanged", (detail) => {
+    activeMapConversation = {
+      type: detail?.type || null,
+      participantIds: Array.isArray(detail?.participantIds)
+        ? detail.participantIds.map(String)
+        : []
+    };
+    if (mapReady) drawUsers(markerMode);
+  });
+  on("chat:closed", () => {
+    activeMapConversation = null;
+    if (mapReady) drawUsers(markerMode);
   });
 }
 
@@ -1286,6 +1312,7 @@ export function isMapReady() {
 
 export function initMap(state) {
   stateRef = state;
+  bindMapChatEvents();
 
   if (mapReady) return;
 

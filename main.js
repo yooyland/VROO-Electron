@@ -174,6 +174,26 @@ async function runWorkspaceRuntimeTest(win) {
           filterCount: mapLegend.querySelectorAll("[data-map-filter]").length,
           layerCount: mapLegend.querySelectorAll("[data-layer]").length
         };
+        const [{ emit }, mapModule, dataModule] = await Promise.all([
+          import("./assets/js/core/events.js"),
+          import("./assets/js/modules/map.js"),
+          import("./assets/js/modules/data.js")
+        ]);
+        const mapPeerId = mapModule.getUsers()[0]?.id;
+        emit("chat:activeRoomChanged", {
+          type: "direct",
+          participantIds: [dataModule.MY_USER_ID, mapPeerId]
+        });
+        await wait(100);
+        map.directHighlight = Boolean(document.querySelector(".vroo-marker--vehicle.is-chatting-direct"));
+        map.myHighlight = Boolean(document.querySelector(".vroo-marker--me.is-chatting-me"));
+        emit("chat:activeRoomChanged", {
+          type: "grid",
+          participantIds: [dataModule.MY_USER_ID, mapPeerId]
+        });
+        await wait(100);
+        map.gridHighlight = Boolean(document.querySelector(".vroo-marker--vehicle.is-chatting-grid"));
+        emit("chat:closed", {});
         await click('[data-screen="chat"]');
         const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
         const chat = {
@@ -223,6 +243,9 @@ async function runWorkspaceRuntimeTest(win) {
           map.legendVisible,
           map.filterCount === 4,
           map.layerCount === 6,
+          map.directHighlight,
+          map.gridHighlight,
+          map.myHighlight,
           chat.zoneCount === 3,
           chat.filterCount === 4,
           chat.roomHost,
