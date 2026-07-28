@@ -1,7 +1,7 @@
 import {loadState,saveState,formatCredits} from "./core/storage.js";
 import {on} from "./core/events.js";
 import {showSystemMessage,openModal,closeModal} from "./core/ui.js";
-import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers,setSpatialGridVisible,drawUsers} from "./modules/map.js";
+import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers,setSpatialGridVisible,drawUsers,focusPlaceOnMap} from "./modules/map.js";
 import {initRoad,startRoad,stopRoad,pauseRoad,resumeRoad,setEnvironment,mountRoadStage,resizeRoad} from "./modules/road.js";
 import {renderNearby,openUserDetail,renderAllViewSummary} from "./modules/nearby.js";
 import {renderGrid, beginCreateGrid, syncGridHeader, openSpatialGridDetail} from "./modules/grid.js";
@@ -304,6 +304,23 @@ on("shop:openGift",recipient=>{
   setScreen("shop");
 });
 on("workspace:spatialHome",()=>{setScreen("nearby");setView(currentView||"near")});
+on("place:focus",place=>{
+  setScreen("nearby");
+  setView("near");
+  focusPlaceOnMap(place);
+});
+on("place:toggleFavorite",place=>{
+  if(!Array.isArray(state.favoritePlaceIds))state.favoritePlaceIds=[];
+  const id=String(place?.id||"");
+  if(!id)return;
+  const exists=state.favoritePlaceIds.includes(id);
+  state.favoritePlaceIds=exists
+    ? state.favoritePlaceIds.filter(x=>x!==id)
+    : [...state.favoritePlaceIds,id];
+  save();
+  if(currentScreen==="nearby")renderNearby(spatialPanel,state);
+  showSystemMessage(exists?"즐겨찾기에서 해제했습니다.":"자주가는 곳에 저장했습니다.");
+});
 on("place:open", place => {
   const kind = place.kind || place.type || "place";
   const kindText =

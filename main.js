@@ -181,6 +181,25 @@ async function runWorkspaceRuntimeTest(win) {
           import("./assets/js/modules/conversation-store.js"),
           import("./assets/js/core/storage.js")
         ]);
+        await click('[data-screen="nearby"]');
+        await click('[data-nearby-tab="poi"]');
+        map.nearbyPoiTab = Boolean(await waitFor(
+          () => document.querySelector(".nearby-place-row [data-place-view]"),
+          "nearby POI tab"
+        ));
+        await click("[data-place-favorite]");
+        await click('[data-nearby-tab="fav"]');
+        map.nearbyFavoriteTab = Boolean(await waitFor(
+          () => document.querySelector(".nearby-place-row [data-place-view]"),
+          "nearby favorites tab"
+        ));
+        await click('[data-nearby-tab="pins"]');
+        await click("#registerCurrentPlace");
+        map.nearbyRegisteredPlace = Boolean(await waitFor(
+          () => document.querySelector('.nearby-place-row [data-place-view^="pin-"]'),
+          "nearby registered place"
+        ));
+        await click('[data-nearby-tab="friends"]');
         const legacyOverlayState = { spatialOverlayConfig: { maxBubbles: 8 } };
         map.overlayBubbleCapDefault = conversationStore.SPATIAL_OVERLAY_DEFAULTS.maxBubbles;
         map.overlayBubbleCapMigrated =
@@ -349,6 +368,9 @@ async function runWorkspaceRuntimeTest(win) {
           map.legendVisible,
           map.filterCount === 4,
           map.layerCount === 6,
+          map.nearbyPoiTab,
+          map.nearbyFavoriteTab,
+          map.nearbyRegisteredPlace,
           map.overlayBubbleCapDefault === 2,
           map.overlayBubbleCapMigrated === 2,
           map.storageSchemaVersion,
