@@ -1242,3 +1242,16 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .chat-list-phrase-drawer .chat-phrase-panel{display:none}
 .chat-list-phrase-drawer.is-open .chat-phrase-panel{display:block}
 .chat-list-phrase-drawer.is-open .chat-pinned-phrases{border-bottom:1px solid #263140}
+
+
+/* Desired conversation-first command layout */
+.chat-road-alert-ticker{flex:none;display:flex;align-items:center;justify-content:space-around;gap:24px;overflow:hidden;white-space:nowrap;padding:10px 14px;border:1px solid #293746;border-radius:14px;background:#080e15;color:#f4f6f8;font-size:17px;font-weight:900}
+.chat-road-alert-ticker span:first-child{font-size:18px}
+.chat-history-collapsed{display:none}
+.chat-live-rail [data-chat-room-host]{padding:0}
+.chat-live-rail [data-chat-room-host]>.chat-shell>.chat-header{margin:0;border-width:0 0 1px;border-radius:0;padding:7px 8px}
+.chat-live-rail [data-chat-room-host]>.chat-shell>.chat-header .chat-peer-meta{display:none}
+.chat-live-rail [data-chat-room-host]>.chat-shell>.chat-header .chat-peer-name{font-size:13px}
+.chat-live-rail [data-chat-room-host]>.chat-shell>.chat-header #favoriteRoom{display:none}
+.chat-live-rail [data-chat-room-host]>.chat-shell>.chat-scroll{padding:8px;min-height:0}
+.chat-live-rail [data-chat-room-host]>.chat-shell>.chat-compose{padding:7px}
