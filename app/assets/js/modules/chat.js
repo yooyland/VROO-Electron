@@ -103,15 +103,63 @@ function resolveGridParticipantIds(state, gridId) {
   return [...out];
 }
 
+
+function conversationContextOf(state, info) {
+  const type = info?.type || null;
+  const gridId = info?.gridId || null;
+  const peerId = info?.peerId || null;
+  const gridRoomId = gridId ? gridChatRoomId(gridId) : null;
+  const gridTitle =
+    state?.rooms?.[gridRoomId]?.title ||
+    state?.grids?.find?.((grid) => grid.id === gridId)?.name ||
+    (gridId && isSpatialGridId(gridId) ? getGridDisplayName(gridId) : null) ||
+    state?.currentGrid ||
+    "MY GRID";
+  const peer = peerId ? liveUser(peerId, state?.rooms?.[peerId]?.user) : null;
+  const roadTitle =
+    type === "grid"
+      ? `${gridTitle} 도로 대화`
+      : type === "direct" && peer
+        ? `${peer.nickname || peer.id}와 대화 중`
+        : "현재 도로 대화";
+  return {
+    roomId: info?.roomId || null,
+    type,
+    peerId,
+    gridId,
+    participantIds: Array.isArray(info?.participantIds) ? info.participantIds.map(String) : [],
+    gridTitle,
+    roadTitle
+  };
+}
+
+function syncCommandConversationContext(panel, state, info) {
+  const context = conversationContextOf(state, info);
+  state.activeConversationContext = context;
+  const shell = commandShellFor(panel);
+  if (!shell) return context;
+  shell.dataset.conversationType = context.type || "";
+  shell.dataset.conversationGridId = context.gridId || "";
+  const roadTitle = shell.querySelector("[data-command-road-title]");
+  const gridTitle = shell.querySelector("[data-command-grid-title]");
+  const roadMeta = shell.querySelector("[data-command-road-meta]");
+  if (roadTitle) roadTitle.textContent = context.roadTitle;
+  if (gridTitle) gridTitle.textContent = context.gridTitle;
+  if (roadMeta) {
+    const count = Math.max(0, context.participantIds.length - 1);
+    roadMeta.textContent = context.type === "grid"
+      ? `GRID 참여 차량 ${Math.max(1, count)}대`
+      : context.type === "direct"
+        ? "1:1 대화 환경"
+        : roadMeta.textContent;
+  }
+  return context;
+}
+
 function emitActiveRoomChanged(state, info) {
   try {
-    emit("chat:activeRoomChanged", {
-      roomId: info.roomId,
-      type: info.type,
-      peerId: info.peerId || null,
-      gridId: info.gridId || null,
-      participantIds: Array.isArray(info.participantIds) ? info.participantIds.map(String) : []
-    });
+    const context = syncCommandConversationContext(activePanel, state, info);
+    emit("chat:activeRoomChanged", context);
   } catch (e) {
     console.warn("[VROO chat] activeRoomChanged", e);
   }
@@ -987,8 +1035,8 @@ export function renderRooms(panel, state) {
           </div>
           <div class="chat-road-copy">
             <span>LIVE ROAD</span>
-            <h3>${roadCard.hasContextName ? escapeHtml(roadCard.roadName) : "현재 도로 대화"}</h3>
-            <p>${roadMeta}</p>
+            <h3 data-command-road-title>${roadCard.hasContextName ? escapeHtml(roadCard.roadName) : "현재 도로 대화"}</h3>
+            <p data-command-road-meta>${roadMeta}</p>
           </div>
           ${roadPreviewHtml || '<div class="chat-road-empty">현재 도로 대화를 시작해 보세요.</div>'}
           <picture class="chat-road-car"><source srcset="./assets/characters/05_Heritage/views/rear.webp" type="image/webp"><img src="./assets/characters/05_Heritage/views/rear.png" alt="Heritage S 도로 차량"></picture>
@@ -997,7 +1045,7 @@ export function renderRooms(panel, state) {
 
         <section class="chat-grid-map" aria-label="공간 GRID 대화 지도">
           <div class="chat-map-head">
-            <div><small>주변 · 지도 대화</small><b>${escapeHtml(state.currentGrid || "MY GRID")}</b></div>
+            <div><small>주변 · 지도 대화</small><b data-command-grid-title>${escapeHtml(state.activeConversationContext?.gridTitle || state.currentGrid || "MY GRID")}</b></div>
             <div class="chat-map-head-actions">
               <button type="button" class="secondary" data-open-nearby-content>주변 대화</button>
               <button type="button" class="secondary" data-open-grid-map>위치 GRID 보기</button>
