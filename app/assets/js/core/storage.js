@@ -14,6 +14,9 @@ export const PLATE_REVEAL_COST = 300;
 export const LEVEL_UP_COST_FACTOR = 900;
 
 export const STORAGE_KEY = "vrooBeta10";
+export const STORAGE_SCHEMA_VERSION = 1;
+export const STORAGE_BACKUP_KEY = `${STORAGE_KEY}:backup`;
+export const STORAGE_CORRUPT_KEY = `${STORAGE_KEY}:corrupt`;
 
 export function growthUpgradeCost(level) {
   const lv = Math.max(1, Math.floor(Number(level) || 1));
@@ -57,6 +60,7 @@ export function spendCredits(state, cost) {
 }
 
 export const defaults = {
+  _schemaVersion: STORAGE_SCHEMA_VERSION,
   credits: DEFAULT_CREDITS,
   level: 1,
   xp: 0,
@@ -451,7 +455,7 @@ function sanitizeState(s) {
   if (!Array.isArray(s.spatialMessageOverlays)) s.spatialMessageOverlays = [];
   if (!s.spatialOverlayConfig || typeof s.spatialOverlayConfig !== "object") {
     s.spatialOverlayConfig = {
-      maxBubbles: 4,
+      maxBubbles: 2,
       clusterZoomBelow: 15,
       ttlMs: { normal: 30000, warning: 120000, urgent: 300000 }
     };
@@ -533,30 +537,71 @@ function sanitizeState(s) {
   return s;
 }
 
+function parseStateJson(raw) {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    let parsed = {};
-    if (raw) {
+    let parsed = parseStateJson(raw);
+    let recoveredFromBackup = false;
+    if (raw && !parsed) {
       try {
-        const json = JSON.parse(raw);
-        if (json && typeof json === "object" && !Array.isArray(json)) parsed = json;
-      } catch {
-        parsed = {};
+        localStorage.setItem(STORAGE_CORRUPT_KEY, raw);
+      } catch (e) {
+        console.warn("[VROO storage] 손상 데이터 격리 실패", e);
+      }
+      parsed = parseStateJson(localStorage.getItem(STORAGE_BACKUP_KEY));
+      recoveredFromBackup = !!parsed;
+    }
+    const s = sanitizeState(merge(structuredClone(defaults), parsed || {}));
+    s._schemaVersion = STORAGE_SCHEMA_VERSION;
+    if (recoveredFromBackup) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+        console.warn("[VROO storage] 주 저장소 손상으로 백업에서 복구했습니다.");
+      } catch (e) {
+        console.warn("[VROO storage] 복구 상태 재저장 실패", e);
       }
     }
-    const s = merge(structuredClone(defaults), parsed);
-    return sanitizeState(s);
+    return s;
   } catch {
-    return sanitizeState(structuredClone(defaults));
+    const s = sanitizeState(structuredClone(defaults));
+    s._schemaVersion = STORAGE_SCHEMA_VERSION;
+    return s;
   }
 }
 
 export function saveState(state) {
+  let serialized;
   try {
+    state._schemaVersion = STORAGE_SCHEMA_VERSION;
     state.credits = normalizeCredits(state.credits);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    serialized = JSON.stringify(state);
+  } catch (e) {
+    console.error("[VROO storage] 저장 데이터 직렬화 실패", e);
+    return false;
+  }
+  try {
+    const current = localStorage.getItem(STORAGE_KEY);
+    if (current && current !== serialized && parseStateJson(current)) {
+      localStorage.setItem(STORAGE_BACKUP_KEY, current);
+    }
+  } catch (e) {
+    console.warn("[VROO storage] 백업 저장 실패", e);
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, serialized);
+    return true;
   } catch (e) {
     console.error(e);
+    return false;
   }
 }
