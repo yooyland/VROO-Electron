@@ -29,7 +29,7 @@ function metric(value, fallback) {
 }
 
 function normalizeView(view) {
-  return HERITAGE_VIEW_IDS.has(view) ? view : "front_45";
+  return HERITAGE_VIEW_IDS.has(view) ? view : "front";
 }
 
 function vehicleImage(view) {
@@ -174,7 +174,7 @@ function syncLightLayer(root, state, view) {
   }
 }
 
-function renderOverview(root, state, requestedView = "front_45", openRoom = () => {}) {
+function renderOverview(root, state, requestedView = "front", openRoom = () => {}) {
   const activeView = normalizeView(requestedView);
   const level = Math.max(1, metric(state.level, 1));
   const xp = Math.max(0, Math.min(100, metric(state.xp, 0)));
@@ -237,7 +237,6 @@ function renderOverview(root, state, requestedView = "front_45", openRoom = () =
   root.querySelectorAll("[data-garage-view]").forEach(button => {
     button.onclick = () => {
       state.garageView = setVehicleView(root, button.dataset.garageView);
-      state.garageAutoRotate = true;
       syncLightLayer(root, state, state.garageView);
       emit("state:save");
       startGarageAuto(root, state);
