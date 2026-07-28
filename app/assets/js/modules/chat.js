@@ -961,13 +961,29 @@ export function renderRooms(panel, state) {
           <b>대화방</b>
           <small>도로·GRID·주변 차량과 대화를 한 화면에서 연결합니다.</small>
         </div>
-        <div class="chat-command-unread">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></div>
       </header>
+      <div class="chat-command-control-row">
+        <div class="chat-command-unread">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></div>
+        <div class="chat-command-gifts" aria-label="자주 쓰는 상품">
+          <b>선물</b>
+          <div class="chat-gift-row">
+            ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" class="chat-gift-chip" data-list-gift="${escapeHtml(g.id)}"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
+          </div>
+        </div>
+        <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist" aria-label="대화방 종류">
+          <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
+          <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간</button>
+          <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
+          <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">친구</button>
+          <button type="button" data-rooms-filter="room">단체</button>
+          <button type="button" data-rooms-filter="spatial">그리드</button>
+        </div>
+      </div>
       <div class="chat-command-grid">
-        <section class="chat-road-scene" aria-label="도로 대화 장면">
+        <section class="chat-road-scene" aria-label="도로 대화 장면" data-open-road-scene>
           <div class="chat-scene-top">
             <span><i></i> 온라인 ${liveDrivers.filter(u => u.online).length}</span>
-            <div class="chat-view-switch"><b>주변</b><b class="active">도로</b><b>전체</b></div>
+            <div class="chat-view-switch"><b class="active">도로</b></div>
           </div>
           <div class="chat-road-copy">
             <span>LIVE ROAD</span>
@@ -977,7 +993,6 @@ export function renderRooms(panel, state) {
           ${roadPreviewHtml || '<div class="chat-road-empty">현재 도로 대화를 시작해 보세요.</div>'}
           <picture class="chat-road-car"><source srcset="./assets/characters/05_Heritage/views/rear.webp" type="image/webp"><img src="./assets/characters/05_Heritage/views/rear.png" alt="Heritage S 도로 차량"></picture>
           <div class="chat-road-lanes" aria-hidden="true"></div>
-          <button type="button" class="primary chat-road-open" data-open-road-scene>도로 대화 열기</button>
         </section>
 
         <section class="chat-grid-map" aria-label="공간 GRID 대화 지도">
@@ -996,22 +1011,6 @@ export function renderRooms(panel, state) {
         </section>
 
         <aside class="chat-live-rail">
-          <div class="chat-live-rail-head">
-            <b>대화방</b>
-            <small>방을 선택하면 이 칸에서 열리고, ←로 목록에 돌아옵니다.</small>
-            <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist" aria-label="대화방 종류">
-              <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
-              <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간 대화</button>
-              <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
-              <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">일반 대화방</button>
-            </div>
-          </div>
-          <div class="chat-list-gift-shelf" aria-label="자주 쓰는 상품">
-            <span class="chat-utility-label">자주 쓰는 상품</span>
-            <div class="chat-gift-row">
-              ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" class="chat-gift-chip" data-list-gift="${escapeHtml(g.id)}"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
-            </div>
-          </div>
           <div class="chat-live-scroll" data-chat-room-host>
             ${gridHtml}
             ${directHtml}
