@@ -444,7 +444,7 @@ function showPlacePreviewCard(place) {
       if (act === "route") {
         showSystemMessage("길찾기는 경로 API 연동 후 이용할 수 있습니다.");
       } else if (act === "favorite") {
-        showSystemMessage("즐겨찾기는 로컬 저장 연동 준비 중입니다.");
+        emit("place:toggleFavorite", meta);
       } else if (act === "share") {
         showSystemMessage("공유 기능은 서버 연동 후 이용할 수 있습니다.");
       } else if (act === "detail") {
@@ -1539,6 +1539,18 @@ export function invalidateMaps() {
     setTimeout(run, 50);
     setTimeout(run, 200);
   });
+}
+
+export function focusPlaceOnMap(place) {
+  const lat = Number(place?.lat);
+  const lng = Number(place?.lng);
+  if (!mapReady || !map || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  runProgrammatic(() => {
+    map.setView([lat, lng], 16, {animate: false});
+    if (allMap) allMap.setView([lat, lng], 14, {animate: false});
+  });
+  showPlacePreviewCard(place);
+  refreshLabels();
 }
 
 /**
