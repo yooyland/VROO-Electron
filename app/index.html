@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https:; connect-src 'self' https:; media-src 'self' blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; media-src 'self' blob:;">
 <title>VROO Desktop 1.1.0-beta.1</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="../node_modules/leaflet/dist/leaflet.css">
 <link rel="stylesheet" href="./assets/css/app.css">
 </head>
 <body data-workspace="spatial">
@@ -103,8 +103,8 @@
 </main>
 <div id="modal" class="modal-backdrop" aria-hidden="true"><div class="modal-card"><div class="modal-head"><h2 id="modalTitle"></h2><button id="modalClose">✕</button></div><div id="modalBody" class="modal-body"></div><div id="modalActions" class="modal-actions"></div></div></div>
 <script>window.__VROO_BOOT_OK=false;</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="../node_modules/leaflet/dist/leaflet.js"></script>
+<script src="../node_modules/three/build/three.min.js"></script>
 <script type="module" src="./assets/js/app.js"></script>
 </body>
 </html>
