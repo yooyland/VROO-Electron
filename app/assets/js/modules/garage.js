@@ -117,6 +117,7 @@ function bindGarageRotation(root, state, restartAuto) {
 
   stage.addEventListener("pointerdown", event => {
     if (event.button != null && event.button !== 0) return;
+    if (event.target.closest?.("button, input, select, textarea, a")) return;
     pointerId = event.pointerId;
     startX = event.clientX;
     startIndex = Math.max(0, HERITAGE_VIEWS.findIndex(([id]) => id === normalizeView(state.garageView)));
@@ -257,8 +258,12 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
       startGarageAuto(root, state);
     };
   });
-  root.querySelector("[data-garage-auto]").onclick = () => {
+  const autoButton = root.querySelector("[data-garage-auto]");
+  autoButton.onpointerdown = event => event.stopPropagation();
+  autoButton.onclick = event => {
+    event.stopPropagation();
     state.garageAutoRotate = state.garageAutoRotate === false;
+    syncGarageAutoControl(root, state);
     emit("state:save");
     startGarageAuto(root, state);
   };
