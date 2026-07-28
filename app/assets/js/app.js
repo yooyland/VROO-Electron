@@ -255,6 +255,35 @@ function openRoadConversation(){
   save();
 }
 
+function getChatRoomHost(){
+  return contentPanel?.querySelector?.("[data-chat-room-host]")||contentPanel;
+}
+
+function prepareChatRoomHost(){
+  setScreen("chat");
+  const ui=ensureConversationUi(state);
+  ui.returnView=null;
+  return getChatRoomHost();
+}
+
+function openDirectInChatPane(payload){
+  openChatWith(prepareChatRoomHost(),state,payload);
+  save();
+}
+
+function openGridInChatPane(gridId){
+  openGridChat(prepareChatRoomHost(),state,gridId);
+  save();
+}
+
+function openConversationInChatPane(conversationId){
+  const roomHost=prepareChatRoomHost();
+  const ui=ensureConversationUi(state);
+  ui.activeConversationId=conversationId||null;
+  openConversationById(roomHost,state,conversationId);
+  save();
+}
+
 function createPost(){openModal("새 게시글",`<label>게시판</label><select id="postCat"><option>공지</option><option>자유</option><option>뽐내기</option><option>Q&A</option><option>고객센터</option></select><label>제목</label><input id="postTitle"><label>내용</label><textarea id="postBody" style="min-height:150px"></textarea><label>공개 범위</label><select id="postScope"><option value="all">전체 공개</option><option value="grid">내 GRID</option><option value="500m">주변 500m</option><option value="1km">주변 1km</option><option value="5km">주변 5km</option><option value="private">나만 보기</option></select>`,[{label:"취소",onClick:closeModal},{label:"게시하기",className:"primary",onClick:()=>{const title=document.querySelector("#postTitle").value.trim(),body=document.querySelector("#postBody").value.trim();if(!title||!body)return;state.posts.unshift({id:"p"+Date.now(),category:document.querySelector("#postCat").value,title,body,author:state.profile.nickname,scope:document.querySelector("#postScope").value,createdAt:Date.now(),likes:0,comments:[]});state.communityCategory=document.querySelector("#postCat").value;closeModal();save();setScreen("community")}}])}
 
 on("state:save",save);
@@ -306,20 +335,14 @@ on("place:open", place => {
     });
   }, 0);
 });
-/** 차량 1:1·공간 대화는 Content로 보내지 않음 */
-on("chat:open",payload=>openSpatialDirect(payload));
-on("grid:chatOpen",({gridId})=>openSpatialGridChat(gridId));
+/** 모든 대화 상세는 대화방 3번째 칸에서 열고, 명시적인 공간 이동만 Spatial로 보낸다. */
+on("chat:open",payload=>openDirectInChatPane(payload));
+on("grid:chatOpen",({gridId})=>openGridInChatPane(gridId));
 on("grid:spatialOpen",({gridId})=>{setScreen("grid");openSpatialGridDetail(spatialPanel,state,gridId)});
 on("grid:create",()=>beginCreateGrid(spatialPanel,state));
 on("roadchat:requestOpen",()=>openRoadConversation());
 on("chat:openMenu",()=>setScreen("chat"));
-on("chat:openConversation",({conversationId,returnView})=>{
-  const ui=ensureConversationUi(state);
-  if(returnView)ui.returnView=returnView;
-  ui.activeConversationId=conversationId||null;
-  setScreen("chat");
-  openConversationById(contentPanel,state,conversationId);
-});
+on("chat:openConversation",({conversationId})=>openConversationInChatPane(conversationId));
 on("spatialOverlay:changed",()=>{
   try{drawUsers(currentView==="all"?"all":"near")}catch(e){}
   refreshChatBadge(state);
@@ -353,14 +376,9 @@ on("roadchat:openPanel",()=>{
 on("spatialChat:back",()=>{
   if(currentWorkspace==="content"){
     const ui=ensureConversationUi(state);
-    if(ui.returnView){
-      setWorkspace("spatial");
-      setView(ui.returnView==="all"||ui.returnView==="road"||ui.returnView==="near"?ui.returnView:"near");
-      ui.returnView=null;
-      save();
-      return;
-    }
+    ui.returnView=null;
     renderRooms(contentPanel,state);
+    save();
     return;
   }
   if(currentView==="all")renderAllViewSummary(spatialPanel,state);

@@ -262,6 +262,50 @@ async function runWorkspaceRuntimeTest(win) {
           "room list after back"
         ));
 
+        emit("chat:open", {
+          id: mapPeerId,
+          nickname: "Runtime Peer",
+          online: true,
+          level: 1
+        });
+        chat.directInThirdZone = Boolean(await waitFor(
+          () => document.querySelector("[data-chat-room-host] .chat-shell"),
+          "direct chat in third zone"
+        ));
+        chat.directKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
+        await click("#chatBack");
+        chat.directBackRestoresThreeZones = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid [data-chat-room-host]"),
+          "three zones after direct back"
+        ));
+
+        emit("grid:chatOpen", {gridId: "g_my"});
+        chat.gridInThirdZone = Boolean(await waitFor(
+          () => document.querySelector('[data-chat-room-host] [data-conversation-type="grid"]'),
+          "grid chat in third zone"
+        ));
+        chat.gridKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
+        await click("#chatBack");
+        await waitFor(
+          () => document.querySelector(".chat-command-grid [data-chat-room-host]"),
+          "three zones after grid back"
+        );
+
+        emit("chat:openConversation", {
+          conversationId: "road-session-current",
+          returnView: "road"
+        });
+        chat.conversationEventInThirdZone = Boolean(await waitFor(
+          () => document.querySelector("[data-chat-room-host] [data-road-content-detail]"),
+          "conversation event in third zone"
+        ));
+        chat.conversationEventKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
+        await click("#roadContentBack");
+        chat.conversationBackStaysInChat = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid [data-chat-room-host]"),
+          "chat command center after conversation back"
+        ));
+
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
         const garage = {
@@ -321,6 +365,14 @@ async function runWorkspaceRuntimeTest(win) {
           chat.filtersInsideThirdZone,
           chat.roadDetailInThirdZone,
           chat.backRestoresRoomList,
+          chat.directInThirdZone,
+          chat.directKeepsThreeZones,
+          chat.directBackRestoresThreeZones,
+          chat.gridInThirdZone,
+          chat.gridKeepsThreeZones,
+          chat.conversationEventInThirdZone,
+          chat.conversationEventKeepsThreeZones,
+          chat.conversationBackStaysInChat,
           garage.visible,
           garage.viewCount === 9,
           garage.actionCount === 4,

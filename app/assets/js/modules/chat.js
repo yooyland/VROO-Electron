@@ -884,7 +884,7 @@ export function renderRooms(panel, state) {
     b.onclick = () => openGridChat(roomHost, state, b.dataset.gridContent);
   });
   panel.querySelectorAll("[data-open-grid]").forEach((b) => {
-    b.onclick = () => emit("grid:chatOpen", { gridId: b.dataset.openGrid });
+    b.onclick = () => emit("grid:spatialOpen", { gridId: b.dataset.openGrid });
   });
   panel.querySelectorAll("[data-room]").forEach((b) => {
     b.onclick = () => {
