@@ -726,6 +726,11 @@ function mountChatUtilities(panel, state, options = {}) {
   if (!shell || !compose || !textarea) return;
 
   const util = ensureChatUtilities(state);
+  if (util.pendingText) {
+    textarea.value = String(util.pendingText);
+    util.pendingText = "";
+    emit("state:save");
+  }
   shell.querySelector(".chat-gift-shelf")?.remove();
   shell.querySelector(".chat-phrase-drawer")?.remove();
 
@@ -999,10 +1004,31 @@ export function renderRooms(panel, state) {
               <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">일반 대화방</button>
             </div>
           </div>
+          <div class="chat-list-gift-shelf" aria-label="자주 쓰는 상품">
+            <span class="chat-utility-label">자주 쓰는 상품</span>
+            <div class="chat-gift-row">
+              ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" class="chat-gift-chip" data-list-gift="${escapeHtml(g.id)}"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
+            </div>
+          </div>
           <div class="chat-live-scroll" data-chat-room-host>
             ${gridHtml}
             ${directHtml}
             ${roomHtml}
+          </div>
+          <div class="chat-list-phrase-drawer ${ensureChatUtilities(state).phraseDrawerOpen ? "is-open" : ""}">
+            <button type="button" class="chat-phrase-toggle" data-list-phrase-toggle aria-expanded="${ensureChatUtilities(state).phraseDrawerOpen}">
+              <span>${ensureChatUtilities(state).phraseDrawerOpen ? "▼" : "▲"} 상용구</span>
+              <small>대화방을 선택하면 바로 보낼 수 있습니다.</small>
+            </button>
+            <div class="chat-pinned-phrases">
+              ${ensureChatUtilities(state).pinnedPhrases.map(p => `<button type="button" data-list-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
+            </div>
+            <div class="chat-phrase-panel">
+              <div class="chat-custom-phrase">
+                <input type="text" maxlength="60" placeholder="사용자 상용구 만들기" data-list-custom-input>
+                <button type="button" class="primary" data-list-custom-add>추가</button>
+              </div>
+            </div>
           </div>
         </aside>
       </div>
@@ -1010,6 +1036,31 @@ export function renderRooms(panel, state) {
     </div>`;
 
   const roomHost = panel.querySelector("[data-chat-room-host]");
+  const listUtil = ensureChatUtilities(state);
+  panel.querySelector("[data-list-phrase-toggle]")?.addEventListener("click", () => {
+    listUtil.phraseDrawerOpen = !listUtil.phraseDrawerOpen;
+    emit("state:save");
+    renderRooms(panel, state);
+  });
+  panel.querySelectorAll("[data-list-gift],[data-list-phrase]").forEach(button => {
+    button.onclick = () => {
+      state.chatUtilities.pendingText = button.dataset.listPhrase || (() => {
+        const gift = CHAT_FAVORITE_GIFTS.find(item => item.id === button.dataset.listGift);
+        return gift ? `[선물] ${gift.icon} ${gift.label}` : "";
+      })();
+      emit("state:save");
+      showSystemMessage("보낼 대화방을 선택하세요.");
+    };
+  });
+  panel.querySelector("[data-list-custom-add]")?.addEventListener("click", () => {
+    const input = panel.querySelector("[data-list-custom-input]");
+    const phrase = String(input?.value || "").trim();
+    if (!phrase) return;
+    if (!listUtil.customPhrases.includes(phrase)) listUtil.customPhrases.push(phrase);
+    listUtil.pinnedPhrases = [...listUtil.pinnedPhrases.filter(item => item !== phrase), phrase].slice(-5);
+    emit("state:save");
+    renderRooms(panel, state);
+  });
   panel.querySelectorAll("[data-rooms-filter]").forEach((b) => {
     b.onclick = () => {
       state.roomsListFilter = b.dataset.roomsFilter;
