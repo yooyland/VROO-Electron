@@ -1034,7 +1034,14 @@ export function renderRooms(panel, state) {
           </div>
         </aside>
       </div>
-      ${showSpatial ? `<section class="chat-command-below" aria-label="최근 공간 대화 기록">${historyHtml}</section>` : ""}
+      <section class="chat-road-alert-ticker" aria-label="도로 위험 안내">
+        <span>▲ 전방에 사고 났습니다.</span>
+        <span>교통사고 위험지역입니다.</span>
+        <span>전방에 사고 났습니다.</span>
+        <span>교통사고 위험지역입니다.</span>
+        <span>전방에 사고 났습니다.</span>
+      </section>
+      ${showSpatial && history.length ? `<section class="chat-command-below chat-history-collapsed" aria-label="최근 공간 대화 기록">${historyHtml}</section>` : ""}
     </div>`;
 
   const roomHost = panel.querySelector("[data-chat-room-host]");
