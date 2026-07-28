@@ -462,7 +462,7 @@ async function runWorkspaceRuntimeTest(win) {
           garage.viewCount === 9,
           garage.actionCount === 4,
           garage.autoControl,
-          garage.directionRestartsAuto,
+          garage.directionPreservesAutoState,
           garage.dragRotation,
           garage.missionInternal,
           garage.collectionInternal,
