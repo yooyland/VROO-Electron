@@ -292,9 +292,17 @@ async function runWorkspaceRuntimeTest(win) {
         const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
         const chat = {
           zoneCount: commandGrid.children.length,
-          filterCount: document.querySelectorAll(".chat-live-rail-head [data-rooms-filter]").length,
+          filterCount: document.querySelectorAll(".chat-command-control-row [data-rooms-filter]").length,
           roomHost: Boolean(document.querySelector("[data-chat-room-host]")),
-          filtersInsideThirdZone: Boolean(document.querySelector(".chat-live-rail .chat-command-filters"))
+          filtersInControlRow: Boolean(document.querySelector(".chat-command-control-row .chat-command-filters")),
+          defaultConversation: Boolean(await waitFor(
+            () => document.querySelector("[data-chat-room-host] .chat-shell"),
+            "default conversation in third zone"
+          )),
+          unreadBadge: Boolean(document.querySelector(".chat-command-unread strong")),
+          giftCount: document.querySelectorAll(".chat-command-gifts [data-list-gift]").length,
+          phraseToggle: Boolean(document.querySelector("[data-list-phrase-toggle]")),
+          roadTicker: Boolean(document.querySelector(".chat-road-alert-ticker"))
         };
 
         await click("[data-open-road-scene]");
@@ -319,6 +327,21 @@ async function runWorkspaceRuntimeTest(win) {
           "direct chat in third zone"
         ));
         chat.directKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
+        const runtimeText = "Runtime three-pane message";
+        const runtimeTextarea = await waitFor(() => document.querySelector("[data-chat-room-host] #chatText"), "direct textarea");
+        runtimeTextarea.value = runtimeText;
+        await click("[data-chat-room-host] #sendChat");
+        chat.messageInRoadPane = Boolean(await waitFor(
+          () => [...document.querySelectorAll(".chat-road-bubble")].some(node => node.textContent.includes(runtimeText)),
+          "message preview in road pane"
+        ));
+        chat.messageInMapPane = Boolean(await waitFor(
+          () => [...document.querySelectorAll(".chat-map-message")].some(node => node.textContent.includes(runtimeText)),
+          "message preview in map pane"
+        ));
+        chat.previewMaxTwo =
+          document.querySelectorAll(".chat-road-bubble").length <= 2 &&
+          document.querySelectorAll(".chat-map-message").length <= 2;
         await click("#chatBack");
         chat.directBackRestoresThreeZones = Boolean(await waitFor(
           () => document.querySelector(".chat-command-grid [data-chat-room-host]"),
@@ -412,9 +435,17 @@ async function runWorkspaceRuntimeTest(win) {
           map.gridHighlight,
           map.myHighlight,
           chat.zoneCount === 3,
-          chat.filterCount === 4,
+          chat.filterCount === 6,
           chat.roomHost,
-          chat.filtersInsideThirdZone,
+          chat.filtersInControlRow,
+          chat.defaultConversation,
+          chat.unreadBadge,
+          chat.giftCount === 4,
+          chat.phraseToggle,
+          chat.roadTicker,
+          chat.messageInRoadPane,
+          chat.messageInMapPane,
+          chat.previewMaxTwo,
           chat.roadDetailInThirdZone,
           chat.backRestoresRoomList,
           chat.directInThirdZone,
