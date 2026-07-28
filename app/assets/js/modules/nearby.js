@@ -17,6 +17,7 @@ import {
   openConversationInChat,
   ensureConversationUi
 } from "./conversation-store.js";
+import {VROO_PLACES, normalizePlaceMeta, categoryLabel, categorySvg} from "./places.js";
 
 let plateBusy = false;
 let detailBoundUserId = null;
@@ -139,8 +140,108 @@ function listNearbyUsers(state, query) {
   return rows;
 }
 
+function renderNearbyPlaces(panel, state, activeTab) {
+  const registered = Array.isArray(state.registeredPlaces) ? state.registeredPlaces : [];
+  const allPlaces = [
+    ...VROO_PLACES.map(normalizePlaceMeta).filter(Boolean),
+    ...registered.map(normalizePlaceMeta).filter(Boolean)
+  ];
+  const favoriteIds = new Set(
+    Array.isArray(state.favoritePlaceIds) ? state.favoritePlaceIds.map(String) : []
+  );
+  const list =
+    activeTab === "fav"
+      ? allPlaces.filter((p) => favoriteIds.has(String(p.id)))
+      : activeTab === "pins"
+        ? allPlaces.filter((p) => String(p.id).startsWith("pin-"))
+        : allPlaces.filter((p) => p.kind === "place" || p.kind === "landmark");
+  const title =
+    activeTab === "fav" ? "자주가는 곳" : activeTab === "pins" ? "등록지점" : "주변 편의시설";
+  const empty =
+    activeTab === "fav"
+      ? "아직 저장한 자주가는 곳이 없습니다."
+      : activeTab === "pins"
+        ? "등록지점이 없습니다. 현재 위치를 등록해 보세요."
+        : "표시할 편의시설이 없습니다.";
+  const rows = list.length
+    ? list.map((p) => `<div class="card user-row nearby-place-row">
+        <div class="avatar">${categorySvg(p.category)}</div>
+        <div>
+          <b>${escapeHtml(p.name)}</b>
+          <div class="muted">${escapeHtml(categoryLabel(p.category))} · ${escapeHtml(p.subtitle || "등록 장소")}</div>
+        </div>
+        <div class="convo-actions">
+          <button type="button" class="primary" data-place-view="${escapeHtml(p.id)}">지도 보기</button>
+          <button type="button" class="secondary" data-place-favorite="${escapeHtml(p.id)}" aria-label="즐겨찾기">${favoriteIds.has(String(p.id)) ? "★" : "☆"}</button>
+        </div>
+      </div>`).join("")
+    : `<div class="card muted">${empty}</div>`;
+
+  panel.innerHTML = `<div class="tabs">
+      <button type="button" data-nearby-tab="friends">주변 차량</button>
+      <button type="button" class="${activeTab === "poi" ? "active" : ""}" data-nearby-tab="poi">편의시설</button>
+      <button type="button" class="${activeTab === "fav" ? "active" : ""}" data-nearby-tab="fav">자주가는 곳</button>
+      <button type="button" class="${activeTab === "pins" ? "active" : ""}" data-nearby-tab="pins">등록지점</button>
+    </div>
+    <div class="card nearby-search-card">
+      <b>${title}</b>
+      <div class="muted">VROO 지명과 사용자가 저장한 위치를 지도와 연결합니다.</div>
+      ${activeTab === "pins" ? '<div class="convo-actions" style="margin-top:8px"><button type="button" class="primary" id="registerCurrentPlace">현재 위치 등록</button></div>' : ""}
+    </div>
+    <div id="nearbyList">${rows}</div>`;
+
+  panel.querySelectorAll("[data-nearby-tab]").forEach((btn) => {
+    btn.onclick = () => {
+      state.nearbyTab = btn.dataset.nearbyTab;
+      emit("state:save");
+      renderNearby(panel, state);
+    };
+  });
+  panel.querySelectorAll("[data-place-view]").forEach((btn) => {
+    btn.onclick = () => {
+      const place = allPlaces.find((p) => String(p.id) === btn.dataset.placeView);
+      if (place) emit("place:focus", place);
+    };
+  });
+  panel.querySelectorAll("[data-place-favorite]").forEach((btn) => {
+    btn.onclick = () => {
+      const place = allPlaces.find((p) => String(p.id) === btn.dataset.placeFavorite);
+      if (place) emit("place:toggleFavorite", place);
+    };
+  });
+  panel.querySelector("#registerCurrentPlace")?.addEventListener("click", () => {
+    const lat = Number(state.location?.lat);
+    const lng = Number(state.location?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      showSystemMessage("현재 위치를 확인할 수 없습니다.");
+      return;
+    }
+    if (!Array.isArray(state.registeredPlaces)) state.registeredPlaces = [];
+    state.registeredPlaces.push({
+      id: `pin-${Date.now()}`,
+      name: `내 등록지점 ${state.registeredPlaces.length + 1}`,
+      subtitle: "현재 위치에서 등록",
+      kind: "place",
+      category: "favorite",
+      lat,
+      lng,
+      createdAt: Date.now()
+    });
+    emit("state:save");
+    renderNearbyPlaces(panel, state, "pins");
+    showSystemMessage("현재 위치를 등록했습니다.");
+  });
+}
+
 export function renderNearby(panel, state) {
   ensureNearbyChat(state);
+  const activeTab = ["friends", "poi", "fav", "pins"].includes(state.nearbyTab)
+    ? state.nearbyTab
+    : "friends";
+  if (activeTab !== "friends") {
+    renderNearbyPlaces(panel, state, activeTab);
+    return;
+  }
   const query = panel.querySelector("#nearbySearch")?.value || "";
   const rows = listNearbyUsers(state, query);
   const unread = getUnreadSummary(state);
@@ -209,10 +310,9 @@ export function renderNearby(panel, state) {
 
   panel.querySelectorAll("[data-nearby-tab]").forEach(btn => {
     btn.onclick = () => {
-      panel.querySelectorAll("[data-nearby-tab]").forEach(b => b.classList.toggle("active", b === btn));
-      if (btn.dataset.nearbyTab !== "friends") {
-        showSystemMessage("이 탭은 다음 버전에서 연결됩니다.");
-      }
+      state.nearbyTab = btn.dataset.nearbyTab;
+      emit("state:save");
+      renderNearby(panel, state);
     };
   });
 
