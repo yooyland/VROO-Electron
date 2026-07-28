@@ -377,14 +377,16 @@ async function runWorkspaceRuntimeTest(win) {
 
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
+        const autoBeforeDirection =
+          document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed");
         await click('[data-garage-view="front"]');
         const garage = {
           visible: true,
           viewCount: document.querySelectorAll("[data-garage-view]").length,
           actionCount: document.querySelectorAll("[data-garage-action]").length,
           autoControl: Boolean(document.querySelector("[data-garage-auto]")),
-          directionRestartsAuto:
-            document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true"
+          directionPreservesAutoState:
+            document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === autoBeforeDirection
         };
         const garageStage = document.querySelector("[data-garage-stage]");
         const viewBeforeDrag = document.querySelector("[data-garage-view].active")?.dataset.garageView;
