@@ -292,18 +292,31 @@ async function runWorkspaceRuntimeTest(win) {
         const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
         const chat = {
           zoneCount: commandGrid.children.length,
-          filterCount: document.querySelectorAll(".chat-command-control-row [data-rooms-filter]").length,
+          filterCount: document.querySelectorAll(".chat-third-toolbar [data-rooms-filter]").length,
           roomHost: Boolean(document.querySelector("[data-chat-room-host]")),
-          filtersInControlRow: Boolean(document.querySelector(".chat-command-control-row .chat-command-filters")),
+          controlsInsideThirdPane: Boolean(document.querySelector(".chat-live-rail .chat-third-toolbar")),
           defaultConversation: Boolean(await waitFor(
             () => document.querySelector("[data-chat-room-host] .chat-shell"),
             "default conversation in third zone"
           )),
           unreadBadge: Boolean(document.querySelector(".chat-command-unread strong")),
-          giftCount: document.querySelectorAll(".chat-command-gifts [data-list-gift]").length,
+          toolCount: document.querySelectorAll(".chat-third-tools [data-chat-popup]").length,
           phraseToggle: Boolean(document.querySelector("[data-list-phrase-toggle]")),
+          phraseAtThirdPaneBottom: Boolean(document.querySelector(".chat-live-rail > .chat-list-phrase-drawer")),
           roadTicker: Boolean(document.querySelector(".chat-road-alert-ticker"))
         };
+        const chatScrollBeforePopup = document.querySelector("[data-chat-room-host] #chatScroll");
+        if (chatScrollBeforePopup) chatScrollBeforePopup.scrollTop = 1;
+        await click('[data-chat-popup="gifts"]');
+        chat.toolsPopupInsideThirdPane = Boolean(await waitFor(
+          () => document.querySelector(".chat-live-rail [data-chat-tools-popup]:not([hidden])"),
+          "third pane tools popup"
+        ));
+        await click("[data-chat-popup-close]");
+        chat.popupCloseRestoresConversation = Boolean(
+          document.querySelector("[data-chat-room-host] .chat-shell") &&
+          document.querySelector("[data-chat-tools-popup]")?.hidden
+        );
 
         await click("[data-open-road-scene]");
         chat.roadDetailInThirdZone = Boolean(await waitFor(
@@ -439,11 +452,14 @@ async function runWorkspaceRuntimeTest(win) {
           chat.zoneCount === 3,
           chat.filterCount === 6,
           chat.roomHost,
-          chat.filtersInControlRow,
+          chat.controlsInsideThirdPane,
           chat.defaultConversation,
           chat.unreadBadge,
-          chat.giftCount === 4,
+          chat.toolCount === 6,
           chat.phraseToggle,
+          chat.phraseAtThirdPaneBottom,
+          chat.toolsPopupInsideThirdPane,
+          chat.popupCloseRestoresConversation,
           chat.roadTicker,
           chat.messageInRoadPane,
           chat.messageInMapPane,
