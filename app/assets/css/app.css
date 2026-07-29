@@ -1371,3 +1371,44 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
   .chat-live-scroll .convo-body{grid-template-columns:minmax(100px,.8fr) minmax(0,1fr) auto}
   .chat-live-scroll .convo-space,.chat-live-scroll .convo-body>.muted{display:none}
 }
+
+
+/* Minimal map controls: one expandable GRID chat menu at top-left */
+.chat-map-head{right:auto}
+.chat-map-head>.chat-map-chat-menu{position:relative;border:0;background:transparent;padding:0}
+.chat-map-chat-toggle{display:flex;align-items:center;gap:8px;min-width:146px;justify-content:space-between;background:#07101be8}
+.chat-map-chat-toggle span{transition:transform .18s ease}
+.chat-map-chat-toggle.is-open span{transform:rotate(180deg)}
+.chat-map-chat-list[hidden]{display:none}
+.chat-map-chat-list{
+  position:absolute;
+  z-index:12;
+  left:0;
+  top:calc(100% + 6px);
+  width:min(300px,calc(100vw - 80px));
+  max-height:260px;
+  overflow:auto;
+  display:grid;
+  gap:5px;
+  padding:7px;
+  border:1px solid #3b4d61;
+  border-radius:12px;
+  background:#07101bf2;
+  box-shadow:0 14px 32px #0009;
+}
+.chat-map-chat-list>button{
+  display:grid;
+  grid-template-columns:minmax(100px,.72fr) minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  width:100%;
+  padding:8px 10px;
+  text-align:left;
+  border:1px solid #304154;
+  border-radius:9px;
+  background:#111a25;
+  color:#eef2f6;
+}
+.chat-map-chat-list>button:hover,.chat-map-chat-list>button:focus-visible{border-color:#f3bd20}
+.chat-map-chat-list b,.chat-map-chat-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-map-chat-list small{color:#8f9baa;font-size:10px}
