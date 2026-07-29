@@ -301,7 +301,7 @@ async function runWorkspaceRuntimeTest(win) {
           )),
           unreadBadge: Boolean(document.querySelector(".chat-command-unread strong")),
           toolCount: document.querySelectorAll(".chat-command-control-row [data-chat-popup]").length,
-          phraseToggle: Boolean(document.querySelector("[data-list-phrase-toggle]")),
+          phraseToggle: Boolean(document.querySelector('[data-chat-popup="phrases"]')),
           phraseAcrossWorkspaceBottom: Boolean(document.querySelector(".chat-command-shell > .chat-bottom-phrase-drawer")),
           roadTickerRemoved: !document.querySelector(".chat-road-alert-ticker")
         };
@@ -317,6 +317,18 @@ async function runWorkspaceRuntimeTest(win) {
           document.querySelector("[data-chat-room-host] .chat-shell") &&
           document.querySelector("[data-chat-tools-popup]")?.hidden
         );
+        await click('[data-chat-popup="phrases"]');
+        chat.phrasePopupAcrossWorkspace = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid > [data-chat-tools-popup]:not([hidden]) .chat-phrase-groups"),
+          "phrase popup across workspace"
+        ));
+        await click("[data-chat-popup-close]");
+        await click('[data-rooms-filter="all"]');
+        chat.roomListPopupAcrossWorkspace = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid > [data-chat-tools-popup]:not([hidden]) .chat-popup-room-list"),
+          "room list popup across workspace"
+        ));
+        await click("[data-chat-popup-close]");
 
         await click("[data-open-road-scene]");
         chat.roadDetailInThirdZone = Boolean(await waitFor(
@@ -458,6 +470,8 @@ async function runWorkspaceRuntimeTest(win) {
           chat.toolCount === 6,
           chat.phraseToggle,
           chat.phraseAcrossWorkspaceBottom,
+          chat.phrasePopupAcrossWorkspace,
+          chat.roomListPopupAcrossWorkspace,
           chat.toolsPopupAcrossWorkspace,
           chat.popupCloseRestoresConversation,
           chat.roadTickerRemoved,
