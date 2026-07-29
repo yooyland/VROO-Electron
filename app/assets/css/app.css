@@ -1338,3 +1338,36 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 /* Conversation preview bubbles fade without deleting chat history */
 .chat-road-bubble,.chat-map-message{transition:opacity .28s ease,transform .28s ease}
 .chat-road-bubble.is-fading,.chat-map-message.is-fading{opacity:0;transform:translateY(-4px)}
+
+
+/* Compact one-line conversation lists */
+.chat-live-scroll .convo-card{
+  grid-template-columns:36px minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  padding:7px 9px;
+}
+.chat-live-scroll .convo-icon{width:34px;height:34px}
+.chat-live-scroll .convo-body{
+  display:grid;
+  grid-template-columns:minmax(105px,.72fr) minmax(80px,.5fr) minmax(140px,1.35fr) auto;
+  align-items:center;
+  gap:8px;
+}
+.chat-live-scroll .convo-title-row,
+.chat-live-scroll .convo-space,
+.chat-live-scroll .convo-preview,
+.chat-live-scroll .convo-actions,
+.chat-live-scroll .convo-body>.muted{min-width:0;margin:0}
+.chat-live-scroll .convo-preview,
+.chat-live-scroll .convo-space,
+.chat-live-scroll .convo-body>.muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-live-scroll .convo-actions{justify-content:flex-end;flex-wrap:nowrap}
+.chat-live-scroll .convo-actions button{min-height:32px;padding:6px 11px;white-space:nowrap}
+.chat-popup-room-list{grid-template-columns:1fr}
+.chat-popup-room{grid-template-columns:32px minmax(120px,.48fr) minmax(0,1fr);grid-template-rows:1fr;align-items:center;padding:8px 10px}
+.chat-popup-room>span{grid-row:auto}.chat-popup-room>b,.chat-popup-room>small{min-width:0}
+@media(max-width:800px){
+  .chat-live-scroll .convo-body{grid-template-columns:minmax(100px,.8fr) minmax(0,1fr) auto}
+  .chat-live-scroll .convo-space,.chat-live-scroll .convo-body>.muted{display:none}
+}
