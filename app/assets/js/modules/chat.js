@@ -1115,17 +1115,24 @@ export function renderRooms(panel, state) {
 
         <section class="chat-grid-map" aria-label="공간 GRID 대화 지도">
           <div class="chat-map-head">
-            <div><small>주변 · 지도 대화</small><b data-command-grid-title>${escapeHtml(state.activeConversationContext?.gridTitle || state.currentGrid || "MY GRID")}</b></div>
-            <div class="chat-map-head-actions">
-              <button type="button" class="secondary" data-open-nearby-content>주변 대화</button>
-              <button type="button" class="secondary" data-open-grid-map>위치 GRID 보기</button>
+            <div class="chat-map-chat-menu">
+              <button type="button" class="secondary chat-map-chat-toggle" data-map-grid-chat-toggle aria-expanded="false">
+                주변지도 대화 <span aria-hidden="true">▾</span>
+              </button>
+              <div class="chat-map-chat-list" data-map-grid-chat-list hidden>
+                ${grids.length
+                  ? grids.map((room) => `<button type="button" data-map-grid-chat="${escapeHtml(room.gridId || "")}">
+                    <b>${escapeHtml(room.title || "GRID 대화")}</b>
+                    <small>${escapeHtml(room.last || "대화를 시작하세요")}</small>
+                  </button>`).join("")
+                  : '<div class="muted">참여 가능한 GRID 채팅이 없습니다.</div>'}
+              </div>
             </div>
           </div>
           <div class="chat-map-grid-lines" aria-hidden="true"></div>
           ${nearbyPreviewHtml}
           ${mapMarkers || '<div class="chat-map-empty">주변 차량을 찾는 중입니다.</div>'}
           <button type="button" class="chat-my-location" data-open-nearby-map><span></span>나</button>
-          <div class="chat-map-footer"><button type="button" class="secondary" data-open-nearby-map>내 위치</button><button type="button" class="primary" data-open-grid-map>GRID</button><button type="button" class="secondary" data-open-nearby-map>참여자</button></div>
         </section>
 
         <aside class="chat-live-rail">
@@ -1383,8 +1390,22 @@ export function renderRooms(panel, state) {
   panel.querySelector("[data-open-road-scene]")?.addEventListener("click", () => {
     openRoadChatInContent(roomHost, state);
   });
-  panel.querySelector("[data-open-nearby-content]")?.addEventListener("click", () => {
-    openNearbyChatInContent(roomHost, state);
+  const mapGridChatToggle = panel.querySelector("[data-map-grid-chat-toggle]");
+  const mapGridChatList = panel.querySelector("[data-map-grid-chat-list]");
+  mapGridChatToggle?.addEventListener("click", () => {
+    const open = mapGridChatList?.hidden !== false;
+    if (mapGridChatList) mapGridChatList.hidden = !open;
+    mapGridChatToggle.setAttribute("aria-expanded", String(open));
+    mapGridChatToggle.classList.toggle("is-open", open);
+  });
+  panel.querySelectorAll("[data-map-grid-chat]").forEach((button) => {
+    button.onclick = () => {
+      state.chatRoomListRequested = false;
+      if (mapGridChatList) mapGridChatList.hidden = true;
+      mapGridChatToggle?.setAttribute("aria-expanded", "false");
+      mapGridChatToggle?.classList.remove("is-open");
+      openGridChat(roomHost, state, button.dataset.mapGridChat);
+    };
   });
   panel.querySelectorAll("[data-open-nearby-map]").forEach((b) => {
     b.onclick = () => emit("workspace:spatialHome");
