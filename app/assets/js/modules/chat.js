@@ -514,6 +514,21 @@ function stopVoice() {
   }
 }
 
+function speakLatestMessage(panel) {
+  const bubbles = [...(panel?.querySelectorAll?.("#chatScroll .bubble:not(.mine)") || [])];
+  const text = String(bubbles.at(-1)?.textContent || "").trim();
+  if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "ko-KR";
+  window.speechSynthesis.speak(utterance);
+}
+
+function activateVoiceMode(panel, state, roomId) {
+  speakLatestMessage(panel);
+  if (!voiceListening || voiceBoundToRoomId !== roomId) toggleVoice(panel, state, roomId);
+}
+
 export function pauseChatVoice() {
   stopVoice();
 }
@@ -807,6 +822,12 @@ const CHAT_FAVORITE_GIFTS = [
   { id: "event", icon: "🎁", label: "이벤트" }
 ];
 const CHAT_DEFAULT_PHRASES = ["안전운전하세요 😊", "여기서 만나요!", "확인했습니다.", "잠시 후 연락드릴게요."];
+const CHAT_PHRASE_GROUPS = [
+  { id: "drive", label: "안전운전", phrases: ["안전운전하세요 😊", "앞쪽이 정체입니다.", "천천히 따라오세요.", "먼저 지나가세요."] },
+  { id: "meet", label: "만남·이동", phrases: ["여기서 만나요!", "곧 도착합니다.", "지금 출발합니다.", "잠시만 기다려주세요."] },
+  { id: "reply", label: "확인·응답", phrases: ["확인했습니다.", "좋아요 👍", "감사합니다.", "잠시 후 연락드릴게요."] },
+  { id: "urgent", label: "긴급·도움", phrases: ["도움이 필요합니다.", "사고가 발생했습니다.", "긴급차량이 지나갑니다.", "안전한 곳에 정차해주세요."] }
+];
 
 function ensureChatUtilities(state) {
   if (!state.chatUtilities || typeof state.chatUtilities !== "object") state.chatUtilities = {};
@@ -1000,7 +1021,6 @@ export function renderRooms(panel, state) {
                 <div class="convo-preview muted">${escapeHtml(r.last || "대화를 시작하세요")}</div>
                 <div class="convo-actions">
                   <button class="primary" data-grid-content="${escapeHtml(r.gridId || "")}" type="button">대화 열기</button>
-                  <button class="secondary" data-open-grid="${escapeHtml(r.gridId || "")}" type="button">공간에서 열기</button>
                 </div>
               </div>
             </div>`;
@@ -1125,28 +1145,14 @@ export function renderRooms(panel, state) {
           </div>
         </div>
       </div>
-      <section class="chat-bottom-phrase-drawer ${ensureChatUtilities(state).phraseDrawerOpen ? "is-open" : ""}" aria-label="상용구 모음">
+      <section class="chat-bottom-phrase-drawer" aria-label="상용구 모음">
         <div class="chat-bottom-phrase-row">
-          <button type="button" class="chat-phrase-toggle" data-list-phrase-toggle aria-expanded="${ensureChatUtilities(state).phraseDrawerOpen}">
-            <span>${ensureChatUtilities(state).phraseDrawerOpen ? "▼" : "▲"} 상용구</span>
-            <small>대화방을 선택하면 바로 보낼 수 있습니다.</small>
+          <button type="button" class="chat-phrase-toggle" data-chat-popup="phrases" aria-haspopup="dialog">
+            <span>▲ 상용구</span>
+            <small>상황별 문장과 사용자 상용구</small>
           </button>
           <div class="chat-pinned-phrases">
             ${ensureChatUtilities(state).pinnedPhrases.map(p => `<button type="button" data-list-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
-          </div>
-        </div>
-        <div class="chat-phrase-panel">
-          <div class="chat-phrase-list">
-            ${[...CHAT_DEFAULT_PHRASES, ...ensureChatUtilities(state).customPhrases]
-              .filter((phrase, index, list) => phrase && list.indexOf(phrase) === index)
-              .map((phrase) => `<div class="chat-phrase-item">
-                <button type="button" data-list-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
-                <button type="button" class="chat-phrase-pin ${ensureChatUtilities(state).pinnedPhrases.includes(phrase) ? "active" : ""}" data-list-pin-phrase="${escapeHtml(phrase)}" aria-label="하단 진열">${ensureChatUtilities(state).pinnedPhrases.includes(phrase) ? "★" : "☆"}</button>
-              </div>`).join("")}
-          </div>
-          <div class="chat-custom-phrase">
-            <input type="text" maxlength="60" placeholder="사용자 상용구 만들기" data-list-custom-input>
-            <button type="button" class="primary" data-list-custom-add>추가</button>
           </div>
         </div>
       </section>
@@ -1183,6 +1189,44 @@ export function renderRooms(panel, state) {
     .filter((gift) => !selectedId || gift.id === selectedId)
     .map((gift) => `<button type="button" class="chat-popup-action" data-popup-gift="${escapeHtml(gift.id)}"><span>${gift.icon}</span><b>${escapeHtml(gift.label)}</b><small>현재 대화 상대에게 보내기</small></button>`)
     .join("");
+  const phrasePopupHtml = () => `
+    <div class="chat-phrase-groups">
+      ${CHAT_PHRASE_GROUPS.map((group) => `<section class="chat-phrase-group">
+        <h4>${escapeHtml(group.label)}</h4>
+        <div>${group.phrases.map((phrase) => `<button type="button" data-popup-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>`).join("")}</div>
+      </section>`).join("")}
+      <section class="chat-phrase-group chat-custom-group">
+        <h4>사용자 설정 상용구</h4>
+        <div class="chat-saved-custom-phrases">
+          ${listUtil.customPhrases.length
+            ? listUtil.customPhrases.map((phrase) => `<span><button type="button" data-popup-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button><button type="button" data-popup-delete-phrase="${escapeHtml(phrase)}" aria-label="사용자 상용구 삭제">×</button></span>`).join("")
+            : '<small class="muted">저장한 사용자 상용구가 없습니다.</small>'}
+        </div>
+        <div class="chat-custom-phrase">
+          <input type="text" maxlength="60" placeholder="사용자 상용구를 입력하세요" data-popup-custom-input>
+          <button type="button" class="primary" data-popup-custom-save>저장</button>
+        </div>
+      </section>
+    </div>`;
+  const roomPopupHtml = (kind) => {
+    const cards = [];
+    if (kind === "all" || kind === "spatial") {
+      grids.forEach((room) => cards.push(`<button type="button" class="chat-popup-room" data-popup-grid="${escapeHtml(room.gridId || "")}">
+        <span>${convoIcon("grid")}</span><b>${escapeHtml(room.title || "GRID 대화")}</b><small>${escapeHtml(room.last || "대화를 시작하세요")}</small>
+      </button>`));
+    }
+    if (kind === "all" || kind === "direct") {
+      directs.forEach((room) => cards.push(`<button type="button" class="chat-popup-room" data-popup-room="${escapeHtml(room.id)}">
+        <span>${convoIcon("direct")}</span><b>${escapeHtml(room.title || room.user?.nickname || "1:1 대화")}</b><small>${escapeHtml(room.last || "대화를 시작하세요")}</small>
+      </button>`));
+    }
+    if (kind === "all" || kind === "room") {
+      rooms.forEach((room) => cards.push(`<button type="button" class="chat-popup-room" data-popup-room="${escapeHtml(room.id)}">
+        <span>${convoIcon("direct")}</span><b>${escapeHtml(room.title || "대화방")}</b><small>${escapeHtml(room.last || "대화를 시작하세요")}</small>
+      </button>`));
+    }
+    return `<div class="chat-popup-room-list">${cards.join("") || '<div class="muted">표시할 대화방이 없습니다.</div>'}</div>`;
+  };
   const openToolsPopup = (button) => {
     if (!toolsPopup || !popupTitle || !popupBody) return;
     popupTrigger = button;
@@ -1195,6 +1239,14 @@ export function renderRooms(panel, state) {
         <button type="button" data-popup-filter="spatial"><b>도로·주변</b><strong>${by.road + by.nearby}</strong></button>
         <button type="button" data-popup-filter="room"><b>단체·친구</b><strong>${by.room}</strong></button>
       </div>`;
+    } else if (kind === "phrases") {
+      popupTitle.textContent = "상황별 상용구";
+      popupBody.innerHTML = phrasePopupHtml();
+    } else if (kind.startsWith("rooms:")) {
+      const roomKind = kind.slice(6) || "all";
+      const labels = { all: "전체 대화방", spatial: "공간·GRID 대화방", direct: "1:1 대화방", room: "친구·단체 대화방" };
+      popupTitle.textContent = labels[roomKind] || "대화방 목록";
+      popupBody.innerHTML = roomPopupHtml(roomKind);
     } else {
       const gift = CHAT_FAVORITE_GIFTS.find((item) => item.id === kind);
       popupTitle.textContent = gift ? `${gift.icon} ${gift.label} 보내기` : "자주 쓰는 상품";
@@ -1215,6 +1267,42 @@ export function renderRooms(panel, state) {
         renderRooms(panel, state);
       };
     });
+    popupBody.querySelectorAll("[data-popup-grid]").forEach((roomButton) => {
+      roomButton.onclick = () => {
+        state.chatRoomListRequested = false;
+        closeToolsPopup();
+        openGridChat(roomHost, state, roomButton.dataset.popupGrid);
+      };
+    });
+    popupBody.querySelectorAll("[data-popup-room]").forEach((roomButton) => {
+      roomButton.onclick = () => {
+        const id = roomButton.dataset.popupRoom;
+        state.chatRoomListRequested = false;
+        closeToolsPopup();
+        openChatWith(roomHost, state, liveUser(id, state.rooms[id]?.user));
+      };
+    });
+    popupBody.querySelectorAll("[data-popup-phrase]").forEach((phraseButton) => {
+      phraseButton.onclick = () => sendToolText(phraseButton.dataset.popupPhrase || "");
+    });
+    popupBody.querySelector("[data-popup-custom-save]")?.addEventListener("click", () => {
+      const input = popupBody.querySelector("[data-popup-custom-input]");
+      const phrase = String(input?.value || "").trim();
+      if (!phrase) return;
+      if (!listUtil.customPhrases.includes(phrase)) listUtil.customPhrases.push(phrase);
+      listUtil.pinnedPhrases = [...listUtil.pinnedPhrases.filter((item) => item !== phrase), phrase].slice(-5);
+      emit("state:save");
+      openToolsPopup(button);
+    });
+    popupBody.querySelectorAll("[data-popup-delete-phrase]").forEach((deleteButton) => {
+      deleteButton.onclick = () => {
+        const phrase = deleteButton.dataset.popupDeletePhrase || "";
+        listUtil.customPhrases = listUtil.customPhrases.filter((item) => item !== phrase);
+        listUtil.pinnedPhrases = listUtil.pinnedPhrases.filter((item) => item !== phrase);
+        emit("state:save");
+        openToolsPopup(button);
+      };
+    });
     panel.querySelector("[data-chat-popup-close]")?.focus();
   };
   panel.querySelectorAll("[data-chat-popup]").forEach((button) => {
@@ -1229,11 +1317,6 @@ export function renderRooms(panel, state) {
     if (event.key === "Escape" && toolsPopup && !toolsPopup.hidden) closeToolsPopup();
   };
   document.addEventListener("keydown", panel._chatToolsKeyHandler);
-  panel.querySelector("[data-list-phrase-toggle]")?.addEventListener("click", () => {
-    listUtil.phraseDrawerOpen = !listUtil.phraseDrawerOpen;
-    emit("state:save");
-    renderRooms(panel, state);
-  });
   panel.querySelectorAll("[data-list-gift],[data-list-phrase]").forEach(button => {
     button.onclick = () => {
       const text = button.dataset.listPhrase || (() => {
@@ -1276,7 +1359,8 @@ export function renderRooms(panel, state) {
     b.onclick = () => {
       state.roomsListFilter = b.dataset.roomsFilter;
       emit("state:save");
-      renderRooms(panel, state);
+      b.dataset.chatPopup = `rooms:${b.dataset.roomsFilter}`;
+      openToolsPopup(b);
     };
   });
   panel.querySelector("[data-open-road-scene]")?.addEventListener("click", () => {
@@ -1461,7 +1545,8 @@ function renderChat(panel, state, peerId) {
       const mode = b.dataset.chatmode;
       panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
       panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
-      if (mode !== "voice") stopVoice();
+      if (mode === "voice") activateVoiceMode(panel, state, peerId);
+      else stopVoice();
     };
   });
 
@@ -1647,7 +1732,6 @@ function renderGridChat(panel, state, gridId) {
         <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
         <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 동일 세션</div>
       </div>
-      <button class="secondary" id="gridOpenSpatial" type="button">공간에서 열기</button>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
     </div>
     <div id="chatScroll" class="chat-scroll">${bubbles}</div>
@@ -1657,7 +1741,7 @@ function renderGridChat(panel, state, gridId) {
         <button type="button" data-chatmode="voice">음성</button>
       </div>
       <div id="textCompose">
-        <textarea id="chatText" placeholder="GRID에 메시지를 입력하세요"></textarea>
+        <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
       <div id="voiceCompose" style="display:none">
@@ -1678,10 +1762,6 @@ function renderGridChat(panel, state, gridId) {
     }
     emit("spatialChat:back");
   };
-  panel.querySelector("#gridOpenSpatial").onclick = () => {
-    emit("grid:spatialOpen", { gridId });
-  };
-
   panel.querySelector("#favoriteRoom").onclick = () => {
     if (!Array.isArray(state.favoriteRooms)) state.favoriteRooms = [];
     state.favoriteRooms = state.favoriteRooms.includes(roomId)
@@ -1697,7 +1777,8 @@ function renderGridChat(panel, state, gridId) {
       const mode = b.dataset.chatmode;
       panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
       panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
-      if (mode !== "voice") stopVoice();
+      if (mode === "voice") activateVoiceMode(panel, state, roomId);
+      else stopVoice();
     };
   });
 
