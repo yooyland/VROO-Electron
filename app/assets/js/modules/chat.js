@@ -1537,6 +1537,7 @@ function renderChat(panel, state, peerId) {
 
   panel.querySelector("#chatBack").onclick = () => {
     state.chatRoomListRequested = true;
+    state.roomsListFilter = "all";
     stopVoice();
     clearReplyTimer(peerId);
     closeActiveChat(state);
@@ -1770,6 +1771,7 @@ function renderGridChat(panel, state, gridId) {
 
   panel.querySelector("#chatBack").onclick = () => {
     state.chatRoomListRequested = true;
+    state.roomsListFilter = "all";
     stopVoice();
     clearReplyTimer(roomId);
     closeActiveChat(state);
