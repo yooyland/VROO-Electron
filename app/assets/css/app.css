@@ -1301,14 +1301,19 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .chat-phrase-group button{border:1px solid #39485b;border-radius:999px;background:#151f2b;color:#eef2f6;padding:7px 10px;font-size:11px}
 .chat-phrase-group button:hover,.chat-phrase-group button:focus-visible{border-color:#f3bd20}
 .chat-custom-group{grid-column:1/3}
-.chat-saved-custom-phrases>span{display:inline-flex}
-.chat-saved-custom-phrases>span>button:first-child{border-radius:999px 0 0 999px}
-.chat-saved-custom-phrases>span>button:last-child{border-left:0;border-radius:0 999px 999px 0;color:#ff8f9a}
+.chat-phrase-option{display:inline-flex;align-items:stretch}
+.chat-phrase-option>button:first-child{border-radius:999px 0 0 999px}
+.chat-phrase-option>.chat-phrase-pin{border-left:0;border-radius:0 999px 999px 0;color:#aeb8c5;font-size:10px}
+.chat-phrase-option>.chat-phrase-pin.is-pinned{border-color:#d9ad45;background:#2b2412;color:#ffd34d}
+.chat-phrase-option>.chat-phrase-delete{margin-left:4px;border-color:#57333a;color:#ff8f9a}
+.chat-saved-custom-phrases{display:flex;flex-wrap:wrap;gap:6px}
 .chat-custom-group .chat-custom-phrase{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-top:10px}
 .chat-bottom-phrase-drawer{flex:none;border:1px solid #293746;border-radius:14px;background:#0b1119;overflow:hidden}
 .chat-bottom-phrase-row{display:flex;align-items:center;min-height:42px}
-.chat-bottom-phrase-row>.chat-phrase-toggle{flex:0 0 230px;width:auto;align-self:stretch;border-right:1px solid #293746}
-.chat-bottom-phrase-row>.chat-pinned-phrases{flex:1;padding:6px 10px}
+.chat-bottom-phrase-row>.chat-phrase-toggle{flex:0 0 120px;width:auto;align-self:stretch;border-right:1px solid #293746;white-space:nowrap}
+.chat-bottom-phrase-row>.chat-pinned-phrases{flex:1;display:flex;align-items:center;gap:7px;min-width:0;overflow-x:auto;padding:6px 10px;scrollbar-width:none}
+.chat-bottom-phrase-row>.chat-pinned-phrases::-webkit-scrollbar{display:none}
+.chat-bottom-phrase-row>.chat-pinned-phrases button{flex:0 0 auto;white-space:nowrap}
 .chat-bottom-phrase-drawer>.chat-phrase-panel{grid-template-columns:minmax(0,1fr) minmax(260px,.45fr);gap:10px}
 .chat-bottom-phrase-drawer.is-open>.chat-phrase-panel{display:grid}
 .chat-bottom-phrase-drawer .chat-phrase-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:150px}
