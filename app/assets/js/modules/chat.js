@@ -1062,6 +1062,21 @@ export function renderRooms(panel, state) {
           <small>도로·GRID·주변 차량과 대화를 한 화면에서 연결합니다.</small>
         </div>
       </header>
+      <div class="chat-command-control-row">
+        <button type="button" class="chat-command-unread" data-chat-popup="unread" aria-haspopup="dialog">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></button>
+        <div class="chat-command-gifts" aria-label="자주 쓰는 상품">
+          <button type="button" class="chat-gift-main" data-chat-popup="gifts" aria-haspopup="dialog">선물</button>
+          ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" data-chat-popup="${escapeHtml(g.id)}" aria-haspopup="dialog"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
+        </div>
+        <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist" aria-label="대화방 종류">
+          <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
+          <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간</button>
+          <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
+          <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">친구</button>
+          <button type="button" data-rooms-filter="room">단체</button>
+          <button type="button" data-rooms-filter="spatial">그리드</button>
+        </div>
+      </div>
       <div class="chat-command-grid">
         <section class="chat-road-scene" aria-label="도로 대화 장면" data-open-road-scene>
           <div class="chat-scene-top">
@@ -1094,66 +1109,46 @@ export function renderRooms(panel, state) {
         </section>
 
         <aside class="chat-live-rail">
-          <div class="chat-third-toolbar">
-            <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist" aria-label="대화방 종류">
-              <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
-              <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간</button>
-              <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
-              <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">친구</button>
-              <button type="button" data-rooms-filter="room">단체</button>
-              <button type="button" data-rooms-filter="spatial">그리드</button>
-            </div>
-            <div class="chat-third-tools" aria-label="대화 도구">
-              <button type="button" class="chat-command-unread" data-chat-popup="unread" aria-haspopup="dialog">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></button>
-              <button type="button" data-chat-popup="gifts" aria-haspopup="dialog">선물</button>
-              ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" data-chat-popup="${escapeHtml(g.id)}" aria-haspopup="dialog"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
-            </div>
-          </div>
           <div class="chat-live-scroll" data-chat-room-host>
             ${gridHtml}
             ${directHtml}
             ${roomHtml}
           </div>
-          <div class="chat-list-phrase-drawer ${ensureChatUtilities(state).phraseDrawerOpen ? "is-open" : ""}">
-            <button type="button" class="chat-phrase-toggle" data-list-phrase-toggle aria-expanded="${ensureChatUtilities(state).phraseDrawerOpen}">
-              <span>${ensureChatUtilities(state).phraseDrawerOpen ? "▼" : "▲"} 상용구</span>
-              <small>대화방을 선택하면 바로 보낼 수 있습니다.</small>
-            </button>
-            <div class="chat-pinned-phrases">
-              ${ensureChatUtilities(state).pinnedPhrases.map(p => `<button type="button" data-list-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
-            </div>
-            <div class="chat-phrase-panel">
-              <div class="chat-phrase-list">
-                ${[...CHAT_DEFAULT_PHRASES, ...ensureChatUtilities(state).customPhrases]
-                  .filter((phrase, index, list) => phrase && list.indexOf(phrase) === index)
-                  .map((phrase) => `<div class="chat-phrase-item">
-                    <button type="button" data-list-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
-                    <button type="button" class="chat-phrase-pin ${ensureChatUtilities(state).pinnedPhrases.includes(phrase) ? "active" : ""}" data-list-pin-phrase="${escapeHtml(phrase)}" aria-label="하단 진열">${ensureChatUtilities(state).pinnedPhrases.includes(phrase) ? "★" : "☆"}</button>
-                  </div>`).join("")}
-              </div>
-              <div class="chat-custom-phrase">
-                <input type="text" maxlength="60" placeholder="사용자 상용구 만들기" data-list-custom-input>
-                <button type="button" class="primary" data-list-custom-add>추가</button>
-              </div>
-            </div>
-          </div>
-          <div class="chat-third-popup" data-chat-tools-popup hidden role="dialog" aria-modal="true" aria-label="대화 도구">
-            <div class="chat-third-popup-card">
-              <div class="chat-third-popup-head">
-                <b data-chat-popup-title>대화 도구</b>
-                <button type="button" class="secondary" data-chat-popup-close aria-label="닫기">×</button>
-              </div>
-              <div class="chat-third-popup-body" data-chat-popup-body></div>
-            </div>
-          </div>
         </aside>
+        <div class="chat-workspace-popup" data-chat-tools-popup hidden role="dialog" aria-modal="true" aria-label="대화 도구">
+          <div class="chat-workspace-popup-card">
+            <div class="chat-third-popup-head">
+              <b data-chat-popup-title>대화 도구</b>
+              <button type="button" class="secondary" data-chat-popup-close aria-label="닫기">×</button>
+            </div>
+            <div class="chat-third-popup-body" data-chat-popup-body></div>
+          </div>
+        </div>
       </div>
-      <section class="chat-road-alert-ticker" aria-label="도로 위험 안내">
-        <span>▲ 전방에 사고 났습니다.</span>
-        <span>교통사고 위험지역입니다.</span>
-        <span>전방에 사고 났습니다.</span>
-        <span>교통사고 위험지역입니다.</span>
-        <span>전방에 사고 났습니다.</span>
+      <section class="chat-bottom-phrase-drawer ${ensureChatUtilities(state).phraseDrawerOpen ? "is-open" : ""}" aria-label="상용구 모음">
+        <div class="chat-bottom-phrase-row">
+          <button type="button" class="chat-phrase-toggle" data-list-phrase-toggle aria-expanded="${ensureChatUtilities(state).phraseDrawerOpen}">
+            <span>${ensureChatUtilities(state).phraseDrawerOpen ? "▼" : "▲"} 상용구</span>
+            <small>대화방을 선택하면 바로 보낼 수 있습니다.</small>
+          </button>
+          <div class="chat-pinned-phrases">
+            ${ensureChatUtilities(state).pinnedPhrases.map(p => `<button type="button" data-list-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
+          </div>
+        </div>
+        <div class="chat-phrase-panel">
+          <div class="chat-phrase-list">
+            ${[...CHAT_DEFAULT_PHRASES, ...ensureChatUtilities(state).customPhrases]
+              .filter((phrase, index, list) => phrase && list.indexOf(phrase) === index)
+              .map((phrase) => `<div class="chat-phrase-item">
+                <button type="button" data-list-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
+                <button type="button" class="chat-phrase-pin ${ensureChatUtilities(state).pinnedPhrases.includes(phrase) ? "active" : ""}" data-list-pin-phrase="${escapeHtml(phrase)}" aria-label="하단 진열">${ensureChatUtilities(state).pinnedPhrases.includes(phrase) ? "★" : "☆"}</button>
+              </div>`).join("")}
+          </div>
+          <div class="chat-custom-phrase">
+            <input type="text" maxlength="60" placeholder="사용자 상용구 만들기" data-list-custom-input>
+            <button type="button" class="primary" data-list-custom-add>추가</button>
+          </div>
+        </div>
       </section>
       ${showSpatial && history.length ? `<section class="chat-command-below chat-history-collapsed" aria-label="최근 공간 대화 기록">${historyHtml}</section>` : ""}
     </div>`;
