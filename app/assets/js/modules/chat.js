@@ -1062,23 +1062,6 @@ export function renderRooms(panel, state) {
           <small>도로·GRID·주변 차량과 대화를 한 화면에서 연결합니다.</small>
         </div>
       </header>
-      <div class="chat-command-control-row">
-        <div class="chat-command-unread">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></div>
-        <div class="chat-command-gifts" aria-label="자주 쓰는 상품">
-          <b>선물</b>
-          <div class="chat-gift-row">
-            ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" class="chat-gift-chip" data-list-gift="${escapeHtml(g.id)}"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
-          </div>
-        </div>
-        <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist" aria-label="대화방 종류">
-          <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
-          <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간</button>
-          <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
-          <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">친구</button>
-          <button type="button" data-rooms-filter="room">단체</button>
-          <button type="button" data-rooms-filter="spatial">그리드</button>
-        </div>
-      </div>
       <div class="chat-command-grid">
         <section class="chat-road-scene" aria-label="도로 대화 장면" data-open-road-scene>
           <div class="chat-scene-top">
@@ -1111,6 +1094,21 @@ export function renderRooms(panel, state) {
         </section>
 
         <aside class="chat-live-rail">
+          <div class="chat-third-toolbar">
+            <div class="tabs rooms-filter-tabs chat-command-filters" role="tablist" aria-label="대화방 종류">
+              <button type="button" data-rooms-filter="all" class="${filter === "all" ? "active" : ""}">전체</button>
+              <button type="button" data-rooms-filter="spatial" class="${filter === "spatial" ? "active" : ""}">공간</button>
+              <button type="button" data-rooms-filter="direct" class="${filter === "direct" ? "active" : ""}">1:1</button>
+              <button type="button" data-rooms-filter="room" class="${filter === "room" ? "active" : ""}">친구</button>
+              <button type="button" data-rooms-filter="room">단체</button>
+              <button type="button" data-rooms-filter="spatial">그리드</button>
+            </div>
+            <div class="chat-third-tools" aria-label="대화 도구">
+              <button type="button" class="chat-command-unread" data-chat-popup="unread" aria-haspopup="dialog">읽지 않음 <strong>${by.road + by.nearby + by.grid + by.direct + by.room}</strong></button>
+              <button type="button" data-chat-popup="gifts" aria-haspopup="dialog">선물</button>
+              ${CHAT_FAVORITE_GIFTS.map(g => `<button type="button" data-chat-popup="${escapeHtml(g.id)}" aria-haspopup="dialog"><span>${g.icon}</span>${escapeHtml(g.label)}</button>`).join("")}
+            </div>
+          </div>
           <div class="chat-live-scroll" data-chat-room-host>
             ${gridHtml}
             ${directHtml}
@@ -1139,6 +1137,15 @@ export function renderRooms(panel, state) {
               </div>
             </div>
           </div>
+          <div class="chat-third-popup" data-chat-tools-popup hidden role="dialog" aria-modal="true" aria-label="대화 도구">
+            <div class="chat-third-popup-card">
+              <div class="chat-third-popup-head">
+                <b data-chat-popup-title>대화 도구</b>
+                <button type="button" class="secondary" data-chat-popup-close aria-label="닫기">×</button>
+              </div>
+              <div class="chat-third-popup-body" data-chat-popup-body></div>
+            </div>
+          </div>
         </aside>
       </div>
       <section class="chat-road-alert-ticker" aria-label="도로 위험 안내">
@@ -1153,6 +1160,80 @@ export function renderRooms(panel, state) {
 
   const roomHost = panel.querySelector("[data-chat-room-host]");
   const listUtil = ensureChatUtilities(state);
+  const toolsPopup = panel.querySelector("[data-chat-tools-popup]");
+  const popupTitle = panel.querySelector("[data-chat-popup-title]");
+  const popupBody = panel.querySelector("[data-chat-popup-body]");
+  let popupTrigger = null;
+  const closeToolsPopup = () => {
+    if (!toolsPopup) return;
+    toolsPopup.hidden = true;
+    popupTrigger?.focus?.();
+    popupTrigger = null;
+  };
+  const sendToolText = (text) => {
+    const openTextarea = roomHost?.querySelector?.("#chatText");
+    const openSend = roomHost?.querySelector?.("#sendChat");
+    if (openTextarea && openSend) {
+      openTextarea.value = text;
+      openSend.click();
+      closeToolsPopup();
+      return;
+    }
+    state.chatUtilities.pendingText = text;
+    emit("state:save");
+    closeToolsPopup();
+    showSystemMessage("보낼 대화방을 선택하세요.");
+  };
+  const giftButtonsHtml = (selectedId = "") => CHAT_FAVORITE_GIFTS
+    .filter((gift) => !selectedId || gift.id === selectedId)
+    .map((gift) => `<button type="button" class="chat-popup-action" data-popup-gift="${escapeHtml(gift.id)}"><span>${gift.icon}</span><b>${escapeHtml(gift.label)}</b><small>현재 대화 상대에게 보내기</small></button>`)
+    .join("");
+  const openToolsPopup = (button) => {
+    if (!toolsPopup || !popupTitle || !popupBody) return;
+    popupTrigger = button;
+    const kind = button.dataset.chatPopup || "gifts";
+    if (kind === "unread") {
+      popupTitle.textContent = "읽지 않은 대화";
+      popupBody.innerHTML = `<div class="chat-unread-summary">
+        <button type="button" data-popup-filter="direct"><b>1:1</b><strong>${by.direct}</strong></button>
+        <button type="button" data-popup-filter="spatial"><b>GRID</b><strong>${by.grid}</strong></button>
+        <button type="button" data-popup-filter="spatial"><b>도로·주변</b><strong>${by.road + by.nearby}</strong></button>
+        <button type="button" data-popup-filter="room"><b>단체·친구</b><strong>${by.room}</strong></button>
+      </div>`;
+    } else {
+      const gift = CHAT_FAVORITE_GIFTS.find((item) => item.id === kind);
+      popupTitle.textContent = gift ? `${gift.icon} ${gift.label} 보내기` : "자주 쓰는 상품";
+      popupBody.innerHTML = `<div class="chat-popup-gifts">${giftButtonsHtml(gift?.id || "")}</div>`;
+    }
+    toolsPopup.hidden = false;
+    popupBody.querySelectorAll("[data-popup-gift]").forEach((giftButton) => {
+      giftButton.onclick = () => {
+        const gift = CHAT_FAVORITE_GIFTS.find((item) => item.id === giftButton.dataset.popupGift);
+        if (gift) sendToolText(`[선물] ${gift.icon} ${gift.label}`);
+      };
+    });
+    popupBody.querySelectorAll("[data-popup-filter]").forEach((filterButton) => {
+      filterButton.onclick = () => {
+        state.roomsListFilter = filterButton.dataset.popupFilter;
+        state.chatRoomListRequested = true;
+        emit("state:save");
+        renderRooms(panel, state);
+      };
+    });
+    panel.querySelector("[data-chat-popup-close]")?.focus();
+  };
+  panel.querySelectorAll("[data-chat-popup]").forEach((button) => {
+    button.onclick = () => openToolsPopup(button);
+  });
+  panel.querySelector("[data-chat-popup-close]")?.addEventListener("click", closeToolsPopup);
+  toolsPopup?.addEventListener("click", (event) => {
+    if (event.target === toolsPopup) closeToolsPopup();
+  });
+  if (panel._chatToolsKeyHandler) document.removeEventListener("keydown", panel._chatToolsKeyHandler);
+  panel._chatToolsKeyHandler = (event) => {
+    if (event.key === "Escape" && toolsPopup && !toolsPopup.hidden) closeToolsPopup();
+  };
+  document.addEventListener("keydown", panel._chatToolsKeyHandler);
   panel.querySelector("[data-list-phrase-toggle]")?.addEventListener("click", () => {
     listUtil.phraseDrawerOpen = !listUtil.phraseDrawerOpen;
     emit("state:save");
