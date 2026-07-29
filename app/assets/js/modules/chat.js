@@ -1149,7 +1149,6 @@ export function renderRooms(panel, state) {
         <div class="chat-bottom-phrase-row">
           <button type="button" class="chat-phrase-toggle" data-chat-popup="phrases" aria-haspopup="dialog">
             <span>▲ 상용구</span>
-            <small>상황별 문장과 사용자 상용구</small>
           </button>
           <div class="chat-pinned-phrases">
             ${ensureChatUtilities(state).pinnedPhrases.map(p => `<button type="button" data-list-phrase="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
@@ -1189,17 +1188,25 @@ export function renderRooms(panel, state) {
     .filter((gift) => !selectedId || gift.id === selectedId)
     .map((gift) => `<button type="button" class="chat-popup-action" data-popup-gift="${escapeHtml(gift.id)}"><span>${gift.icon}</span><b>${escapeHtml(gift.label)}</b><small>현재 대화 상대에게 보내기</small></button>`)
     .join("");
+  const phraseOptionHtml = (phrase, custom = false) => {
+    const pinned = listUtil.pinnedPhrases.includes(phrase);
+    return `<span class="chat-phrase-option">
+      <button type="button" data-popup-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
+      <button type="button" class="chat-phrase-pin ${pinned ? "is-pinned" : ""}" data-popup-pin-phrase="${escapeHtml(phrase)}" aria-pressed="${pinned}">${pinned ? "진열 해제" : "진열 등록"}</button>
+      ${custom ? `<button type="button" class="chat-phrase-delete" data-popup-delete-phrase="${escapeHtml(phrase)}" aria-label="사용자 상용구 삭제">×</button>` : ""}
+    </span>`;
+  };
   const phrasePopupHtml = () => `
     <div class="chat-phrase-groups">
       ${CHAT_PHRASE_GROUPS.map((group) => `<section class="chat-phrase-group">
         <h4>${escapeHtml(group.label)}</h4>
-        <div>${group.phrases.map((phrase) => `<button type="button" data-popup-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>`).join("")}</div>
+        <div>${group.phrases.map((phrase) => phraseOptionHtml(phrase)).join("")}</div>
       </section>`).join("")}
       <section class="chat-phrase-group chat-custom-group">
         <h4>사용자 설정 상용구</h4>
         <div class="chat-saved-custom-phrases">
           ${listUtil.customPhrases.length
-            ? listUtil.customPhrases.map((phrase) => `<span><button type="button" data-popup-phrase="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button><button type="button" data-popup-delete-phrase="${escapeHtml(phrase)}" aria-label="사용자 상용구 삭제">×</button></span>`).join("")
+            ? listUtil.customPhrases.map((phrase) => phraseOptionHtml(phrase, true)).join("")
             : '<small class="muted">저장한 사용자 상용구가 없습니다.</small>'}
         </div>
         <div class="chat-custom-phrase">
@@ -1285,12 +1292,22 @@ export function renderRooms(panel, state) {
     popupBody.querySelectorAll("[data-popup-phrase]").forEach((phraseButton) => {
       phraseButton.onclick = () => sendToolText(phraseButton.dataset.popupPhrase || "");
     });
+    popupBody.querySelectorAll("[data-popup-pin-phrase]").forEach((pinButton) => {
+      pinButton.onclick = () => {
+        const phrase = pinButton.dataset.popupPinPhrase || "";
+        listUtil.pinnedPhrases = listUtil.pinnedPhrases.includes(phrase)
+          ? listUtil.pinnedPhrases.filter((item) => item !== phrase)
+          : [...listUtil.pinnedPhrases, phrase].slice(-5);
+        emit("state:save");
+        renderRooms(panel, state);
+        panel.querySelector('[data-chat-popup="phrases"]')?.click();
+      };
+    });
     popupBody.querySelector("[data-popup-custom-save]")?.addEventListener("click", () => {
       const input = popupBody.querySelector("[data-popup-custom-input]");
       const phrase = String(input?.value || "").trim();
       if (!phrase) return;
       if (!listUtil.customPhrases.includes(phrase)) listUtil.customPhrases.push(phrase);
-      listUtil.pinnedPhrases = [...listUtil.pinnedPhrases.filter((item) => item !== phrase), phrase].slice(-5);
       emit("state:save");
       openToolsPopup(button);
     });
