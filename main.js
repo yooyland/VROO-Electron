@@ -291,7 +291,7 @@ async function runWorkspaceRuntimeTest(win) {
         await click('[data-screen="chat"]');
         const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
         const chat = {
-          zoneCount: commandGrid.children.length,
+          zoneCount: commandGrid.querySelectorAll(":scope > .chat-road-scene, :scope > .chat-grid-map, :scope > .chat-live-rail").length,
           filterCount: document.querySelectorAll(".chat-command-control-row [data-rooms-filter]").length,
           roomHost: Boolean(document.querySelector("[data-chat-room-host]")),
           cleanTopControls: Boolean(document.querySelector(".chat-command-shell > .chat-command-control-row")),
