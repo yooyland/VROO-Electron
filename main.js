@@ -422,6 +422,7 @@ async function runWorkspaceRuntimeTest(win) {
         await click("[data-car]");
         await click("#shopDetailConfirm");
         shop.confirmCloses = document.querySelector("#shopDetailOverlay")?.hidden === true;
+        await click('[data-cat="benefits"]');
         await click("[data-benefit]");
         shop.plannedDetailVisible = Boolean(document.querySelector("#shopDetailOverlay:not([hidden])"));
         shop.plannedActionBlocked = document.querySelector("#shopDetailConfirm")?.disabled === true;
