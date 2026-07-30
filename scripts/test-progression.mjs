@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  buildProgressionSyncPayload,
   createVehicleProgression,
   getDailyMissionSummary,
   getProgressionMilestones,
@@ -145,6 +146,16 @@ assert.equal(weeklySummary.activeDays, 2);
 assert.equal(weeklySummary.completedMissions, 6);
 assert.equal(weeklySummary.missionGoal, 21);
 assert.equal(weeklySummary.days.at(-1).completedMissions, 3);
+const syncPayload = buildProgressionSyncPayload(routedProgression, tomorrow);
+assert.equal(syncPayload.contractVersion, 1);
+assert.equal(syncPayload.schemaVersion, 2);
+assert.equal(syncPayload.capturedAt, tomorrow);
+assert.equal(syncPayload.vehicle.tier, "basic");
+assert.equal(syncPayload.vehicle.evolutionPhase, "flow");
+assert.equal(syncPayload.streak.current, 2);
+assert.equal(syncPayload.milestones.length, getProgressionMilestones(routedProgression).length);
+assert.equal("driveTracker" in syncPayload, false);
+assert.equal(JSON.parse(JSON.stringify(syncPayload)).completedEventIds.length, syncPayload.completedEventIds.length);
 
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
