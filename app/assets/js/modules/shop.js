@@ -38,7 +38,7 @@ export function renderShop(panel, state) {
     <div class="card muted" style="margin-bottom:10px;font-size:12px">
       STORE 프로토타입입니다. <b>준비 중</b> 카테고리는 미리보기만 가능하며 결제·발급이 없습니다.
     </div>
-    <div class="tabs">${SHOP_CATEGORIES.map((c) =>
+    <div class="tabs shop-category-tabs" aria-label="상점 카테고리">${SHOP_CATEGORIES.map((c) =>
       `<button class="${c.id === initialCategory ? "active" : ""}" data-cat="${c.id}">${c.label}${c.status === "planned" ? " ·" : ""}</button>`
     ).join("")}</div>
     <div id="shopList"></div>
