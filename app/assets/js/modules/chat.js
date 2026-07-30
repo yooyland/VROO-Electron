@@ -36,6 +36,7 @@ const NEARBY_CHAT_FEATURE = { enabled: true, status: "local" };
 let voiceRecognition = null;
 let voiceListening = false;
 let voiceBoundToRoomId = null;
+let voiceReconnectTimer = null;
 
 /** 현재 패널에 열린 채팅방 peer id (목록이면 null) */
 let activeRoomId = null;
@@ -547,6 +548,14 @@ function ensureVoicePreferences(state, roomId) {
 }
 
 function voiceStatusLabel(session) {
+  const reasonLabels = {
+    "permission-denied": "마이크 권한이 필요합니다",
+    "microphone-missing": "사용 가능한 마이크가 없습니다",
+    "network-error": "음성 연결을 다시 시도합니다",
+    "no-speech": "음성이 감지되지 않았습니다",
+    "start-failed": "마이크를 시작하지 못했습니다"
+  };
+  if (session?.reason && reasonLabels[session.reason]) return reasonLabels[session.reason];
   const labels = {
     idle: "음성 대기",
     listening: "듣기·음성 인식 중",
@@ -645,7 +654,7 @@ function voiceControlsMarkup(state, roomId, roomType) {
   return `
     <div class="chat-voice-status" data-voice-state="${escapeHtml(session.state)}">
       <span class="chat-voice-dot" aria-hidden="true"></span>
-      <div><b data-voice-status>${escapeHtml(voiceStatusLabel(session))}</b><small>이 방의 음성모드는 계속 유지됩니다.</small></div>
+      <div><b data-voice-status>${escapeHtml(voiceStatusLabel(session))}</b><small data-voice-detail>이 방의 음성모드는 계속 유지됩니다.</small></div>
     </div>
     <div class="chat-voice-toolbar">
       <button class="secondary chat-voice-control ${prefs.listening ? "is-active" : ""}" type="button" data-voice-listen aria-pressed="${prefs.listening}">
@@ -694,6 +703,17 @@ function updateVoiceStatusUi(panel, session) {
   host.dataset.voiceState = session.state;
   const label = host.querySelector("[data-voice-status]");
   if (label) label.textContent = voiceStatusLabel(session);
+  const detail = host.querySelector("[data-voice-detail]");
+  if (detail) {
+    detail.textContent = session.reason
+      ? "음성모드는 유지됩니다. 마이크 버튼으로 다시 시도할 수 있습니다."
+      : "이 방의 음성모드는 계속 유지됩니다.";
+  }
+  const microphone = panel.querySelector("#voiceChat");
+  if (microphone && [VOICE_STATES.BLOCKED, VOICE_STATES.RECONNECTING].includes(session.state)) {
+    const text = microphone.querySelector("small");
+    if (text) text.textContent = session.state === VOICE_STATES.RECONNECTING ? "재연결 중" : "다시 시도";
+  }
   const request = panel.querySelector("[data-voice-request]");
   if (request) {
     request.disabled = session.state === VOICE_STATES.QUEUED || session.state === VOICE_STATES.REQUESTING;
@@ -2342,6 +2362,58 @@ function scheduleGridDemoReply(panel, state, gridId) {
   replyTimers.set(roomId, timer);
 }
 
+function showVoiceRuntimeMessage(panel, message, isError = false) {
+  const transcript = panel?.querySelector?.("[data-voice-transcript]");
+  if (!transcript) return;
+  transcript.hidden = false;
+  transcript.classList.toggle("is-error", isError);
+  transcript.textContent = message;
+}
+
+function scheduleVoiceReconnect(panel, state, roomId) {
+  if (voiceReconnectTimer) clearTimeout(voiceReconnectTimer);
+  voiceReconnectTimer = setTimeout(() => {
+    voiceReconnectTimer = null;
+    if (activePanel !== panel || activeRoomId !== roomId) return;
+    if (getChatComposeMode(state, roomId) !== "voice") return;
+    const prefs = ensureVoicePreferences(state, roomId);
+    if (!prefs.autoListen) return;
+    toggleVoice(panel, state, roomId);
+  }, 1500);
+}
+
+function handleVoiceRecognitionError(errorCode) {
+  const roomId = voiceBoundToRoomId || activeRoomId;
+  const panel = activePanel;
+  const state = activeState;
+  if (!roomId || !panel || !state) return;
+
+  if (errorCode === "no-speech") {
+    const session = ensureVoiceSession(state, roomId);
+    transitionVoiceState(session, VOICE_STATES.LISTENING, "no-speech");
+    updateVoiceStatusUi(panel, session);
+    showVoiceRuntimeMessage(panel, "음성이 감지되지 않았습니다. 계속 듣고 있습니다.");
+    return;
+  }
+  if (errorCode === "aborted" && !voiceListening) return;
+
+  const failure = ["not-allowed", "service-not-allowed"].includes(errorCode)
+    ? {state: VOICE_STATES.BLOCKED, reason: "permission-denied", message: "마이크 권한을 허용한 뒤 다시 시도해 주세요."}
+    : errorCode === "audio-capture"
+      ? {state: VOICE_STATES.BLOCKED, reason: "microphone-missing", message: "사용 가능한 마이크를 찾을 수 없습니다."}
+      : errorCode === "network"
+        ? {state: VOICE_STATES.RECONNECTING, reason: "network-error", message: "음성 네트워크 연결을 다시 시도합니다."}
+        : {state: VOICE_STATES.IDLE, reason: "start-failed", message: "음성 인식을 시작하지 못했습니다."};
+
+  stopVoice();
+  const session = ensureVoiceSession(state, roomId);
+  transitionVoiceState(session, failure.state, failure.reason);
+  updateVoiceStatusUi(panel, session);
+  showVoiceRuntimeMessage(panel, failure.message, true);
+  showSystemMessage(failure.message);
+  if (failure.state === VOICE_STATES.RECONNECTING) scheduleVoiceReconnect(panel, state, roomId);
+}
+
 function toggleVoice(panel, state, peerId) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
@@ -2372,8 +2444,8 @@ function toggleVoice(panel, state, peerId) {
         transcript.textContent = `인식됨: ${chunk}`;
       }
     };
-    voiceRecognition.onerror = () => {
-      stopVoice();
+    voiceRecognition.onerror = (event) => {
+      handleVoiceRecognitionError(String(event?.error || "unknown"));
     };
     voiceRecognition.onend = () => {
       if (voiceListening && voiceBoundToRoomId === activeRoomId) {
@@ -2406,9 +2478,9 @@ function toggleVoice(panel, state, peerId) {
   updateVoiceStatusUi(panel, session);
   try {
     voiceRecognition.start();
-  } catch (e) {
-    stopVoice();
-    showSystemMessage("음성 인식을 시작하지 못했습니다.");
+    showVoiceRuntimeMessage(panel, "마이크가 연결되었습니다.");
+  } catch (error) {
+    handleVoiceRecognitionError("start-failed");
   }
 }
 
