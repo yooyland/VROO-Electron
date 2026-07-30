@@ -1412,3 +1412,12 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .chat-map-chat-list>button:hover,.chat-map-chat-list>button:focus-visible{border-color:#f3bd20}
 .chat-map-chat-list b,.chat-map-chat-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-map-chat-list small{color:#8f9baa;font-size:10px}
+
+
+/* Store structured list */
+.shop-category-tabs{display:flex;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;padding-bottom:4px}
+.shop-category-tabs button{flex:0 0 auto;min-width:96px;padding-inline:12px}
+#shopList{display:grid;gap:6px}
+#shopList .product-row{min-height:60px;padding:8px 10px}
+#shopList .product-row .avatar{font-size:24px}
+@media(max-width:720px){.shop-category-tabs button{min-width:86px}.shop-category-tabs{margin-inline:-4px;padding-inline:4px}}
