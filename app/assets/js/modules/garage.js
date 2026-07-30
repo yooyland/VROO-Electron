@@ -355,7 +355,7 @@ function renderRecord(root, state) {
       <div class="garage-milestone-head"><div><small>VEHICLE JOURNEY</small><h3>차량 성장 기록</h3></div><b>${milestones.length}</b></div>
       ${milestones.length ? milestones.map(item => `
         <article class="milestone-${item.type}">
-          <i>${item.type === "tier" ? "▲" : item.type === "evolution" ? "✦" : "◆"}</i>
+          <i>${item.type === "tier" ? "▲" : item.type === "evolution" ? "✦" : item.type === "streak" ? "🔥" : "◆"}</i>
           <div><b>${item.label}</b><small>${item.at ? new Date(item.at).toLocaleString("ko-KR") : "기록 시간 없음"}</small></div>
           <em>${item.tier.toUpperCase()}</em>
         </article>`).join("") : `<p>첫 미션을 완료하면 차량의 여정이 이곳에 기록됩니다.</p>`}
