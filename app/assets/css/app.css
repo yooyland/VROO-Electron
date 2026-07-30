@@ -1424,3 +1424,12 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 #shopList .product-row{min-height:60px;padding:8px 10px}
 #shopList .product-row .avatar{font-size:24px}
 @media(max-width:720px){.shop-category-tabs button{min-width:86px}.shop-category-tabs{margin-inline:-4px;padding-inline:4px}}
+
+
+/* Community structured list */
+.community-post-list{display:grid;gap:6px}
+.community-post-list .post-row{min-height:58px;padding:8px 10px}
+.community-post-list .post-row .avatar{font-size:22px}
+.community-post-list .post-row b{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.community-post-detail #communityPostBody{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+@media(max-width:720px){.community-filterbar{gap:6px}.community-post-list .post-row{grid-template-columns:34px minmax(0,1fr) auto}.community-post-list .post-row button{padding-inline:9px}}
