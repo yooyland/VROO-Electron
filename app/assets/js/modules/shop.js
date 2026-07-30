@@ -71,11 +71,11 @@ export function renderShop(panel, state) {
     overlay.hidden = true;
     overlay.style.display = "none";
     detailConfirm.onclick = null;
-    requestAnimationFrame(() => { list.scrollTop = restoreScrollTop; });
+    requestAnimationFrame(() => { panel.scrollTop = restoreScrollTop; });
   };
 
   const openDetail = ({ title, category, description, status = "prototype", recipient = "", confirmLabel = "확인", onConfirm = null }) => {
-    restoreScrollTop = list.scrollTop;
+    restoreScrollTop = panel.scrollTop;
     detailTitle.textContent = title;
     detailCategory.textContent = category + " · " + statusBadgeText(status);
     detailDescription.textContent = description;
