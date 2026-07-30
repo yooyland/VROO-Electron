@@ -941,7 +941,7 @@ function speakPendingMessages(state, roomId) {
     utterance.volume = prefs.volume / 100;
     const profile = message.mine
       ? prefs.myVoice
-      : (prefs.autoParticipantVoices ? participantVoiceProfile(message.senderId) : prefs.otherVoice);
+      : (room.type === "grid" && prefs.autoParticipantVoices ? participantVoiceProfile(message.senderId) : prefs.otherVoice);
     applySpeechProfile(utterance, profile);
     window.speechSynthesis.speak(utterance);
   }
