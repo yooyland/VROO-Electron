@@ -23,6 +23,7 @@ import {
   DEBUG_SPATIAL_GRID
 } from "./spatial-grid.js";
 import {showSystemMessage} from "../core/ui.js";
+import {getProgressionSummary, vehicleTierById, vehicleTierFromLegacyLevel} from "./progression.js";
 import {
   getVehicleConversationStatus,
   getActiveSpatialOverlays,
@@ -227,6 +228,9 @@ function iconFor(user, me = false) {
   const online = user.online !== false;
   const nick = escapeHtml(user.nickname || "차량");
   const level = Number(user.level) || 1;
+  const tier = user.vehicleTier
+    ? vehicleTierById(user.vehicleTier)
+    : vehicleTierFromLegacyLevel(level);
   const dir = bearingLabel(user.heading);
   const same = sameDirectionAsMe(user);
   const carEmoji = carInfo(user.car).emoji;
@@ -244,9 +248,9 @@ function iconFor(user, me = false) {
     detail === "low"
       ? ""
       : detail === "mid"
-        ? `<span class="vroo-marker-meta">Lv.${level}</span>`
-        : `<span class="vroo-marker-meta">Lv.${level} · ${escapeHtml(same ? "같은 방향" : dir)}</span>`;
-  const aria = `차량, ${user.nickname || "차량"}, 레벨 ${level}`;
+        ? `<span class="vroo-marker-meta"><strong>${tier.label}</strong> · Lv.${level}</span>`
+        : `<span class="vroo-marker-meta"><strong>${tier.label}</strong> · Lv.${level} · ${escapeHtml(same ? "같은 방향" : dir)}</span>`;
+  const aria = `차량, ${user.nickname || "차량"}, ${tier.label} 등급, 레벨 ${level}`;
   return L.divIcon({
     className: "vroo-marker-wrap",
     html: `<div class="vroo-marker vroo-marker--vehicle ${conversationTone} ${selected ? "is-selected" : ""} ${online ? "is-online" : "is-offline"}" role="img" aria-label="${escapeHtml(aria)}" aria-selected="${selected}">
@@ -271,15 +275,16 @@ function iconFor(user, me = false) {
 function myLocationIcon() {
   const nick = escapeHtml(stateRef?.profile?.nickname || "나");
   const active = activeMapConversation?.participantIds?.includes(String(MY_USER_ID));
+  const tier = getProgressionSummary(stateRef?.vehicleProgression).currentTier;
   return L.divIcon({
     className: "vroo-marker-wrap",
     html: `<div class="vroo-marker vroo-marker--me ${active ? "is-chatting-me" : ""}" role="img" aria-label="내 위치, ${nick}">
       <span class="vroo-me-pulse" aria-hidden="true"></span>
       <span class="vroo-me-core" aria-hidden="true"></span>
-      <span class="vroo-me-label">내 위치</span>
+      <span class="vroo-me-label">내 위치 · ${tier.label}</span>
     </div>`,
-    iconSize: [72, 56],
-    iconAnchor: [36, 28]
+    iconSize: [96, 56],
+    iconAnchor: [48, 28]
   });
 }
 

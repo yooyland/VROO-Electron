@@ -1,4 +1,6 @@
-export const cars=[["sport","스포츠카","🏎️"],["sedan","세단","🚗"],["suv","SUV","🚙"],["taxi","택시","🚕"],["van","밴","🚐"],["truck","픽업","🛻"],["bus","미니버스","🚎"],["delivery","배송차","🚚"],["classic","클래식","🚘"]];
+import {vehicleTierFromLegacyLevel} from "./progression.js";
+
+export const cars=[["basic","VROO Basic","🚗"],["sport","스포츠카","🏎️"],["sedan","세단","🚗"],["suv","SUV","🚙"],["taxi","택시","🚕"],["van","밴","🚐"],["truck","픽업","🛻"],["bus","미니버스","🚎"],["delivery","배송차","🚚"],["classic","클래식","🚘"]];
 const names=["별빛드라이버","도로위여우","노란번개","서울라이더","바람소리","달리는곰","안전제일","푸른고래","밤길친구","커피트럭","행복운전","구름택시"];
 
 /** 내 계정 id (채팅 senderId "me"와 동일) */
@@ -22,12 +24,14 @@ function offsetLatLng(center,index){
 export function makeDemoUsers(center){
   return Array.from({length:24},(_,i)=>{
     const pos=offsetLatLng(center,i);
+    const level=1+(i*7)%45;
     return{
       id:`u${i}`,
       nickname:names[i%names.length]+(i>=names.length?"2":""),
       plate:`${11+(i%8)*11}가 ${1000+i*173}`,
       car:cars[(i+1)%cars.length][0],
-      level:1+(i*7)%45,
+      level,
+      vehicleTier:vehicleTierFromLegacyLevel(level).id,
       online:i%5!==0,
       lat:pos.lat,
       lng:pos.lng,

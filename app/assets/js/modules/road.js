@@ -1,6 +1,12 @@
 import * as THREE from "../../../../node_modules/three/build/three.module.js";
 import {on} from "../core/events.js";
 import {MY_USER_ID} from "./data.js";
+import {
+  getProgressionSummary,
+  vehicleTierById,
+  vehicleTierFromLegacyLevel,
+  vehicleTierIndex
+} from "./progression.js";
 
 const LANES = [-9, 0, 9];
 const ME_BEAM_COLOR = 0xffc400;
@@ -76,13 +82,14 @@ function beamColorForUserId(userId) {
   return activeConversation?.type === "grid" ? GRID_BEAM_COLOR : DIRECT_BEAM_COLOR;
 }
 
-function carTier(level) {
-  const lv = Math.max(1, Number(level) || 1);
-  if (lv >= 60) return 5;
-  if (lv >= 40) return 4;
-  if (lv >= 20) return 3;
-  if (lv >= 10) return 2;
-  return 1;
+function carTier(user) {
+  const isMe = user?.id === MY_USER_ID || !user?.id;
+  const tier = isMe
+    ? getProgressionSummary(stateRef?.vehicleProgression).currentTier
+    : user?.vehicleTier
+      ? vehicleTierById(user.vehicleTier)
+      : vehicleTierFromLegacyLevel(user?.level);
+  return vehicleTierIndex(tier.id);
 }
 
 function mat(color, opts = {}) {
@@ -125,8 +132,7 @@ export function applyCarAppearance(group, user) {
     disposeObject(ch);
   }
 
-  const level = user.level ?? stateRef?.level ?? 1;
-  const tier = carTier(level);
+  const tier = carTier(user);
   const bodyColor = colorForUserId(user.id || MY_USER_ID);
   const isMe = user.id === MY_USER_ID || (!user.id && group === mineMesh);
   const accent = isMe ? ME_BODY_COLOR : bodyColor;
@@ -603,10 +609,12 @@ function updateBeamTransforms(timeMs) {
 }
 
 function buildMineUser() {
+  const tier = getProgressionSummary(stateRef?.vehicleProgression).currentTier;
   return {
     id: MY_USER_ID,
     level: stateRef?.level || 1,
-    car: stateRef?.profile?.car || "sport",
+    car: stateRef?.profile?.car || "basic",
+    vehicleTier: tier.id,
     online: true
   };
 }
