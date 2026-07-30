@@ -1,6 +1,6 @@
 import {emit} from "../core/events.js";
 import {carInfo} from "./data.js";
-import {getProgressionSummary, getVehicleEvolutionSummary} from "./progression.js";
+import {getProgressionMilestones, getProgressionSummary, getVehicleEvolutionSummary} from "./progression.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
 const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
@@ -333,7 +333,9 @@ function renderFriends(root, state) {
 
 function renderRecord(root, state) {
   const mileage = metric(state.weekMileage, 128.4);
+  const milestones = getProgressionMilestones(state.vehicleProgression);
   root.innerHTML = `
+    <div class="garage-record-stack">
     <div class="garage-record-card">
       <div><small>주간 주행 기록</small><strong>${mileage.toLocaleString("ko-KR")} km</strong></div>
       <svg viewBox="0 0 600 150" role="img" aria-label="주간 주행 추이">
@@ -341,6 +343,16 @@ function renderRecord(root, state) {
         <path class="garage-chart-fill" d="M10 130 C80 120 90 85 160 92 S245 118 310 70 S420 82 470 45 S550 38 590 18 L590 145 L10 145 Z"/>
         <path class="garage-chart-line" d="M10 130 C80 120 90 85 160 92 S245 118 310 70 S420 82 470 45 S550 38 590 18"/>
       </svg>
+    </div>
+    <section class="garage-milestone-card" aria-label="차량 성장 기록">
+      <div class="garage-milestone-head"><div><small>VEHICLE JOURNEY</small><h3>차량 성장 기록</h3></div><b>${milestones.length}</b></div>
+      ${milestones.length ? milestones.map(item => `
+        <article class="milestone-${item.type}">
+          <i>${item.type === "tier" ? "▲" : item.type === "evolution" ? "✦" : "◆"}</i>
+          <div><b>${item.label}</b><small>${item.at ? new Date(item.at).toLocaleString("ko-KR") : "기록 시간 없음"}</small></div>
+          <em>${item.tier.toUpperCase()}</em>
+        </article>`).join("") : `<p>첫 미션을 완료하면 차량의 여정이 이곳에 기록됩니다.</p>`}
+    </section>
     </div>`;
 }
 
