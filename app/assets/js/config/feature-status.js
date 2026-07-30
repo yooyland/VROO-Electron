@@ -16,15 +16,29 @@ export const STATUS_LABEL = Object.freeze({
   planned: "준비 중"
 });
 
-/** @type {Record<string, { status: string, axis: string, label: string }>} */
+export const LIFECYCLE = Object.freeze({
+  KEEP: "keep",
+  HIDE: "hide",
+  BACKEND_READY: "backend-ready",
+  REVIEW_FOR_DELETE: "review-for-delete"
+});
+
+export const LIFECYCLE_LABEL = Object.freeze({
+  keep: "유지",
+  hide: "숨김",
+  "backend-ready": "백엔드 전환 준비",
+  "review-for-delete": "삭제 검토"
+});
+
+/** @type {Record<string, { status: string, lifecycle?: string, axis: string, label: string }>} */
 export const FEATURES = {
-  "drive.near": { status: "prototype", axis: "drive", label: "주변 지도" },
-  "drive.road": { status: "prototype", axis: "drive", label: "도로 모드" },
+  "drive.near": { status: "prototype", lifecycle: "keep", axis: "drive", label: "주변 지도" },
+  "drive.road": { status: "prototype", lifecycle: "keep", axis: "drive", label: "도로 모드" },
   "drive.all": { status: "prototype", axis: "drive", label: "전체 화면" },
   "drive.realtime": { status: "planned", axis: "drive", label: "실시간 위치" },
-  "social.dm": { status: "prototype", axis: "social", label: "1:1 채팅" },
-  "social.gridChat": { status: "prototype", axis: "social", label: "GRID 단체채팅" },
-  "social.voice": { status: "prototype", axis: "social", label: "음성 입력" },
+  "social.dm": { status: "prototype", lifecycle: "backend-ready", axis: "social", label: "1:1 채팅" },
+  "social.gridChat": { status: "prototype", lifecycle: "backend-ready", axis: "social", label: "GRID 단체채팅" },
+  "social.voice": { status: "prototype", lifecycle: "backend-ready", axis: "social", label: "음성 입력" },
   "social.grid": { status: "prototype", axis: "social", label: "Spatial GRID" },
   "social.community": { status: "prototype", axis: "social", label: "커뮤니티" },
   "social.friends": { status: "planned", axis: "social", label: "친구" },
@@ -40,9 +54,9 @@ export const FEATURES = {
   "care.emergency": { status: "planned", axis: "care", label: "긴급출동" },
   "local.places": { status: "prototype", axis: "local", label: "지명 레이어" },
   "local.offers": { status: "planned", axis: "local", label: "GRID 혜택" },
-  "play.growth": { status: "prototype", axis: "play", label: "성장·크레딧" },
+  "play.growth": { status: "prototype", lifecycle: "keep", axis: "play", label: "성장·크레딧" },
   "play.season": { status: "planned", axis: "play", label: "시즌·미션" },
-  "my.car": { status: "prototype", axis: "my", label: "MY CAR" },
+  "my.car": { status: "prototype", lifecycle: "keep", axis: "my", label: "MY CAR" },
   "my.wallet": { status: "planned", axis: "my", label: "쿠폰·결제" },
   "platform.localStorage": { status: "prototype", axis: "platform", label: "localStorage" },
   "platform.server": { status: "planned", axis: "platform", label: "서버·실시간" },
@@ -67,4 +81,14 @@ export function listByStatus(status) {
   return Object.entries(FEATURES)
     .filter(([, v]) => v.status === status)
     .map(([id, v]) => ({ id, ...v }));
+}
+
+export function getFeatureLifecycle(featureId) {
+  return FEATURES[featureId]?.lifecycle || LIFECYCLE.KEEP;
+}
+
+export function listByLifecycle(lifecycle) {
+  return Object.entries(FEATURES)
+    .filter(([id]) => getFeatureLifecycle(id) === lifecycle)
+    .map(([id, value]) => ({id, ...value, lifecycle: getFeatureLifecycle(id)}));
 }
