@@ -38,29 +38,106 @@ export function renderShop(panel, state) {
     <div class="card muted" style="margin-bottom:10px;font-size:12px">
       STORE 프로토타입입니다. <b>준비 중</b> 카테고리는 미리보기만 가능하며 결제·발급이 없습니다.
     </div>
-    <div class="tabs">${SHOP_CATEGORIES.map((c) =>
+    <div class="tabs shop-category-tabs" aria-label="상점 카테고리">${SHOP_CATEGORIES.map((c) =>
       `<button class="${c.id === initialCategory ? "active" : ""}" data-cat="${c.id}">${c.label}${c.status === "planned" ? " ·" : ""}</button>`
     ).join("")}</div>
-    <div id="shopList"></div>`;
+    <div id="shopList"></div>
+    <div id="shopDetailOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="shopDetailTitle" tabindex="-1" style="position:fixed;inset:0;z-index:1200;background:rgba(4,7,13,.78);display:flex;align-items:center;justify-content:center;padding:24px">
+      <section class="card" style="width:min(560px,92vw);max-height:82vh;overflow:auto;border:1px solid rgba(212,175,55,.55);box-shadow:0 22px 70px rgba(0,0,0,.6)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div><div class="muted" id="shopDetailCategory"></div><h2 id="shopDetailTitle" style="margin:4px 0 0"></h2></div>
+          <button type="button" id="shopDetailClose" aria-label="상품 상세 닫기">×</button>
+        </div>
+        <p class="muted" id="shopDetailDescription"></p>
+        <div class="card" id="shopDetailRecipient" hidden></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+          <button type="button" id="shopDetailCancel">취소</button>
+          <button type="button" class="primary" id="shopDetailConfirm">확인</button>
+        </div>
+      </section>
+    </div>`;
 
   const list = panel.querySelector("#shopList");
+  const overlay = panel.querySelector("#shopDetailOverlay");
+  const detailTitle = panel.querySelector("#shopDetailTitle");
+  const detailCategory = panel.querySelector("#shopDetailCategory");
+  const detailDescription = panel.querySelector("#shopDetailDescription");
+  const detailRecipient = panel.querySelector("#shopDetailRecipient");
+  const detailConfirm = panel.querySelector("#shopDetailConfirm");
+  let restoreScrollTop = 0;
+
+  const closeDetail = () => {
+    if (overlay.hidden) return;
+    overlay.hidden = true;
+    overlay.style.display = "none";
+    detailConfirm.onclick = null;
+    requestAnimationFrame(() => { panel.scrollTop = restoreScrollTop; });
+  };
+
+  const openDetail = ({ title, category, description, status = "prototype", recipient = "", confirmLabel = "확인", onConfirm = null }) => {
+    restoreScrollTop = panel.scrollTop;
+    detailTitle.textContent = title;
+    detailCategory.textContent = category + " · " + statusBadgeText(status);
+    detailDescription.textContent = description;
+    detailRecipient.hidden = !recipient;
+    detailRecipient.textContent = recipient ? "받는 차량: " + recipient : "";
+    detailConfirm.textContent = status === "planned" ? "준비 중" : confirmLabel;
+    detailConfirm.disabled = status === "planned" || typeof onConfirm !== "function";
+    detailConfirm.onclick = () => {
+      if (typeof onConfirm !== "function") return;
+      onConfirm();
+      closeDetail();
+    };
+    overlay.hidden = false;
+    overlay.style.display = "flex";
+    overlay.focus();
+  };
+
+  panel.querySelector("#shopDetailClose").onclick = closeDetail;
+  panel.querySelector("#shopDetailCancel").onclick = closeDetail;
+  overlay.onclick = (event) => { if (event.target === overlay) closeDetail(); };
+  overlay.onkeydown = (event) => { if (event.key === "Escape") closeDetail(); };
 
   const renderCars = (catLabel) => {
     list.innerHTML = cars.map((c) =>
-      `<div class="card product-row"><div class="avatar">${c[2]}</div><div><b>${c[1]}</b><div class="muted">${catLabel} 상품 ${badge("prototype")}</div></div><button class="primary" data-car="${c[0]}">선택</button></div>`
+      `<div class="card product-row"><div class="avatar">${c[2]}</div><div><b>${c[1]}</b><div class="muted">${catLabel} 상품 ${badge("prototype")}</div></div><button class="primary" data-car="${c[0]}">상세</button></div>`
     ).join("");
     list.querySelectorAll("[data-car]").forEach((b) => {
       b.onclick = () => {
-        state.profile.car = b.dataset.car;
-        emit("state:save");
+        const car = cars.find((item) => String(item[0]) === String(b.dataset.car));
+        if (!car) return;
+        openDetail({
+          title: car[1],
+          category: "자동차",
+          description: "현재 내 차량으로 선택합니다. 적용 전 선택 내용을 확인하세요.",
+          status: "prototype",
+          confirmLabel: "이 차량 선택",
+          onConfirm: () => {
+            state.profile.car = car[0];
+            emit("state:save");
+            render(state.shopCategory || "all");
+          }
+        });
       };
     });
   };
 
   const renderBenefits = () => {
     list.innerHTML = BENEFIT_PRODUCTS.map((p) =>
-      `<div class="card product-row"><div class="avatar">🎁</div><div><b>${p.title}</b><div class="muted">${p.category} · ${p.description}${badge(p.status)}</div></div><button disabled title="미구현">준비 중</button></div>`
+      `<div class="card product-row"><div class="avatar">🎁</div><div><b>${p.title}</b><div class="muted">${p.category} · ${p.description}${badge(p.status)}</div></div><button type="button" data-benefit="${escapeHtml(p.id || p.title)}">상세</button></div>`
     ).join("") || `<div class="card muted">등록된 혜택 상품이 없습니다.</div>`;
+    list.querySelectorAll("[data-benefit]").forEach((button) => {
+      button.onclick = () => {
+        const product = BENEFIT_PRODUCTS.find((item) => String(item.id || item.title) === String(button.dataset.benefit));
+        if (!product) return;
+        openDetail({
+          title: product.title,
+          category: product.category || "혜택·쿠폰",
+          description: product.description || "상세 정보가 준비 중입니다.",
+          status: product.status || "planned"
+        });
+      };
+    });
   };
 
   const renderGifts = () => {
