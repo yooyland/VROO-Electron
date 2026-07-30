@@ -23,6 +23,7 @@ import {renderGrowth} from "./modules/growth.js";
 import {renderShop} from "./modules/shop.js";
 import {renderCommunity} from "./modules/community.js";
 import {renderGarage} from "./modules/garage.js";
+import {bindProgressionController} from "./modules/progression-controller.js";
 
 const state=loadState();
 ensureRoadChat(state);
@@ -30,6 +31,7 @@ ensureNearbyChat(state);
 ensureNavigation(state);
 ensureConversationUi(state);
 ensureRoadInsight(state);
+bindProgressionController(state, {save: () => saveState(state), notify: showSystemMessage});
 const spatialPanel=document.querySelector("#panelContent");
 const contentPanel=document.querySelector("#contentPanel");
 const spatialWs=document.querySelector("#spatialWorkspace");
