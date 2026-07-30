@@ -4,7 +4,10 @@ import {
   getProgressionSummary,
   normalizeVehicleProgression,
   progressionFromLegacyState,
-  recordProgressionEvent
+  recordProgressionEvent,
+  vehicleTierById,
+  vehicleTierFromLegacyLevel,
+  vehicleTierIndex
 } from "../app/assets/js/modules/progression.js";
 import {
   gridVisitProgressionEvent,
@@ -64,6 +67,10 @@ assert.deepEqual(malformed.completedEventIds, ["same"]);
 assert.equal(progressionFromLegacyState({level: 1}).tier, "basic");
 assert.equal(progressionFromLegacyState({level: 18}).tier, "sport");
 assert.equal(progressionFromLegacyState({level: 52}).tier, "heritage");
+assert.equal(vehicleTierFromLegacyLevel(6).id, "street");
+assert.equal(vehicleTierFromLegacyLevel(31).id, "performance");
+assert.equal(vehicleTierById("not-a-tier").id, "basic");
+assert.equal(vehicleTierIndex("heritage"), 5);
 
 const visitEvent = gridVisitProgressionEvent(
   {gridId: "KR:L3:169:340", action: "location"},
