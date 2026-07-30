@@ -1,4 +1,5 @@
 export const PROGRESSION_SCHEMA_VERSION = 2;
+export const PROGRESSION_SYNC_CONTRACT_VERSION = 1;
 
 export const VEHICLE_TIERS = Object.freeze([
   Object.freeze({id: "basic", label: "BASIC", minPoints: 0}),
@@ -312,6 +313,35 @@ export function getWeeklyProgressionSummary(value, at = Date.now()) {
     activeDays,
     missionGoal,
     progress: Math.round((completedMissions / missionGoal) * 100)
+  };
+}
+
+export function buildProgressionSyncPayload(value, at = Date.now()) {
+  const progression = normalizeVehicleProgression(value);
+  const capturedAt = Number.isFinite(Number(at)) ? Number(at) : Date.now();
+  const summary = getProgressionSummary(progression);
+  const evolution = getVehicleEvolutionSummary(progression);
+  return {
+    contractVersion: PROGRESSION_SYNC_CONTRACT_VERSION,
+    schemaVersion: PROGRESSION_SCHEMA_VERSION,
+    capturedAt,
+    revision: progression.updatedAt,
+    vehicle: {
+      tier: summary.currentTier.id,
+      points: progression.points,
+      evolutionPhase: evolution.currentPhase.id
+    },
+    counters: {...progression.counters},
+    dailyActivity: {
+      day: progression.dailyActivity.day,
+      driveKm: progression.dailyActivity.driveKm,
+      gridVisits: progression.dailyActivity.gridVisits,
+      helpfulMessages: progression.dailyActivity.helpfulMessages,
+      completedMissionIds: [...progression.dailyActivity.completedMissionIds]
+    },
+    streak: {...progression.streak},
+    milestones: progression.milestones.map(item => ({...item})),
+    completedEventIds: [...progression.completedEventIds]
   };
 }
 
