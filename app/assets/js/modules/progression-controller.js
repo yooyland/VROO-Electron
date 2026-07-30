@@ -1,6 +1,6 @@
 import {on} from "../core/events.js";
 import {MY_USER_ID} from "./data.js";
-import {getProgressionSummary, recordProgressionEvent} from "./progression.js";
+import {getProgressionSummary, recordDriveLocation, recordProgressionEvent} from "./progression.js";
 
 function dayKey(value = Date.now()) {
   const date = new Date(value);
@@ -49,6 +49,19 @@ export function missionProgressionEvent(detail) {
     amount: 1,
     at: detail?.completedAt
   };
+}
+
+export function applyDriveLocation(state, detail, options = {}) {
+  const before = getProgressionSummary(state.vehicleProgression);
+  const result = recordDriveLocation(state.vehicleProgression, detail);
+  if (!result.changed) return result;
+  state.vehicleProgression = result.progression;
+  if (typeof options.save === "function") options.save();
+  const after = getProgressionSummary(result.progression);
+  if (before.currentTier.id !== after.currentTier.id && typeof options.notify === "function") {
+    options.notify(`차량 등급이 ${after.currentTier.label}(으)로 성장했습니다.`);
+  }
+  return result;
 }
 
 export function bindProgressionController(state, options = {}) {
