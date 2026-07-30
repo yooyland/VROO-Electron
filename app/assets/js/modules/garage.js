@@ -1,6 +1,6 @@
 import {emit} from "../core/events.js";
 import {carInfo} from "./data.js";
-import {getProgressionSummary} from "./progression.js";
+import {getNextProgressionAction, getProgressionMilestones, getProgressionSummary, getVehicleEvolutionSummary, getWeeklyProgressionSummary} from "./progression.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
 const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
@@ -202,6 +202,8 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
   const battery = metric(state.batteryLevel, 82);
   const vehicle = carInfo(state.profile.car);
   const progression = getProgressionSummary(state.vehicleProgression);
+  const evolution = getVehicleEvolutionSummary(state.vehicleProgression);
+  const nextAction = getNextProgressionAction(state.vehicleProgression);
   const heritageOwned = progression.currentTier.id === "heritage";
   const heroEyebrow = heritageOwned ? "VROO FLAGSHIP · HERITAGE" : "FINAL GOAL PREVIEW · HERITAGE";
   const heroTitle = heritageOwned ? "Heritage Executive S" : "Heritage Executive S · 목표 프리뷰";
@@ -220,9 +222,15 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
           <span>${xp}%</span>
         </div>
       </div>
-      <div class="garage-current-vehicle" data-current-vehicle-tier="${progression.currentTier.id}">
+      <div class="garage-current-vehicle evolution-${evolution.currentPhase.id}" data-current-vehicle-tier="${progression.currentTier.id}" data-evolution-stage="${evolution.currentPhase.id}">
         <span>${vehicle.emoji}</span>
-        <div><small>CURRENT VEHICLE</small><b>${progression.currentTier.label}</b><em>${vehicle.name}</em></div>
+        <div><small>CURRENT VEHICLE · PHASE ${evolution.phaseNumber}/${evolution.phaseCount}</small><b>${progression.currentTier.label} · ${evolution.currentPhase.label}</b><em>${vehicle.name}</em></div>
+        <div class="garage-evolution-signals" aria-label="차량 성장 신호">
+          ${evolution.phases.map(phase => `<i class="${phase.unlocked?"unlocked":""} ${phase.active?"active":""}" title="${phase.description}">${phase.label}</i>`).join("")}
+        </div>
+        <small class="garage-next-evolution">${evolution.nextPhase
+          ? `${evolution.nextPhase.label}까지 ${evolution.pointsToNextPhase.toLocaleString("ko-KR")}P`
+          : `${progression.nextTier ? `${progression.nextTier.label} 진화를 준비하세요` : "VROO HERITAGE 완성"}`}</small>
       </div>
       <div class="garage-score"><small>VEHICLE SCORE</small><strong>${score}</strong></div>
       <button type="button" class="garage-light-toggle" data-garage-light-toggle aria-pressed="false">
@@ -236,6 +244,11 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
     </section>
 
     ${viewSelector(activeView)}
+
+    <button type="button" class="progression-next-action ${nextAction.completedToday?"is-complete":""}" data-next-progression-action="${nextAction.route}">
+      <div><span>${nextAction.eyebrow}</span><b>${nextAction.title}</b><small>${nextAction.description}</small></div>
+      <strong>${nextAction.cta} →</strong>
+    </button>
 
     <section class="garage-stat-grid" aria-label="차량 상태">
       <article><small>이번 주 주행</small><b>${mileage.toLocaleString("ko-KR")} km</b></article>
@@ -252,6 +265,7 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
     </section>`;
 
   root.querySelector('[data-garage-action="upgrade"]').onclick = () => emit("garage:openGrowth");
+  root.querySelector("[data-next-progression-action]").onclick = () => emit("growth:nextAction", nextAction);
   root.querySelector('[data-garage-action="mission"]').onclick = () => openRoom("mission");
   root.querySelector('[data-garage-action="customize"]').onclick = () => emit("garage:openCustomize");
   root.querySelector('[data-garage-action="collection"]').onclick = () => openRoom("inventory");
@@ -326,7 +340,10 @@ function renderFriends(root, state) {
 
 function renderRecord(root, state) {
   const mileage = metric(state.weekMileage, 128.4);
+  const milestones = getProgressionMilestones(state.vehicleProgression);
+  const weekly = getWeeklyProgressionSummary(state.vehicleProgression);
   root.innerHTML = `
+    <div class="garage-record-stack">
     <div class="garage-record-card">
       <div><small>주간 주행 기록</small><strong>${mileage.toLocaleString("ko-KR")} km</strong></div>
       <svg viewBox="0 0 600 150" role="img" aria-label="주간 주행 추이">
@@ -334,6 +351,21 @@ function renderRecord(root, state) {
         <path class="garage-chart-fill" d="M10 130 C80 120 90 85 160 92 S245 118 310 70 S420 82 470 45 S550 38 590 18 L590 145 L10 145 Z"/>
         <path class="garage-chart-line" d="M10 130 C80 120 90 85 160 92 S245 118 310 70 S420 82 470 45 S550 38 590 18"/>
       </svg>
+      <div class="garage-weekly-rhythm">
+        <small>주간 생활 루프</small>
+        <strong>${weekly.completedDays} / 7일</strong>
+        <span>활동 ${weekly.activeDays}일 · 미션 ${weekly.completedMissions}/${weekly.missionGoal}</span>
+      </div>
+    </div>
+    <section class="garage-milestone-card" aria-label="차량 성장 기록">
+      <div class="garage-milestone-head"><div><small>VEHICLE JOURNEY</small><h3>차량 성장 기록</h3></div><b>${milestones.length}</b></div>
+      ${milestones.length ? milestones.map(item => `
+        <article class="milestone-${item.type}">
+          <i>${item.type === "tier" ? "▲" : item.type === "evolution" ? "✦" : item.type === "streak" ? "🔥" : "◆"}</i>
+          <div><b>${item.label}</b><small>${item.at ? new Date(item.at).toLocaleString("ko-KR") : "기록 시간 없음"}</small></div>
+          <em>${item.tier.toUpperCase()}</em>
+        </article>`).join("") : `<p>첫 미션을 완료하면 차량의 여정이 이곳에 기록됩니다.</p>`}
+    </section>
     </div>`;
 }
 

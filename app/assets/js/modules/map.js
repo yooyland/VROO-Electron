@@ -23,7 +23,7 @@ import {
   DEBUG_SPATIAL_GRID
 } from "./spatial-grid.js";
 import {showSystemMessage} from "../core/ui.js";
-import {getProgressionSummary, vehicleTierById, vehicleTierFromLegacyLevel} from "./progression.js";
+import {getProgressionSummary, getVehicleEvolutionSummary, vehicleTierById, vehicleTierFromLegacyLevel} from "./progression.js";
 import {
   getVehicleConversationStatus,
   getActiveSpatialOverlays,
@@ -276,12 +276,13 @@ function myLocationIcon() {
   const nick = escapeHtml(stateRef?.profile?.nickname || "나");
   const active = activeMapConversation?.participantIds?.includes(String(MY_USER_ID));
   const tier = getProgressionSummary(stateRef?.vehicleProgression).currentTier;
+  const evolution = getVehicleEvolutionSummary(stateRef?.vehicleProgression);
   return L.divIcon({
     className: "vroo-marker-wrap",
     html: `<div class="vroo-marker vroo-marker--me ${active ? "is-chatting-me" : ""}" role="img" aria-label="내 위치, ${nick}">
       <span class="vroo-me-pulse" aria-hidden="true"></span>
       <span class="vroo-me-core" aria-hidden="true"></span>
-      <span class="vroo-me-label">내 위치 · ${tier.label}</span>
+      <span class="vroo-me-label evolution-${evolution.currentPhase.id}">내 위치 · ${tier.label} · ${evolution.currentPhase.label}</span>
     </div>`,
     iconSize: [96, 56],
     iconAnchor: [48, 28]

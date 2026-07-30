@@ -2,10 +2,10 @@ import {loadState,saveState,formatCredits} from "./core/storage.js";
 import {on} from "./core/events.js";
 import {showSystemMessage,openModal,closeModal} from "./core/ui.js";
 import {initMap,setLocation,setMapView,invalidateMaps,rotateMap,getUsers,setSpatialGridVisible,drawUsers,focusPlaceOnMap} from "./modules/map.js";
-import {initRoad,startRoad,stopRoad,pauseRoad,resumeRoad,setEnvironment,mountRoadStage,resizeRoad} from "./modules/road.js";
+import {initRoad,startRoad,stopRoad,pauseRoad,resumeRoad,setEnvironment,mountRoadStage,resizeRoad,refreshMyRoadVehicle} from "./modules/road.js";
 import {renderNearby,openUserDetail,renderAllViewSummary} from "./modules/nearby.js";
 import {renderGrid, beginCreateGrid, syncGridHeader, openSpatialGridDetail} from "./modules/grid.js";
-import {renderRooms,openChatWith,openGridChat,refreshChatBadge,pauseChatVoice,openConversationById} from "./modules/chat.js";
+import {renderRooms,openChatWith,openGridChat,refreshChatBadge,refreshChatVehicleProgression,pauseChatVoice,openConversationById} from "./modules/chat.js";
 import {
   renderRoadChatPanel,
   ensureRoadChatDock,
@@ -295,6 +295,19 @@ on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
 on("garage:openGrowth",()=>setScreen("growth"));
 on("growth:openGarage",()=>setScreen("my"));
+on("growth:nextAction",action=>{
+  if(action?.route==="grid"){
+    setScreen("grid");
+    setView("near");
+    return;
+  }
+  if(action?.route==="road-chat"){
+    openRoadConversation();
+    return;
+  }
+  setScreen("nearby");
+  setView("road");
+});
 on("garage:openCustomize",()=>{
   state.shopCategory="feature";
   save();
@@ -410,6 +423,13 @@ on("post:create",createPost);
 on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));
 on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});
 on("map:north",()=>{state.mapBearing=0;rotateMap(0);save()});
+on("progression:changed",()=>{
+  try{drawUsers(currentView==="all"?"all":"near")}catch(e){}
+  try{refreshMyRoadVehicle()}catch(e){}
+  refreshChatVehicleProgression(state);
+  if(currentWorkspace==="content"&&currentScreen==="growth")renderGrowth(contentPanel,state);
+  if(currentWorkspace==="content"&&currentScreen==="my")renderGarage(contentPanel,state);
+});
 
 document.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>setScreen(b.dataset.screen));
 document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>setView(b.dataset.view));
@@ -443,7 +463,7 @@ document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
             ...loc,
             accuracy: p.coords.accuracy,
             at: p.timestamp
-          });
+          }, {notify: showSystemMessage});
           const gpsEl=document.querySelector("#gpsStatus");
           if(gpsEl)gpsEl.textContent=`GPS 연결 · 오차 ${Math.round(p.coords.accuracy)}m`;
           save();

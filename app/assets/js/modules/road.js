@@ -3,6 +3,7 @@ import {on} from "../core/events.js";
 import {MY_USER_ID} from "./data.js";
 import {
   getProgressionSummary,
+  getVehicleEvolutionSummary,
   vehicleTierById,
   vehicleTierFromLegacyLevel,
   vehicleTierIndex
@@ -136,6 +137,12 @@ export function applyCarAppearance(group, user) {
   const bodyColor = colorForUserId(user.id || MY_USER_ID);
   const isMe = user.id === MY_USER_ID || (!user.id && group === mineMesh);
   const accent = isMe ? ME_BODY_COLOR : bodyColor;
+  const evolutionStage = isMe
+    ? getVehicleEvolutionSummary(stateRef?.vehicleProgression).currentPhase.id
+    : String(user.evolutionStage || "core");
+  group.userData.evolutionStage = evolutionStage;
+  const signatureActive = evolutionStage === "signature" || evolutionStage === "flow";
+  const flowActive = evolutionStage === "flow";
 
   const parts = {};
   const scale = tier >= 5 ? 1.05 : tier >= 4 ? 1.0 : tier >= 3 ? 0.98 : 0.95;
@@ -146,7 +153,12 @@ export function applyCarAppearance(group, user) {
   const bodyL = tier >= 5 ? 4.6 : tier >= 3 ? 4.3 : 4.0;
   const rideY = bodyH / 2 + 0.28;
 
-  parts.body = box(bodyW, bodyH, bodyL, mat(accent, {metalness: 0.65, roughness: 0.28}), 0, rideY, 0);
+  parts.body = box(bodyW, bodyH, bodyL, mat(accent, {
+    metalness: 0.65,
+    roughness: 0.28,
+    emissive: flowActive ? 0x4b3600 : signatureActive ? 0x06334b : 0x000000,
+    emissiveIntensity: flowActive ? 0.24 : signatureActive ? 0.12 : 0
+  }), 0, rideY, 0);
   group.add(parts.body);
 
   // hood
@@ -213,10 +225,29 @@ export function applyCarAppearance(group, user) {
 
   // lights
   const lightY = rideY + bodyH * 0.15;
-  const hl = mat(0xfff2c4, {emissive: 0xffeeaa, emissiveIntensity: tier >= 2 ? 1.2 : 0.6, metalness: 0.1, roughness: 0.2});
+  const hl = mat(signatureActive ? 0xbdefff : 0xfff2c4, {
+    emissive: signatureActive ? 0x4ac5ff : 0xffeeaa,
+    emissiveIntensity: signatureActive ? 1.65 : tier >= 2 ? 1.2 : 0.6,
+    metalness: 0.1,
+    roughness: 0.2
+  });
   parts.headL = box(0.28, 0.14, 0.12, hl, -bodyW * 0.32, lightY, bodyL / 2 + 0.02);
   parts.headR = box(0.28, 0.14, 0.12, hl, bodyW * 0.32, lightY, bodyL / 2 + 0.02);
   group.add(parts.headL, parts.headR);
+  if (signatureActive) {
+    const vMaterial = mat(0xbdefff, {emissive: 0x4ac5ff, emissiveIntensity: 1.8, metalness: 0.1, roughness: 0.15});
+    parts.vLightL = box(0.06, 0.08, 0.36, vMaterial, -0.1, lightY, bodyL / 2 + 0.08);
+    parts.vLightR = box(0.06, 0.08, 0.36, vMaterial, 0.1, lightY, bodyL / 2 + 0.08);
+    parts.vLightL.rotation.y = -0.55;
+    parts.vLightR.rotation.y = 0.55;
+    group.add(parts.vLightL, parts.vLightR);
+  }
+  if (flowActive) {
+    const flowMaterial = mat(0xffc400, {emissive: 0xffb300, emissiveIntensity: 1.15, metalness: 0.55, roughness: 0.2});
+    parts.flowL = box(0.055, 0.06, bodyL * 0.72, flowMaterial, -bodyW * 0.48, rideY, 0);
+    parts.flowR = box(0.055, 0.06, bodyL * 0.72, flowMaterial, bodyW * 0.48, rideY, 0);
+    group.add(parts.flowL, parts.flowR);
+  }
 
   const tl = mat(0xff2244, {emissive: 0xff0033, emissiveIntensity: tier >= 3 ? 1.4 : 0.8, metalness: 0.1, roughness: 0.3});
   parts.tailL = box(0.32, 0.12, 0.1, tl, -bodyW * 0.3, lightY, -bodyL / 2 - 0.02);
@@ -615,6 +646,7 @@ function buildMineUser() {
     level: stateRef?.level || 1,
     car: stateRef?.profile?.car || "basic",
     vehicleTier: tier.id,
+    evolutionStage: getVehicleEvolutionSummary(stateRef?.vehicleProgression).currentPhase.id,
     online: true
   };
 }
@@ -673,6 +705,12 @@ export function syncRoadUsers(users) {
   } catch (e) {
     warnRare("[VROO road] syncRoadUsers", e);
   }
+}
+
+export function refreshMyRoadVehicle() {
+  if (!mineMesh || !stateRef) return false;
+  applyCarAppearance(mineMesh, buildMineUser());
+  return true;
 }
 
 function ensureUsersListener() {

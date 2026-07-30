@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import {
+  applyProgressionSyncPayload,
+  buildProgressionSyncPayload,
   createVehicleProgression,
+  getDailyMissionSummary,
+  getProgressionMilestones,
+  getNextProgressionAction,
+  getProgressionStreak,
   getProgressionSummary,
+  getWeeklyProgressionSummary,
+  getVehicleEvolutionSummary,
   normalizeVehicleProgression,
   progressionFromLegacyState,
   recordDriveLocation,
@@ -28,8 +36,10 @@ const firstDrive = recordProgressionEvent(fresh, {
   at: 1000
 });
 assert.equal(firstDrive.applied, true);
-assert.equal(firstDrive.earnedPoints, 100);
+assert.equal(firstDrive.earnedPoints, 200);
 assert.equal(firstDrive.progression.counters.driveKm, 10);
+assert.equal(firstDrive.progression.counters.missionsCompleted, 1);
+assert.equal(firstDrive.completedMissions[0].id, "daily-drive");
 
 const duplicateDrive = recordProgressionEvent(firstDrive.progression, {
   id: "drive:first",
@@ -38,7 +48,7 @@ const duplicateDrive = recordProgressionEvent(firstDrive.progression, {
 });
 assert.equal(duplicateDrive.applied, false);
 assert.equal(duplicateDrive.reason, "duplicate-event");
-assert.equal(duplicateDrive.progression.points, 100);
+assert.equal(duplicateDrive.progression.points, 200);
 
 let growing = firstDrive.progression;
 for (let index = 0; index < 9; index += 1) {
@@ -47,13 +57,13 @@ for (let index = 0; index < 9; index += 1) {
     kind: "missionComplete"
   }).progression;
 }
-assert.equal(growing.points, 1000);
+assert.equal(growing.points, 1100);
 assert.equal(growing.tier, "street");
 
 const summary = getProgressionSummary(growing);
 assert.equal(summary.currentTier.id, "street");
 assert.equal(summary.nextTier.id, "sport");
-assert.equal(summary.pointsToNext, 2500);
+assert.equal(summary.pointsToNext, 2400);
 
 const malformed = normalizeVehicleProgression({
   points: -10,
@@ -73,6 +83,112 @@ assert.equal(vehicleTierFromLegacyLevel(6).id, "street");
 assert.equal(vehicleTierFromLegacyLevel(31).id, "performance");
 assert.equal(vehicleTierById("not-a-tier").id, "basic");
 assert.equal(vehicleTierIndex("heritage"), 5);
+assert.equal(getVehicleEvolutionSummary(createVehicleProgression()).currentPhase.id, "core");
+assert.equal(getVehicleEvolutionSummary({points: 340}).currentPhase.id, "signature");
+assert.equal(getVehicleEvolutionSummary({points: 670}).currentPhase.id, "flow");
+assert.equal(getVehicleEvolutionSummary({points: 670}).pointsToNextPhase, 0);
+const today = new Date("2026-07-30T12:00:00+09:00").getTime();
+const evolutionCrossing = recordProgressionEvent({points: 300}, {
+  id: "grid:evolution-crossing",
+  kind: "gridVisit",
+  at: today
+});
+assert.equal(evolutionCrossing.evolutionChanged, true);
+assert.equal(evolutionCrossing.previousEvolutionPhase.id, "core");
+assert.equal(evolutionCrossing.currentEvolutionPhase.id, "signature");
+assert.deepEqual(
+  new Set(getProgressionMilestones(evolutionCrossing.progression).map(item => item.type)),
+  new Set(["mission", "evolution"])
+);
+const tierCrossing = recordProgressionEvent({points: 950}, {
+  id: "grid:tier-crossing",
+  kind: "gridVisit",
+  at: today
+});
+assert.equal(tierCrossing.tierChanged, true);
+assert.equal(tierCrossing.progression.tier, "street");
+assert.equal(getProgressionMilestones(tierCrossing.progression).some(item => item.id === "tier:street"), true);
+assert.equal(getNextProgressionAction(createVehicleProgression(), today).route, "road");
+let routedProgression = recordProgressionEvent(createVehicleProgression(), {
+  id: "drive:route",
+  kind: "driveKm",
+  amount: 1,
+  at: today
+}).progression;
+assert.equal(getNextProgressionAction(routedProgression, today).route, "grid");
+routedProgression = recordProgressionEvent(routedProgression, {
+  id: "grid:route",
+  kind: "gridVisit",
+  at: today
+}).progression;
+assert.equal(getNextProgressionAction(routedProgression, today).route, "road-chat");
+routedProgression = recordProgressionEvent(routedProgression, {
+  id: "help:route",
+  kind: "helpfulMessage",
+  at: today
+}).progression;
+assert.equal(getNextProgressionAction(routedProgression, today).completedToday, true);
+assert.equal(getProgressionStreak(routedProgression, today).current, 1);
+assert.equal(getProgressionMilestones(routedProgression).some(item => item.type === "streak"), true);
+const tomorrow = new Date("2026-07-31T12:00:00+09:00").getTime();
+for (const kind of ["driveKm", "gridVisit", "helpfulMessage"]) {
+  routedProgression = recordProgressionEvent(routedProgression, {
+    id: `${kind}:route:tomorrow`,
+    kind,
+    amount: 1,
+    at: tomorrow
+  }).progression;
+}
+assert.equal(getProgressionStreak(routedProgression, tomorrow).current, 2);
+assert.equal(getProgressionStreak(routedProgression, tomorrow).best, 2);
+const weeklySummary = getWeeklyProgressionSummary(routedProgression, tomorrow);
+assert.equal(weeklySummary.completedDays, 2);
+assert.equal(weeklySummary.activeDays, 2);
+assert.equal(weeklySummary.completedMissions, 6);
+assert.equal(weeklySummary.missionGoal, 21);
+assert.equal(weeklySummary.days.at(-1).completedMissions, 3);
+const syncPayload = buildProgressionSyncPayload(routedProgression, tomorrow);
+assert.equal(syncPayload.contractVersion, 1);
+assert.equal(syncPayload.schemaVersion, 2);
+assert.equal(syncPayload.capturedAt, tomorrow);
+assert.equal(syncPayload.vehicle.tier, "basic");
+assert.equal(syncPayload.vehicle.evolutionPhase, "flow");
+assert.equal(syncPayload.streak.current, 2);
+assert.equal(syncPayload.milestones.length, getProgressionMilestones(routedProgression).length);
+assert.equal("driveTracker" in syncPayload, false);
+assert.equal(JSON.parse(JSON.stringify(syncPayload)).completedEventIds.length, syncPayload.completedEventIds.length);
+const localWithPrivateTracker = normalizeVehicleProgression({
+  points: 10,
+  updatedAt: 100,
+  driveTracker: {lat: 37.5665, lng: 126.978, at: 99, pendingKm: 0.04}
+});
+const newerPayload = {...syncPayload, revision: tomorrow + 1000};
+const restoredSync = applyProgressionSyncPayload(localWithPrivateTracker, newerPayload);
+assert.equal(restoredSync.applied, true);
+assert.equal(restoredSync.reason, "remote-newer");
+assert.equal(restoredSync.progression.points, routedProgression.points);
+assert.equal(restoredSync.progression.driveTracker.lat, 37.5665);
+assert.equal(restoredSync.progression.driveTracker.pendingKm, 0.04);
+assert.equal(applyProgressionSyncPayload(restoredSync.progression, newerPayload).reason, "stale-revision");
+assert.equal(applyProgressionSyncPayload(localWithPrivateTracker, {...newerPayload, contractVersion: 2}).reason, "unsupported-contract");
+assert.equal(applyProgressionSyncPayload(localWithPrivateTracker, {...newerPayload, revision: null}).reason, "invalid-revision");
+
+let dailyProgression = createVehicleProgression();
+dailyProgression = recordProgressionEvent(dailyProgression, {
+  id: "grid:daily",
+  kind: "gridVisit",
+  at: today
+}).progression;
+dailyProgression = recordProgressionEvent(dailyProgression, {
+  id: "help:daily",
+  kind: "helpfulMessage",
+  at: today
+}).progression;
+const dailySummary = getDailyMissionSummary(dailyProgression, today);
+assert.equal(dailySummary.completedCount, 2);
+assert.equal(dailySummary.rewardPoints, 200);
+assert.equal(dailyProgression.counters.missionsCompleted, 2);
+assert.equal(getDailyMissionSummary(dailyProgression, new Date("2026-07-31T12:00:00+09:00").getTime()).completedCount, 0);
 
 const driveBaseline = recordDriveLocation(fresh, {
   lat: 37.5665,
