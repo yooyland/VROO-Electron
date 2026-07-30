@@ -6,6 +6,7 @@ import {
   getNextProgressionAction,
   getProgressionStreak,
   getProgressionSummary,
+  getWeeklyProgressionSummary,
   getVehicleEvolutionSummary,
   normalizeVehicleProgression,
   progressionFromLegacyState,
@@ -138,6 +139,12 @@ for (const kind of ["driveKm", "gridVisit", "helpfulMessage"]) {
 }
 assert.equal(getProgressionStreak(routedProgression, tomorrow).current, 2);
 assert.equal(getProgressionStreak(routedProgression, tomorrow).best, 2);
+const weeklySummary = getWeeklyProgressionSummary(routedProgression, tomorrow);
+assert.equal(weeklySummary.completedDays, 2);
+assert.equal(weeklySummary.activeDays, 2);
+assert.equal(weeklySummary.completedMissions, 6);
+assert.equal(weeklySummary.missionGoal, 21);
+assert.equal(weeklySummary.days.at(-1).completedMissions, 3);
 
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
