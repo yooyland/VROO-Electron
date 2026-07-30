@@ -400,6 +400,26 @@ async function runWorkspaceRuntimeTest(win) {
           "chat command center after conversation back"
         ));
 
+        await click('[data-screen="community"]');
+        const communityRow = await waitFor(() => document.querySelector("[data-post-row]"), "community post row");
+        const communityPanel = document.querySelector("#contentPanel");
+        communityPanel.scrollTop = 7;
+        const communityScrollBefore = communityPanel.scrollTop;
+        const community = {
+          oneLineMetadata: communityRow.textContent.includes("댓글") && communityRow.textContent.includes("좋아요"),
+          filterBar: Boolean(document.querySelector(".community-filterbar")),
+          createButton: Boolean(document.querySelector("#newPost"))
+        };
+        await click("[data-post]");
+        community.detailVisible = Boolean(await waitFor(() => document.querySelector("#modal.show .community-post-detail"), "community post detail"));
+        const likeButton = document.querySelector("#communityPostLike");
+        const likeBefore = likeButton?.textContent;
+        await click("#communityPostLike");
+        community.likePersistsInDetail = likeButton?.textContent !== likeBefore;
+        await click("#modalClose");
+        community.closeRestoresList = document.querySelector("#modal")?.getAttribute("aria-hidden") === "true";
+        community.scrollRestored = communityPanel.scrollTop === communityScrollBefore;
+
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
         const autoBeforeDirection =
@@ -488,6 +508,13 @@ async function runWorkspaceRuntimeTest(win) {
           chat.conversationEventInThirdZone,
           chat.conversationEventKeepsThreeZones,
           chat.conversationBackStaysInChat,
+          community.oneLineMetadata,
+          community.filterBar,
+          community.createButton,
+          community.detailVisible,
+          community.likePersistsInDetail,
+          community.closeRestoresList,
+          community.scrollRestored,
           garage.visible,
           garage.viewCount === 9,
           garage.actionCount === 4,
@@ -499,7 +526,7 @@ async function runWorkspaceRuntimeTest(win) {
           garage.customizeRoutesToStore,
           garage.upgradeRoutesToGame
         ];
-        return { boot: true, map, chat, garage, pass: checks.every(Boolean) };
+        return { boot: true, map, chat, community, garage, pass: checks.every(Boolean) };
       })()
     `, true);
     console.log(`WORKSPACE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
