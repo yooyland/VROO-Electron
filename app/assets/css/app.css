@@ -491,6 +491,17 @@ body[data-map-view="all"] .view-guidebar .environment-select{
 .play-mission-card.is-completed strong,.play-mission-card.is-completed b{color:#62de87}
 .play-mission-card.is-completed>i span{background:#4fd879}
 
+.garage-current-vehicle{flex-wrap:wrap;max-width:min(520px,62%)}
+.garage-current-vehicle.evolution-core{box-shadow:0 12px 30px #0008,0 0 0 1px #8c98a322}
+.garage-current-vehicle.evolution-signature{border-color:#6acbff88;box-shadow:0 12px 30px #0008,0 0 22px #4ac5ff2c}
+.garage-current-vehicle.evolution-flow{border-color:#ffd45c99;box-shadow:0 12px 30px #0008,0 0 28px #ffc40038}
+.garage-evolution-signals{flex-basis:100%;display:flex;gap:5px;margin-top:4px}
+.garage-evolution-signals i{padding:3px 6px;border:1px solid #3b4550;border-radius:5px;color:#697583;font-size:8px;font-style:normal;letter-spacing:.08em}
+.garage-evolution-signals i.unlocked{border-color:#7f8d9d;color:#c0cad5}
+.garage-evolution-signals i.active{border-color:#e2b33f;color:#ffd45c;background:#30250c;box-shadow:0 0 9px #ffc40033}
+.garage-current-vehicle.evolution-signature .garage-evolution-signals i.active{border-color:#6acbff;color:#bdeaff;background:#0e2935;box-shadow:0 0 9px #4ac5ff44}
+.garage-next-evolution{flex-basis:100%;color:#8f9aa8!important;font-size:9px!important}
+
 .vroo-place-label{display:none}
 .vroo-marker-wrap{background:transparent!important;border:0!important}
 .vroo-marker{
