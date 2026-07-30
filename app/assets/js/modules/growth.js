@@ -1,5 +1,5 @@
 import {carInfo} from "./data.js";
-import {getDailyMissionSummary, getNextProgressionAction, getProgressionStreak, getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
+import {getDailyMissionSummary, getNextProgressionAction, getProgressionStreak, getProgressionSummary, getWeeklyProgressionSummary, VEHICLE_TIERS} from "./progression.js";
 import {emit} from "../core/events.js";
 import {growthUpgradeCost,formatCredits,canAfford,spendCredits} from "../core/storage.js";
 import {showSystemMessage} from "../core/ui.js";
@@ -18,6 +18,7 @@ export function renderGrowth(panel,state){
   const daily=getDailyMissionSummary(state.vehicleProgression);
   const nextAction=getNextProgressionAction(state.vehicleProgression);
   const streak=getProgressionStreak(state.vehicleProgression);
+  const weekly=getWeeklyProgressionSummary(state.vehicleProgression);
   let busy=false;
 
   panel.innerHTML=`
@@ -51,6 +52,20 @@ export function renderGrowth(panel,state){
             <i></i><b>${tier.label}</b><small>${tier.minPoints.toLocaleString("ko-KR")}P</small>
           </div>`;
         }).join("")}
+      </section>
+
+      <section class="play-weekly-recap" aria-label="이번 주 성장 요약">
+        <div class="play-section-head">
+          <div><span>WEEKLY RHYTHM · ${weekly.startDay} — ${weekly.endDay}</span><h3>이번 주 성장 요약</h3></div>
+          <small>${weekly.activeDays}일 활동 · ${weekly.completedDays}일 루프 완성</small>
+        </div>
+        <div class="play-weekly-days">
+          ${weekly.days.map(day=>`<div class="${day.loopCompleted?"is-complete":day.completedMissions?"is-active":""}">
+            <small>${day.label}</small><i><span style="height:${Math.round((day.completedMissions/daily.totalCount)*100)}%"></span></i><b>${day.completedMissions}/${daily.totalCount}</b>
+          </div>`).join("")}
+        </div>
+        <div class="play-weekly-progress"><span style="width:${weekly.progress}%"></span></div>
+        <small>주간 미션 ${weekly.completedMissions}/${weekly.missionGoal} · 매일의 작은 활동이 차량의 다음 형태로 이어집니다.</small>
       </section>
 
       <button type="button" class="progression-next-action ${nextAction.completedToday?"is-complete":""}" data-next-progression-action="${nextAction.route}">
