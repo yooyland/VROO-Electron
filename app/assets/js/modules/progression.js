@@ -23,6 +23,12 @@ export const DAILY_MISSIONS = Object.freeze([
   Object.freeze({id: "daily-help", kind: "helpfulMessage", label: "도로 위 도움", description: "도움·상황 메시지 1회 전송", target: 1, unit: "회", rewardPoints: 100})
 ]);
 
+export const VEHICLE_EVOLUTION_PHASES = Object.freeze([
+  Object.freeze({id: "core", label: "CORE FORM", description: "기본 차체와 V 엠블럼", minProgress: 0}),
+  Object.freeze({id: "signature", label: "V SIGNATURE", description: "V 라이트 성장 신호", minProgress: 34}),
+  Object.freeze({id: "flow", label: "GOLDEN FLOW", description: "골드 라인과 에어로 글로우", minProgress: 67})
+]);
+
 const COUNTER_KEYS = Object.freeze({
   driveKm: "driveKm",
   gridVisit: "gridVisits",
@@ -185,6 +191,33 @@ export function getDailyMissionSummary(value, at = Date.now()) {
     completedCount: missions.filter(mission => mission.completed).length,
     totalCount: missions.length,
     rewardPoints: missions.filter(mission => mission.completed).reduce((sum, mission) => sum + mission.rewardPoints, 0)
+  };
+}
+
+export function getVehicleEvolutionSummary(value) {
+  const progression = getProgressionSummary(value);
+  const phaseIndex = [...VEHICLE_EVOLUTION_PHASES]
+    .reverse()
+    .findIndex(phase => progression.progress >= phase.minProgress);
+  const currentIndex = phaseIndex < 0 ? 0 : VEHICLE_EVOLUTION_PHASES.length - 1 - phaseIndex;
+  const currentPhase = VEHICLE_EVOLUTION_PHASES[currentIndex];
+  const nextPhase = VEHICLE_EVOLUTION_PHASES[currentIndex + 1] || null;
+  const currentTierStart = progression.currentTier.minPoints;
+  const tierSpan = progression.nextTier ? progression.nextTier.minPoints - currentTierStart : 0;
+  const nextPhasePoints = nextPhase && tierSpan
+    ? currentTierStart + Math.ceil((nextPhase.minProgress / 100) * tierSpan)
+    : null;
+  return {
+    currentPhase,
+    nextPhase,
+    phaseNumber: currentIndex + 1,
+    phaseCount: VEHICLE_EVOLUTION_PHASES.length,
+    pointsToNextPhase: nextPhasePoints == null ? 0 : Math.max(0, nextPhasePoints - progression.points),
+    phases: VEHICLE_EVOLUTION_PHASES.map((phase, index) => ({
+      ...phase,
+      unlocked: index <= currentIndex,
+      active: index === currentIndex
+    }))
   };
 }
 
