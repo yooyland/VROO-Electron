@@ -57,6 +57,11 @@ export function applyDriveLocation(state, detail, options = {}) {
   if (!result.changed) return result;
   state.vehicleProgression = result.progression;
   if (typeof options.save === "function") options.save();
+  if (typeof options.notify === "function") {
+    for (const mission of result.completedMissions || []) {
+      options.notify(`${mission.label} 완료 · 차량 성장 +${mission.rewardPoints}P`);
+    }
+  }
   const after = getProgressionSummary(result.progression);
   if (before.currentTier.id !== after.currentTier.id && typeof options.notify === "function") {
     options.notify(`차량 등급이 ${after.currentTier.label}(으)로 성장했습니다.`);
@@ -75,6 +80,9 @@ export function bindProgressionController(state, options = {}) {
     if (!result.applied) return false;
     state.vehicleProgression = result.progression;
     save();
+    for (const mission of result.completedMissions || []) {
+      notify(`${mission.label} 완료 · 차량 성장 +${mission.rewardPoints}P`);
+    }
     const after = getProgressionSummary(result.progression);
     if (before.currentTier.id !== after.currentTier.id) {
       notify(`차량 등급이 ${after.currentTier.label}(으)로 성장했습니다.`);
