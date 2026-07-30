@@ -443,7 +443,7 @@ document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
             ...loc,
             accuracy: p.coords.accuracy,
             at: p.timestamp
-          });
+          }, {notify: showSystemMessage});
           const gpsEl=document.querySelector("#gpsStatus");
           if(gpsEl)gpsEl.textContent=`GPS 연결 · 오차 ${Math.round(p.coords.accuracy)}m`;
           save();
