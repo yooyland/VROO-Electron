@@ -4,6 +4,7 @@ import {
   getDailyMissionSummary,
   getProgressionMilestones,
   getNextProgressionAction,
+  getProgressionStreak,
   getProgressionSummary,
   getVehicleEvolutionSummary,
   normalizeVehicleProgression,
@@ -124,6 +125,19 @@ routedProgression = recordProgressionEvent(routedProgression, {
   at: today
 }).progression;
 assert.equal(getNextProgressionAction(routedProgression, today).completedToday, true);
+assert.equal(getProgressionStreak(routedProgression, today).current, 1);
+assert.equal(getProgressionMilestones(routedProgression).some(item => item.type === "streak"), true);
+const tomorrow = new Date("2026-07-31T12:00:00+09:00").getTime();
+for (const kind of ["driveKm", "gridVisit", "helpfulMessage"]) {
+  routedProgression = recordProgressionEvent(routedProgression, {
+    id: `${kind}:route:tomorrow`,
+    kind,
+    amount: 1,
+    at: tomorrow
+  }).progression;
+}
+assert.equal(getProgressionStreak(routedProgression, tomorrow).current, 2);
+assert.equal(getProgressionStreak(routedProgression, tomorrow).best, 2);
 
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
