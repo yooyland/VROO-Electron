@@ -4,9 +4,14 @@ import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
 import {
+  approveSpeaker,
   ensureVoiceSession,
+  removeSpeaker,
   requestToSpeak,
+  setParticipantBlocked,
+  setParticipantMuted,
   transitionVoiceState,
+  VOICE_ROLES,
   VOICE_STATES
 } from "./voice-session.js";
 import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
@@ -551,10 +556,81 @@ function voiceStatusLabel(session) {
   return labels[session?.state] || "음성 대기";
 }
 
+function voiceParticipantIds(state, roomId, roomType) {
+  const context = state?.activeConversationContext;
+  const contextual = context?.roomId === roomId && Array.isArray(context.participantIds)
+    ? context.participantIds
+    : [];
+  const fallback = roomType === "direct" ? [MY_USER_ID, roomId] : [MY_USER_ID];
+  return [...new Set([...fallback, ...contextual].map(String).filter(Boolean))];
+}
+
+function voiceParticipantName(state, userId) {
+  if (userId === MY_USER_ID) return state.profile?.nickname || "나";
+  const user = getUsers().find((item) => String(item?.id) === String(userId));
+  return user?.nickname || state.rooms?.[userId]?.title || userId;
+}
+
+function voiceParticipantState(session, userId) {
+  if (session.blockedIds.includes(userId)) return {key: "blocked", label: "차단"};
+  if (session.mutedIds.includes(userId)) return {key: "muted", label: "음소거"};
+  if (session.speakerIds.includes(userId)) return {key: "speaker", label: "발언 중"};
+  if (session.requestQueue.includes(userId)) return {key: "queued", label: "발언 대기"};
+  return {key: "listener", label: "듣는 중"};
+}
+
+function voiceParticipantRows(state, roomId, roomType) {
+  const session = ensureVoiceSession(state, roomId);
+  const canModerate = session.hostId === MY_USER_ID || session.moderatorIds.includes(MY_USER_ID);
+  return voiceParticipantIds(state, roomId, roomType).map((userId) => {
+    const status = voiceParticipantState(session, userId);
+    const online = userId === MY_USER_ID || getUsers().some((item) => String(item?.id) === userId && item.online);
+    const isSelf = userId === MY_USER_ID;
+    const role = userId === session.hostId
+      ? "방장"
+      : session.moderatorIds.includes(userId)
+        ? "관리자"
+        : session.speakerIds.includes(userId)
+          ? "발언자"
+          : "참여자";
+    const controls = canModerate && !isSelf
+      ? `<div class="chat-voice-member-actions">
+          <button type="button" data-voice-member-action="allow" data-user-id="${escapeHtml(userId)}">${session.speakerIds.includes(userId) ? "내리기" : "허용"}</button>
+          <button type="button" data-voice-member-action="mute" data-user-id="${escapeHtml(userId)}">${session.mutedIds.includes(userId) ? "음소거 해제" : "음소거"}</button>
+          <button type="button" data-voice-member-action="block" data-user-id="${escapeHtml(userId)}">${session.blockedIds.includes(userId) ? "차단 해제" : "차단"}</button>
+        </div>`
+      : `<div class="chat-voice-member-actions"><span>${isSelf ? "내 음성 상태" : "청취 전용"}</span></div>`;
+    return `<div class="chat-voice-member" data-member-state="${status.key}">
+      <span class="chat-voice-member-avatar">${escapeHtml(voiceParticipantName(state, userId).slice(0, 1))}</span>
+      <div class="chat-voice-member-copy">
+        <b>${escapeHtml(voiceParticipantName(state, userId))}${isSelf ? " · 나" : ""}</b>
+        <small><i class="${online ? "online" : ""}"></i>${role} · ${status.label}</small>
+      </div>
+      ${controls}
+    </div>`;
+  }).join("");
+}
+
+function voiceParticipantsPopupMarkup(state, roomId, roomType) {
+  return `<div class="chat-voice-participant-popup" data-voice-participant-popup hidden>
+    <div class="chat-voice-participant-card" role="dialog" aria-modal="true" aria-label="음성 참여자 관리">
+      <div class="chat-voice-participant-head">
+        <div><b>음성 참여자</b><small>발언 요청·허용·음소거·차단</small></div>
+        <button class="secondary" type="button" data-close-voice-participants aria-label="음성 참여자 닫기">×</button>
+      </div>
+      <div class="chat-voice-member-list" data-voice-member-list>${voiceParticipantRows(state, roomId, roomType)}</div>
+      <div class="chat-voice-participant-foot">현재 단계의 권한·상태 제어는 로컬 프로토타입이며 실제 음성 서버 연결 후 동기화됩니다.</div>
+    </div>
+  </div>`;
+}
+
 function voiceControlsMarkup(state, roomId, roomType) {
+  if (!state.voiceHosts || typeof state.voiceHosts !== "object") state.voiceHosts = {};
+  const hostId = state.voiceHosts[roomId] || MY_USER_ID;
+  state.voiceHosts[roomId] = hostId;
   const session = ensureVoiceSession(state, roomId, {
-    hostId: roomType === "grid" ? "grid-host" : MY_USER_ID,
-    role: roomType === "grid" ? "listener" : "speaker",
+    hostId,
+    role: hostId === MY_USER_ID ? VOICE_ROLES.HOST : (roomType === "grid" ? VOICE_ROLES.LISTENER : VOICE_ROLES.SPEAKER),
     mode: roomType === "grid" ? "approval" : "open"
   });
   const prefs = ensureVoicePreferences(state, roomId);
@@ -594,7 +670,8 @@ function voiceControlsMarkup(state, roomId, roomType) {
       <p>방장·관리자의 발언 허용/차단은 참여자 화면에서 설정합니다.</p>
     </div>
     <div class="chat-voice-transcript" data-voice-transcript hidden></div>
-    <div class="muted chat-voice-notice">음성인식은 현재 사용할 수 있으며, 실시간 상대 음성 송수신은 음성 서버 연결 후 활성화됩니다.</div>`;
+    <div class="muted chat-voice-notice">음성인식은 현재 사용할 수 있으며, 실시간 상대 음성 송수신은 음성 서버 연결 후 활성화됩니다.</div>
+    ${voiceParticipantsPopupMarkup(state, roomId, roomType)}`;
 }
 
 function updateVoiceStatusUi(panel, session) {
@@ -611,7 +688,58 @@ function updateVoiceStatusUi(panel, session) {
   }
 }
 
-function bindVoiceRequestControls(panel, state, roomId) {
+function refreshVoiceParticipantRows(panel, state, roomId, roomType) {
+  const list = panel?.querySelector?.("[data-voice-member-list]");
+  if (list) list.innerHTML = voiceParticipantRows(state, roomId, roomType);
+}
+
+function bindVoiceParticipantActions(panel, state, roomId, roomType) {
+  const popup = panel?.querySelector?.("[data-voice-participant-popup]");
+  const opener = panel?.querySelector?.("[data-voice-participants]");
+  const close = panel?.querySelector?.("[data-close-voice-participants]");
+  if (!popup || !opener || !close) return;
+
+  const closePopup = () => {
+    popup.hidden = true;
+    opener.focus();
+  };
+  opener.onclick = () => {
+    refreshVoiceParticipantRows(panel, state, roomId, roomType);
+    popup.hidden = false;
+    close.focus();
+  };
+  close.onclick = closePopup;
+  popup.onclick = (event) => {
+    if (event.target === popup) closePopup();
+  };
+  popup.onkeydown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closePopup();
+    }
+  };
+
+  popup.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-voice-member-action]");
+    if (!button) return;
+    const userId = String(button.dataset.userId || "");
+    const action = button.dataset.voiceMemberAction;
+    const session = ensureVoiceSession(state, roomId);
+    if (action === "allow") {
+      if (session.speakerIds.includes(userId)) removeSpeaker(session, userId, MY_USER_ID);
+      else approveSpeaker(session, userId, MY_USER_ID);
+    } else if (action === "mute") {
+      setParticipantMuted(session, userId, !session.mutedIds.includes(userId), MY_USER_ID);
+    } else if (action === "block") {
+      setParticipantBlocked(session, userId, !session.blockedIds.includes(userId), MY_USER_ID);
+    }
+    refreshVoiceParticipantRows(panel, state, roomId, roomType);
+    updateVoiceStatusUi(panel, session);
+    emit("state:save");
+  });
+}
+
+function bindVoiceRequestControls(panel, state, roomId, roomType) {
   const prefs = ensureVoicePreferences(state, roomId);
   const request = panel?.querySelector?.("[data-voice-request]");
   if (request) {
@@ -669,12 +797,7 @@ function bindVoiceRequestControls(panel, state, roomId) {
   const keepGrid = panel?.querySelector?.("[data-voice-keep-grid]");
   if (keepGrid) keepGrid.onchange = () => { prefs.keepOnGridChange = keepGrid.checked; emit("state:save"); };
 
-  const participants = panel?.querySelector?.("[data-voice-participants]");
-  if (participants) {
-    participants.onclick = () => {
-      showSystemMessage("참여자·발언 허용·차단 화면을 다음 단계에서 연결합니다.");
-    };
-  }
+  bindVoiceParticipantActions(panel, state, roomId, roomType);
 }
 
 function stopVoice() {
@@ -1799,7 +1922,7 @@ function renderChat(panel, state, peerId) {
   });
 
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, peerId);
-  bindVoiceRequestControls(panel, state, peerId);
+  bindVoiceRequestControls(panel, state, peerId, "direct");
   if (composeMode === "voice") activateVoiceMode(panel, state, peerId);
   mountChatUtilities(panel, state, { type: "direct", peerId });
 
@@ -2028,7 +2151,7 @@ function renderGridChat(panel, state, gridId) {
     doSend();
   });
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
-  bindVoiceRequestControls(panel, state, roomId);
+  bindVoiceRequestControls(panel, state, roomId, "grid");
   if (composeMode === "voice") activateVoiceMode(panel, state, roomId);
   mountChatUtilities(panel, state, { type: "grid", gridId });
 
