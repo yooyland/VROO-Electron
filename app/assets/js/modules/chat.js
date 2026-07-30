@@ -531,10 +531,12 @@ function ensureVoicePreferences(state, roomId) {
     state.voicePreferences = {};
   }
   const current = state.voicePreferences[roomId] || {};
+  const legacyVoice = ["default", "low", "high"].includes(current.voice) ? current.voice : null;
   const preferences = {
     listening: current.listening !== false,
     volume: Math.min(100, Math.max(0, Number(current.volume) || 80)),
-    voice: ["default", "low", "high"].includes(current.voice) ? current.voice : "default",
+    myVoice: ["default", "low", "high"].includes(current.myVoice) ? current.myVoice : (legacyVoice || "low"),
+    otherVoice: ["default", "low", "high"].includes(current.otherVoice) ? current.otherVoice : "high",
     autoListen: current.autoListen !== false,
     keepOnGridChange: current.keepOnGridChange === true
   };
@@ -660,10 +662,15 @@ function voiceControlsMarkup(state, roomId, roomType) {
     </div>
     <div class="chat-voice-settings" data-voice-settings-panel hidden>
       <label><span>상대 목소리 크기</span><input type="range" min="0" max="100" value="${prefs.volume}" data-voice-volume><output data-voice-volume-output>${prefs.volume}%</output></label>
-      <label><span>안내 목소리</span><select data-voice-choice>
-        <option value="default" ${prefs.voice === "default" ? "selected" : ""}>기본</option>
-        <option value="low" ${prefs.voice === "low" ? "selected" : ""}>낮은 톤</option>
-        <option value="high" ${prefs.voice === "high" ? "selected" : ""}>높은 톤</option>
+      <label><span>내 글 목소리</span><select data-my-voice-choice>
+        <option value="default" ${prefs.myVoice === "default" ? "selected" : ""}>기본</option>
+        <option value="low" ${prefs.myVoice === "low" ? "selected" : ""}>낮은 톤</option>
+        <option value="high" ${prefs.myVoice === "high" ? "selected" : ""}>높은 톤</option>
+      </select></label>
+      <label><span>상대 글 목소리</span><select data-other-voice-choice>
+        <option value="default" ${prefs.otherVoice === "default" ? "selected" : ""}>기본</option>
+        <option value="low" ${prefs.otherVoice === "low" ? "selected" : ""}>낮은 톤</option>
+        <option value="high" ${prefs.otherVoice === "high" ? "selected" : ""}>높은 톤</option>
       </select></label>
       <label class="chat-voice-check"><input type="checkbox" data-voice-auto-listen ${prefs.autoListen ? "checked" : ""}><span>음성 탭을 열면 자동 듣기</span></label>
       <label class="chat-voice-check"><input type="checkbox" data-voice-keep-grid ${prefs.keepOnGridChange ? "checked" : ""}><span>GRID가 바뀌어도 음성모드 유지</span></label>
@@ -790,8 +797,10 @@ function bindVoiceRequestControls(panel, state, roomId, roomType) {
       emit("state:save");
     };
   }
-  const choice = panel?.querySelector?.("[data-voice-choice]");
-  if (choice) choice.onchange = () => { prefs.voice = choice.value; emit("state:save"); };
+  const myVoiceChoice = panel?.querySelector?.("[data-my-voice-choice]");
+  if (myVoiceChoice) myVoiceChoice.onchange = () => { prefs.myVoice = myVoiceChoice.value; emit("state:save"); };
+  const otherVoiceChoice = panel?.querySelector?.("[data-other-voice-choice]");
+  if (otherVoiceChoice) otherVoiceChoice.onchange = () => { prefs.otherVoice = otherVoiceChoice.value; emit("state:save"); };
   const autoListen = panel?.querySelector?.("[data-voice-auto-listen]");
   if (autoListen) autoListen.onchange = () => { prefs.autoListen = autoListen.checked; emit("state:save"); };
   const keepGrid = panel?.querySelector?.("[data-voice-keep-grid]");
@@ -823,23 +832,68 @@ function stopVoice() {
   }
 }
 
-function speakLatestMessage(panel, state, roomId) {
+function ensureVoiceReadIds(state, roomId) {
+  if (!state.voiceReadMessageIds || typeof state.voiceReadMessageIds !== "object") {
+    state.voiceReadMessageIds = {};
+  }
+  if (!Array.isArray(state.voiceReadMessageIds[roomId])) {
+    state.voiceReadMessageIds[roomId] = [];
+  }
+  return state.voiceReadMessageIds[roomId];
+}
+
+function speechFriendlyText(value) {
+  return String(value || "")
+    .replace(/👍(?:🏻|🏼|🏽|🏾|🏿)?/gu, " 좋아요 ")
+    .replace(/👎(?:🏻|🏼|🏽|🏾|🏿)?/gu, " 싫어요 ")
+    .replace(/\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier}|\u200D\p{Extended_Pictographic})*/gu, " ")
+    .replace(/[\uFE0E\uFE0F\u200D]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function applySpeechProfile(utterance, profile) {
+  utterance.pitch = profile === "low" ? 0.78 : profile === "high" ? 1.22 : 1;
+  utterance.rate = profile === "low" ? 0.94 : profile === "high" ? 1.04 : 1;
+}
+
+function speakPendingMessages(state, roomId) {
   const prefs = ensureVoicePreferences(state, roomId);
-  if (!prefs.listening) return;
-  const bubbles = [...(panel?.querySelectorAll?.("#chatScroll .bubble:not(.mine)") || [])];
-  const text = String(bubbles.at(-1)?.textContent || "").trim();
-  if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ko-KR";
-  utterance.volume = prefs.volume / 100;
-  utterance.pitch = prefs.voice === "low" ? 0.75 : prefs.voice === "high" ? 1.25 : 1;
-  window.speechSynthesis.speak(utterance);
+  if (!prefs.listening || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const room = state?.rooms?.[roomId];
+  if (!Array.isArray(room?.messages)) return;
+
+  const readIds = ensureVoiceReadIds(state, roomId);
+  const readSet = new Set(readIds);
+  let changed = false;
+
+  for (const rawMessage of room.messages) {
+    const message = normalizeMessage(rawMessage, room.peerId || "unknown", MY_USER_ID, roomId);
+    if (!message?.id || readSet.has(message.id)) continue;
+
+    const spokenText = speechFriendlyText(message.text);
+    readSet.add(message.id);
+    readIds.push(message.id);
+    changed = true;
+    if (!spokenText) continue;
+
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    utterance.lang = "ko-KR";
+    utterance.volume = prefs.volume / 100;
+    applySpeechProfile(utterance, message.mine ? prefs.myVoice : prefs.otherVoice);
+    utterance.dataset = undefined;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  if (readIds.length > 300) {
+    state.voiceReadMessageIds[roomId] = readIds.slice(-300);
+  }
+  if (changed) emit("state:save");
 }
 
 function activateVoiceMode(panel, state, roomId) {
   const prefs = ensureVoicePreferences(state, roomId);
-  speakLatestMessage(panel, state, roomId);
+  speakPendingMessages(state, roomId);
   if (prefs.autoListen && (!voiceListening || voiceBoundToRoomId !== roomId)) {
     toggleVoice(panel, state, roomId);
   }
