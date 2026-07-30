@@ -502,6 +502,11 @@ body[data-map-view="all"] .view-guidebar .environment-select{
 .garage-current-vehicle.evolution-signature .garage-evolution-signals i.active{border-color:#6acbff;color:#bdeaff;background:#0e2935;box-shadow:0 0 9px #4ac5ff44}
 .garage-next-evolution{flex-basis:100%;color:#8f9aa8!important;font-size:9px!important}
 
+.vehicle-evolution-badge{display:inline-flex;align-items:center;padding:1px 6px;border:1px solid #4d5966;border-radius:999px;color:#aab5c0;font-size:8px;font-weight:900;letter-spacing:.04em;vertical-align:1px}
+.vehicle-evolution-badge.evolution-signature,.vroo-me-label.evolution-signature{border-color:#6acbff99;color:#bdeaff;box-shadow:0 0 9px #4ac5ff2c}
+.vehicle-evolution-badge.evolution-flow,.vroo-me-label.evolution-flow{border-color:#ffd45c99;color:#ffd45c;box-shadow:0 0 11px #ffc40038}
+.vroo-me-label{white-space:nowrap}
+
 .vroo-place-label{display:none}
 .vroo-marker-wrap{background:transparent!important;border:0!important}
 .vroo-marker{
