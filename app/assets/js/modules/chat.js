@@ -531,12 +531,14 @@ function ensureVoicePreferences(state, roomId) {
     state.voicePreferences = {};
   }
   const current = state.voicePreferences[roomId] || {};
-  const legacyVoice = ["default", "low", "high"].includes(current.voice) ? current.voice : null;
+  const profiles = ["device-default", "male-calm", "male-bright", "female-calm", "female-bright"];
+  const legacyMap = {default: "device-default", low: "male-calm", high: "female-bright"};
   const preferences = {
     listening: current.listening !== false,
     volume: Math.min(100, Math.max(0, Number(current.volume) || 80)),
-    myVoice: ["default", "low", "high"].includes(current.myVoice) ? current.myVoice : (legacyVoice || "low"),
-    otherVoice: ["default", "low", "high"].includes(current.otherVoice) ? current.otherVoice : "high",
+    myVoice: profiles.includes(current.myVoice) ? current.myVoice : (legacyMap[current.myVoice || current.voice] || "male-calm"),
+    otherVoice: profiles.includes(current.otherVoice) ? current.otherVoice : (legacyMap[current.otherVoice] || "female-calm"),
+    autoParticipantVoices: current.autoParticipantVoices !== false,
     autoListen: current.autoListen !== false,
     keepOnGridChange: current.keepOnGridChange === true
   };
@@ -663,15 +665,20 @@ function voiceControlsMarkup(state, roomId, roomType) {
     <div class="chat-voice-settings" data-voice-settings-panel hidden>
       <label><span>상대 목소리 크기</span><input type="range" min="0" max="100" value="${prefs.volume}" data-voice-volume><output data-voice-volume-output>${prefs.volume}%</output></label>
       <label><span>내 글 목소리</span><select data-my-voice-choice>
-        <option value="default" ${prefs.myVoice === "default" ? "selected" : ""}>기본</option>
-        <option value="low" ${prefs.myVoice === "low" ? "selected" : ""}>낮은 톤</option>
-        <option value="high" ${prefs.myVoice === "high" ? "selected" : ""}>높은 톤</option>
-      </select></label>
+        <option value="device-default" ${prefs.myVoice === "device-default" ? "selected" : ""}>기기 기본 목소리</option>
+        <option value="male-calm" ${prefs.myVoice === "male-calm" ? "selected" : ""}>남성 1 · 차분</option>
+        <option value="male-bright" ${prefs.myVoice === "male-bright" ? "selected" : ""}>남성 2 · 활기</option>
+        <option value="female-calm" ${prefs.myVoice === "female-calm" ? "selected" : ""}>여성 1 · 편안</option>
+        <option value="female-bright" ${prefs.myVoice === "female-bright" ? "selected" : ""}>여성 2 · 밝음</option>
+      </select><button type="button" class="secondary chat-voice-preview" data-preview-voice="mine">미리듣기</button></label>
       <label><span>상대 글 목소리</span><select data-other-voice-choice>
-        <option value="default" ${prefs.otherVoice === "default" ? "selected" : ""}>기본</option>
-        <option value="low" ${prefs.otherVoice === "low" ? "selected" : ""}>낮은 톤</option>
-        <option value="high" ${prefs.otherVoice === "high" ? "selected" : ""}>높은 톤</option>
-      </select></label>
+        <option value="device-default" ${prefs.otherVoice === "device-default" ? "selected" : ""}>기기 기본 목소리</option>
+        <option value="male-calm" ${prefs.otherVoice === "male-calm" ? "selected" : ""}>남성 1 · 차분</option>
+        <option value="male-bright" ${prefs.otherVoice === "male-bright" ? "selected" : ""}>남성 2 · 활기</option>
+        <option value="female-calm" ${prefs.otherVoice === "female-calm" ? "selected" : ""}>여성 1 · 편안</option>
+        <option value="female-bright" ${prefs.otherVoice === "female-bright" ? "selected" : ""}>여성 2 · 밝음</option>
+      </select><button type="button" class="secondary chat-voice-preview" data-preview-voice="other">미리듣기</button></label>
+      <label class="chat-voice-check"><input type="checkbox" data-auto-participant-voices ${prefs.autoParticipantVoices ? "checked" : ""}><span>GRID 참여자마다 목소리 자동 구분</span></label>
       <label class="chat-voice-check"><input type="checkbox" data-voice-auto-listen ${prefs.autoListen ? "checked" : ""}><span>음성 탭을 열면 자동 듣기</span></label>
       <label class="chat-voice-check"><input type="checkbox" data-voice-keep-grid ${prefs.keepOnGridChange ? "checked" : ""}><span>GRID가 바뀌어도 음성모드 유지</span></label>
       <p>방장·관리자의 발언 허용/차단은 참여자 화면에서 설정합니다.</p>
@@ -801,6 +808,17 @@ function bindVoiceRequestControls(panel, state, roomId, roomType) {
   if (myVoiceChoice) myVoiceChoice.onchange = () => { prefs.myVoice = myVoiceChoice.value; emit("state:save"); };
   const otherVoiceChoice = panel?.querySelector?.("[data-other-voice-choice]");
   if (otherVoiceChoice) otherVoiceChoice.onchange = () => { prefs.otherVoice = otherVoiceChoice.value; emit("state:save"); };
+  const autoParticipantVoices = panel?.querySelector?.("[data-auto-participant-voices]");
+  if (autoParticipantVoices) autoParticipantVoices.onchange = () => {
+    prefs.autoParticipantVoices = autoParticipantVoices.checked;
+    emit("state:save");
+  };
+  panel?.querySelectorAll?.("[data-preview-voice]").forEach((button) => {
+    button.onclick = () => {
+      const profile = button.dataset.previewVoice === "mine" ? prefs.myVoice : prefs.otherVoice;
+      previewVoiceProfile(profile, prefs.volume);
+    };
+  });
   const autoListen = panel?.querySelector?.("[data-voice-auto-listen]");
   if (autoListen) autoListen.onchange = () => { prefs.autoListen = autoListen.checked; emit("state:save"); };
   const keepGrid = panel?.querySelector?.("[data-voice-keep-grid]");
@@ -852,9 +870,50 @@ function speechFriendlyText(value) {
     .trim();
 }
 
+function koreanDeviceVoices() {
+  if (!window.speechSynthesis?.getVoices) return [];
+  const voices = window.speechSynthesis.getVoices();
+  const korean = voices.filter((voice) => String(voice.lang || "").toLowerCase().startsWith("ko"));
+  return korean.length ? korean : voices;
+}
+
+function voiceProfileIndex(profile) {
+  return {
+    "device-default": 0,
+    "male-calm": 0,
+    "male-bright": 1,
+    "female-calm": 2,
+    "female-bright": 3
+  }[profile] || 0;
+}
+
 function applySpeechProfile(utterance, profile) {
-  utterance.pitch = profile === "low" ? 0.78 : profile === "high" ? 1.22 : 1;
-  utterance.rate = profile === "low" ? 0.94 : profile === "high" ? 1.04 : 1;
+  const voices = koreanDeviceVoices();
+  if (voices.length) utterance.voice = voices[voiceProfileIndex(profile) % voices.length];
+  const settings = {
+    "device-default": {pitch: 1, rate: 1},
+    "male-calm": {pitch: 0.78, rate: 0.93},
+    "male-bright": {pitch: 0.9, rate: 1.06},
+    "female-calm": {pitch: 1.08, rate: 0.94},
+    "female-bright": {pitch: 1.24, rate: 1.07}
+  }[profile] || {pitch: 1, rate: 1};
+  utterance.pitch = settings.pitch;
+  utterance.rate = settings.rate;
+}
+
+function previewVoiceProfile(profile, volume = 80) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const utterance = new SpeechSynthesisUtterance("안녕하세요. 부르 기본 목소리입니다.");
+  utterance.lang = "ko-KR";
+  utterance.volume = Math.min(1, Math.max(0, Number(volume) / 100));
+  applySpeechProfile(utterance, profile);
+  window.speechSynthesis.speak(utterance);
+}
+
+function participantVoiceProfile(senderId) {
+  const profiles = ["male-calm", "female-calm", "male-bright", "female-bright"];
+  const hash = [...String(senderId || "")].reduce((value, char) => ((value * 31) + char.charCodeAt(0)) >>> 0, 7);
+  return profiles[hash % profiles.length];
 }
 
 function speakPendingMessages(state, roomId) {
@@ -880,7 +939,10 @@ function speakPendingMessages(state, roomId) {
     const utterance = new SpeechSynthesisUtterance(spokenText);
     utterance.lang = "ko-KR";
     utterance.volume = prefs.volume / 100;
-    applySpeechProfile(utterance, message.mine ? prefs.myVoice : prefs.otherVoice);
+    const profile = message.mine
+      ? prefs.myVoice
+      : (prefs.autoParticipantVoices ? participantVoiceProfile(message.senderId) : prefs.otherVoice);
+    applySpeechProfile(utterance, profile);
     window.speechSynthesis.speak(utterance);
   }
 
