@@ -63,6 +63,12 @@ function createDailyActivity(day = localDayKey()) {
   };
 }
 
+function previousLocalDayKey(value) {
+  const date = new Date(value);
+  date.setDate(date.getDate() - 1);
+  return localDayKey(date);
+}
+
 function tierForPoints(points) {
   const score = nonNegativeNumber(points);
   return [...VEHICLE_TIERS].reverse().find(tier => score >= tier.minPoints) || VEHICLE_TIERS[0];
@@ -111,6 +117,11 @@ export function createVehicleProgression() {
       pendingKm: 0
     },
     dailyActivity: createDailyActivity(),
+    streak: {
+      current: 0,
+      best: 0,
+      lastCompletedDay: null
+    },
     milestones: [],
     completedEventIds: [],
     updatedAt: null
@@ -160,13 +171,21 @@ export function normalizeVehicleProgression(value) {
   base.dailyActivity.completedMissionIds = Array.isArray(dailyActivity.completedMissionIds)
     ? [...new Set(dailyActivity.completedMissionIds.map(String).filter(id => DAILY_MISSIONS.some(mission => mission.id === id)))]
     : [];
+  const streak = source.streak && typeof source.streak === "object" && !Array.isArray(source.streak)
+    ? source.streak
+    : {};
+  base.streak.current = Math.floor(nonNegativeNumber(streak.current));
+  base.streak.best = Math.max(base.streak.current, Math.floor(nonNegativeNumber(streak.best)));
+  base.streak.lastCompletedDay = /^\d{4}-\d{2}-\d{2}$/.test(String(streak.lastCompletedDay || ""))
+    ? String(streak.lastCompletedDay)
+    : null;
   const milestoneIds = new Set();
   base.milestones = Array.isArray(source.milestones)
     ? source.milestones
       .filter(item => item && typeof item === "object" && !Array.isArray(item))
       .map(item => ({
         id: String(item.id || "").trim(),
-        type: ["mission", "evolution", "tier"].includes(String(item.type)) ? String(item.type) : "mission",
+        type: ["mission", "evolution", "tier", "streak"].includes(String(item.type)) ? String(item.type) : "mission",
         label: String(item.label || "").trim(),
         tier: vehicleTierById(item.tier).id,
         phase: VEHICLE_EVOLUTION_PHASES.some(phase => phase.id === item.phase) ? String(item.phase) : null,
@@ -240,6 +259,18 @@ export function getVehicleEvolutionSummary(value) {
 export function getProgressionMilestones(value) {
   return [...normalizeVehicleProgression(value).milestones]
     .sort((left, right) => (right.at || 0) - (left.at || 0));
+}
+
+export function getProgressionStreak(value, at = Date.now()) {
+  const progression = normalizeVehicleProgression(value);
+  const today = localDayKey(at);
+  const active = progression.streak.lastCompletedDay === today
+    || progression.streak.lastCompletedDay === previousLocalDayKey(at);
+  return {
+    current: active ? progression.streak.current : 0,
+    best: progression.streak.best,
+    lastCompletedDay: progression.streak.lastCompletedDay
+  };
 }
 
 export function getNextProgressionAction(value, at = Date.now()) {
@@ -464,6 +495,26 @@ export function recordProgressionEvent(value, event = {}) {
       at: progression.updatedAt
     });
   }
+  const dailyLoopCompleted = DAILY_MISSIONS.every(mission =>
+    progression.dailyActivity.completedMissionIds.includes(mission.id)
+  );
+  let streakCompleted = false;
+  if (dailyLoopCompleted && progression.streak.lastCompletedDay !== eventDay) {
+    progression.streak.current = progression.streak.lastCompletedDay === previousLocalDayKey(progression.updatedAt)
+      ? progression.streak.current + 1
+      : 1;
+    progression.streak.best = Math.max(progression.streak.best, progression.streak.current);
+    progression.streak.lastCompletedDay = eventDay;
+    streakCompleted = true;
+    addMilestone({
+      id: `streak:${eventDay}`,
+      type: "streak",
+      label: `오늘의 미션 3/3 완료 · ${progression.streak.current}일 연속`,
+      tier: progression.tier,
+      phase: currentEvolutionPhase.id,
+      at: progression.updatedAt
+    });
+  }
 
   return {
     progression,
@@ -473,6 +524,8 @@ export function recordProgressionEvent(value, event = {}) {
     evolutionChanged: previousEvolutionPhase.id !== currentEvolutionPhase.id,
     previousEvolutionPhase,
     currentEvolutionPhase,
+    streakCompleted,
+    streak: {...progression.streak},
     tierChanged
   };
 }
