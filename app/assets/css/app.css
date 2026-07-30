@@ -487,6 +487,10 @@ body[data-map-view="all"] .view-guidebar .environment-select{
   .guidebar-road-status{height:32px !important;line-height:32px !important}
 }
 
+.play-mission-card.is-completed{border-color:#3d704d;background:linear-gradient(135deg,#102019,#10161f)}
+.play-mission-card.is-completed strong,.play-mission-card.is-completed b{color:#62de87}
+.play-mission-card.is-completed>i span{background:#4fd879}
+
 .vroo-place-label{display:none}
 .vroo-marker-wrap{background:transparent!important;border:0!important}
 .vroo-marker{
