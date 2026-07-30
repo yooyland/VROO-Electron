@@ -23,7 +23,7 @@ import {renderGrowth} from "./modules/growth.js";
 import {renderShop} from "./modules/shop.js";
 import {renderCommunity} from "./modules/community.js";
 import {renderGarage} from "./modules/garage.js";
-import {bindProgressionController} from "./modules/progression-controller.js";
+import {applyDriveLocation,bindProgressionController} from "./modules/progression-controller.js";
 
 const state=loadState();
 ensureRoadChat(state);
@@ -439,6 +439,11 @@ document.querySelector("#gridSelector").onclick=()=>setScreen("grid");
         p=>{
           const loc={lat:p.coords.latitude,lng:p.coords.longitude};
           setLocation(loc);
+          applyDriveLocation(state, {
+            ...loc,
+            accuracy: p.coords.accuracy,
+            at: p.timestamp
+          });
           const gpsEl=document.querySelector("#gpsStatus");
           if(gpsEl)gpsEl.textContent=`GPS 연결 · 오차 ${Math.round(p.coords.accuracy)}m`;
           save();
