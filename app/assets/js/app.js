@@ -406,10 +406,14 @@ on("spatialChat:back",()=>{
 });
 function openCommunityPost(post){
   const listScroll = contentPanel.scrollTop;
+  const modal=document.querySelector("#modal");
   const restoreList=()=>requestAnimationFrame(()=>{contentPanel.scrollTop=listScroll});
-  openModal(post.title,"<div class=\"card community-post-detail\"><div class=\"muted\" id=\"communityPostMeta\"></div><p id=\"communityPostBody\"></p><div class=\"convo-actions\" style=\"margin-top:12px\"><button type=\"button\" class=\"secondary\" id=\"communityPostLike\">좋아요</button><button type=\"button\" class=\"secondary\" id=\"communityPostComment\">댓글</button><button type=\"button\" class=\"secondary\" id=\"communityPostShare\">공유</button><button type=\"button\" class=\"secondary\" id=\"communityPostReport\">신고</button></div></div>",[{label:"닫기",onClick:()=>{closeModal();restoreList()}}]);
-  document.querySelector("#modalClose")?.addEventListener("click",restoreList,{once:true});
-  document.querySelector("#modal")?.addEventListener("click",event=>{if(event.target?.id==="modal")restoreList()},{once:true});
+  const cleanupBackdrop=()=>modal?.removeEventListener("click",restoreOnBackdrop);
+  const restoreAndCleanup=()=>{cleanupBackdrop();restoreList()};
+  const restoreOnBackdrop=event=>{if(event.target?.id==="modal")restoreAndCleanup()};
+  openModal(post.title,"<div class=\"card community-post-detail\"><div class=\"muted\" id=\"communityPostMeta\"></div><p id=\"communityPostBody\"></p><div class=\"convo-actions\" style=\"margin-top:12px\"><button type=\"button\" class=\"secondary\" id=\"communityPostLike\">좋아요</button><button type=\"button\" class=\"secondary\" id=\"communityPostComment\">댓글</button><button type=\"button\" class=\"secondary\" id=\"communityPostShare\">공유</button><button type=\"button\" class=\"secondary\" id=\"communityPostReport\">신고</button></div></div>",[{label:"닫기",onClick:()=>{closeModal();restoreAndCleanup()}}]);
+  document.querySelector("#modalClose")?.addEventListener("click",restoreAndCleanup,{once:true});
+  modal?.addEventListener("click",restoreOnBackdrop);
   const meta=document.querySelector("#communityPostMeta");
   const body=document.querySelector("#communityPostBody");
   const like=document.querySelector("#communityPostLike");
