@@ -507,6 +507,12 @@ body[data-map-view="all"] .view-guidebar .environment-select{
 .vehicle-evolution-badge.evolution-flow,.vroo-me-label.evolution-flow{border-color:#ffd45c99;color:#ffd45c;box-shadow:0 0 11px #ffc40038}
 .vroo-me-label{white-space:nowrap}
 
+.garage-record-stack{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.72fr);gap:12px}
+.garage-milestone-card{min-height:330px;padding:20px;border:1px solid #303947;border-radius:20px;background:#0b1017}
+.garage-milestone-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.garage-milestone-head small{color:#d9ad45;font-size:9px;font-weight:900;letter-spacing:.15em}.garage-milestone-head h3{margin:4px 0 0}.garage-milestone-head>b{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d7aa4366;border-radius:50%;color:#ffd45c}
+.garage-milestone-card article{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin-top:8px;padding:11px;border:1px solid #293746;border-radius:11px;background:#10161f}.garage-milestone-card article>i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#222b36;color:#aab5c0;font-style:normal}.garage-milestone-card article b,.garage-milestone-card article small{display:block}.garage-milestone-card article small{margin-top:3px;color:#7f8b99;font-size:9px}.garage-milestone-card article em{color:#8f9aa8;font-size:8px;font-style:normal}.garage-milestone-card article.milestone-evolution{border-color:#4aa7cf55}.garage-milestone-card article.milestone-evolution>i{background:#0e2935;color:#bdeaff}.garage-milestone-card article.milestone-tier{border-color:#d7aa4366}.garage-milestone-card article.milestone-tier>i{background:#30250c;color:#ffd45c}.garage-milestone-card>p{color:#8f9aa8}
+@media(max-width:900px){.garage-record-stack{grid-template-columns:1fr}}
+
 .vroo-place-label{display:none}
 .vroo-marker-wrap{background:transparent!important;border:0!important}
 .vroo-marker{
