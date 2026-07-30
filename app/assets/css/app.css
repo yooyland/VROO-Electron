@@ -1412,3 +1412,12 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .chat-map-chat-list>button:hover,.chat-map-chat-list>button:focus-visible{border-color:#f3bd20}
 .chat-map-chat-list b,.chat-map-chat-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-map-chat-list small{color:#8f9baa;font-size:10px}
+
+
+/* Community structured list */
+.community-post-list{display:grid;gap:6px}
+.community-post-list .post-row{min-height:58px;padding:8px 10px}
+.community-post-list .post-row .avatar{font-size:22px}
+.community-post-list .post-row b{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.community-post-detail #communityPostBody{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+@media(max-width:720px){.community-filterbar{gap:6px}.community-post-list .post-row{grid-template-columns:34px minmax(0,1fr) auto}.community-post-list .post-row button{padding-inline:9px}}
