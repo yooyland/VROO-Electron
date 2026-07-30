@@ -593,6 +593,7 @@ function voiceControlsMarkup(state, roomId, roomType) {
       <label class="chat-voice-check"><input type="checkbox" data-voice-keep-grid ${prefs.keepOnGridChange ? "checked" : ""}><span>GRID가 바뀌어도 음성모드 유지</span></label>
       <p>방장·관리자의 발언 허용/차단은 참여자 화면에서 설정합니다.</p>
     </div>
+    <div class="chat-voice-transcript" data-voice-transcript hidden></div>
     <div class="muted chat-voice-notice">음성인식은 현재 사용할 수 있으며, 실시간 상대 음성 송수신은 음성 서버 연결 후 활성화됩니다.</div>`;
 }
 
@@ -677,6 +678,7 @@ function bindVoiceRequestControls(panel, state, roomId) {
 }
 
 function stopVoice() {
+  const stoppedRoomId = voiceBoundToRoomId;
   voiceListening = false;
   voiceBoundToRoomId = null;
   try {
@@ -686,8 +688,15 @@ function stopVoice() {
   }
   const b = activePanel?.querySelector("#voiceChat");
   if (b) {
-    b.textContent = "🎙️ 음성 듣기 시작";
-    b.classList.remove("voice-listening");
+    b.classList.remove("voice-listening", "is-active");
+    b.setAttribute("aria-pressed", "false");
+    const text = b.querySelector("small");
+    if (text) text.textContent = "마이크";
+  }
+  if (stoppedRoomId && activeState) {
+    const session = ensureVoiceSession(activeState, stoppedRoomId);
+    transitionVoiceState(session, VOICE_STATES.IDLE);
+    updateVoiceStatusUi(activePanel, session);
   }
 }
 
@@ -2114,18 +2123,16 @@ function toggleVoice(panel, state, peerId) {
       }
       chunk = chunk.trim();
       if (!chunk) return;
-      // 자동 전송하지 않음 — 입력창에만 채움
+      // 음성모드는 유지하고 인식 문장만 전송 대기 상태로 보관
       const ta = activePanel?.querySelector("#chatText");
-      const textCompose = activePanel?.querySelector("#textCompose");
-      const voiceCompose = activePanel?.querySelector("#voiceCompose");
       if (ta) {
         ta.value = ta.value.trim() ? `${ta.value.trim()} ${chunk}` : chunk;
       }
-      activePanel?.querySelectorAll("[data-chatmode]").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.chatmode === "text");
-      });
-      if (textCompose) textCompose.style.display = "block";
-      if (voiceCompose) voiceCompose.style.display = "none";
+      const transcript = activePanel?.querySelector("[data-voice-transcript]");
+      if (transcript) {
+        transcript.hidden = false;
+        transcript.textContent = `인식됨: ${chunk}`;
+      }
     };
     voiceRecognition.onerror = () => {
       stopVoice();
@@ -2151,9 +2158,14 @@ function toggleVoice(panel, state, peerId) {
   voiceBoundToRoomId = peerId;
   const b = panel.querySelector("#voiceChat");
   if (b) {
-    b.textContent = "🔴 음성 듣기 종료";
-    b.classList.add("voice-listening");
+    b.classList.add("voice-listening", "is-active");
+    b.setAttribute("aria-pressed", "true");
+    const text = b.querySelector("small");
+    if (text) text.textContent = "마이크 끄기";
   }
+  const session = ensureVoiceSession(state, peerId);
+  transitionVoiceState(session, VOICE_STATES.LISTENING);
+  updateVoiceStatusUi(panel, session);
   try {
     voiceRecognition.start();
   } catch (e) {
