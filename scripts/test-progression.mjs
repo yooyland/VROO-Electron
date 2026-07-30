@@ -3,6 +3,7 @@ import {
   createVehicleProgression,
   getDailyMissionSummary,
   getProgressionSummary,
+  getVehicleEvolutionSummary,
   normalizeVehicleProgression,
   progressionFromLegacyState,
   recordDriveLocation,
@@ -76,6 +77,10 @@ assert.equal(vehicleTierFromLegacyLevel(6).id, "street");
 assert.equal(vehicleTierFromLegacyLevel(31).id, "performance");
 assert.equal(vehicleTierById("not-a-tier").id, "basic");
 assert.equal(vehicleTierIndex("heritage"), 5);
+assert.equal(getVehicleEvolutionSummary(createVehicleProgression()).currentPhase.id, "core");
+assert.equal(getVehicleEvolutionSummary({points: 340}).currentPhase.id, "signature");
+assert.equal(getVehicleEvolutionSummary({points: 670}).currentPhase.id, "flow");
+assert.equal(getVehicleEvolutionSummary({points: 670}).pointsToNextPhase, 0);
 
 const today = new Date("2026-07-30T12:00:00+09:00").getTime();
 let dailyProgression = createVehicleProgression();
