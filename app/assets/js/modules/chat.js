@@ -505,18 +505,50 @@ function updateSpatialBadges(by) {
   }
 }
 
+function ensureChatComposeModes(state) {
+  if (!state.chatComposeModes || typeof state.chatComposeModes !== "object") {
+    state.chatComposeModes = {};
+  }
+  return state.chatComposeModes;
+}
+
+function getChatComposeMode(state, roomId) {
+  return ensureChatComposeModes(state)[roomId] === "voice" ? "voice" : "text";
+}
+
+function setChatComposeMode(state, roomId, mode) {
+  ensureChatComposeModes(state)[roomId] = mode === "voice" ? "voice" : "text";
+  emit("state:save");
+}
+
+function ensureVoicePreferences(state, roomId) {
+  if (!state.voicePreferences || typeof state.voicePreferences !== "object") {
+    state.voicePreferences = {};
+  }
+  const current = state.voicePreferences[roomId] || {};
+  const preferences = {
+    listening: current.listening !== false,
+    volume: Math.min(100, Math.max(0, Number(current.volume) || 80)),
+    voice: ["default", "low", "high"].includes(current.voice) ? current.voice : "default",
+    autoListen: current.autoListen !== false,
+    keepOnGridChange: current.keepOnGridChange === true
+  };
+  state.voicePreferences[roomId] = preferences;
+  return preferences;
+}
+
 function voiceStatusLabel(session) {
   const labels = {
-    idle: "마이크 꺼짐",
-    listening: "음성 인식 중",
+    idle: "음성 대기",
+    listening: "듣기·음성 인식 중",
     requesting: "발언 요청 중",
     queued: "발언 대기",
     speaking: "말하는 중",
-    muted: "음소거",
+    muted: "듣기 꺼짐",
     reconnecting: "재연결 중",
     blocked: "이용 제한"
   };
-  return labels[session?.state] || "마이크 꺼짐";
+  return labels[session?.state] || "음성 대기";
 }
 
 function voiceControlsMarkup(state, roomId, roomType) {
@@ -525,20 +557,43 @@ function voiceControlsMarkup(state, roomId, roomType) {
     role: roomType === "grid" ? "listener" : "speaker",
     mode: roomType === "grid" ? "approval" : "open"
   });
+  const prefs = ensureVoicePreferences(state, roomId);
+  const recognizing = voiceListening && voiceBoundToRoomId === roomId;
   const requestControl = roomType === "grid"
-    ? '<button class="secondary chat-voice-request" type="button" data-voice-request>발언 요청</button>'
+    ? '<button class="secondary chat-voice-control" type="button" data-voice-request><span>✋</span><small>발언 요청</small></button>'
     : "";
   return `
     <div class="chat-voice-status" data-voice-state="${escapeHtml(session.state)}">
       <span class="chat-voice-dot" aria-hidden="true"></span>
-      <div><b data-voice-status>${escapeHtml(voiceStatusLabel(session))}</b><small>현재 대화방 음성 상태</small></div>
-      <button class="secondary chat-voice-participants" type="button" data-voice-participants aria-label="음성 참여자 보기">참여자</button>
+      <div><b data-voice-status>${escapeHtml(voiceStatusLabel(session))}</b><small>이 방의 음성모드는 계속 유지됩니다.</small></div>
     </div>
-    <div class="chat-voice-actions">
-      <button class="secondary chat-voice-main" id="voiceChat" type="button">🎙️ 음성 인식 시작</button>
+    <div class="chat-voice-toolbar">
+      <button class="secondary chat-voice-control ${prefs.listening ? "is-active" : ""}" type="button" data-voice-listen aria-pressed="${prefs.listening}">
+        <span>${prefs.listening ? "🔊" : "🔇"}</span><small>듣기 ${prefs.listening ? "ON" : "OFF"}</small>
+      </button>
+      <button class="secondary chat-voice-control ${recognizing ? "is-active" : ""}" id="voiceChat" type="button" aria-pressed="${recognizing}">
+        <span>🎙️</span><small>${recognizing ? "마이크 끄기" : "마이크"}</small>
+      </button>
       ${requestControl}
+      <button class="secondary chat-voice-control" type="button" data-voice-participants>
+        <span>👥</span><small>참여자</small>
+      </button>
+      <button class="secondary chat-voice-control" type="button" data-voice-settings aria-expanded="false">
+        <span>⚙️</span><small>설정</small>
+      </button>
     </div>
-    <div class="muted chat-voice-notice">현재는 음성인식·발언 상태 프로토타입입니다. 실제 그룹 음성 송수신은 서버 연결 단계에서 활성화됩니다.</div>`;
+    <div class="chat-voice-settings" data-voice-settings-panel hidden>
+      <label><span>상대 목소리 크기</span><input type="range" min="0" max="100" value="${prefs.volume}" data-voice-volume><output data-voice-volume-output>${prefs.volume}%</output></label>
+      <label><span>안내 목소리</span><select data-voice-choice>
+        <option value="default" ${prefs.voice === "default" ? "selected" : ""}>기본</option>
+        <option value="low" ${prefs.voice === "low" ? "selected" : ""}>낮은 톤</option>
+        <option value="high" ${prefs.voice === "high" ? "selected" : ""}>높은 톤</option>
+      </select></label>
+      <label class="chat-voice-check"><input type="checkbox" data-voice-auto-listen ${prefs.autoListen ? "checked" : ""}><span>음성 탭을 열면 자동 듣기</span></label>
+      <label class="chat-voice-check"><input type="checkbox" data-voice-keep-grid ${prefs.keepOnGridChange ? "checked" : ""}><span>GRID가 바뀌어도 음성모드 유지</span></label>
+      <p>방장·관리자의 발언 허용/차단은 참여자 화면에서 설정합니다.</p>
+    </div>
+    <div class="muted chat-voice-notice">음성인식은 현재 사용할 수 있으며, 실시간 상대 음성 송수신은 음성 서버 연결 후 활성화됩니다.</div>`;
 }
 
 function updateVoiceStatusUi(panel, session) {
@@ -550,11 +605,13 @@ function updateVoiceStatusUi(panel, session) {
   const request = panel.querySelector("[data-voice-request]");
   if (request) {
     request.disabled = session.state === VOICE_STATES.QUEUED || session.state === VOICE_STATES.REQUESTING;
-    request.textContent = session.state === VOICE_STATES.QUEUED ? "발언 대기 중" : "발언 요청";
+    const text = request.querySelector("small");
+    if (text) text.textContent = session.state === VOICE_STATES.QUEUED ? "발언 대기" : "발언 요청";
   }
 }
 
 function bindVoiceRequestControls(panel, state, roomId) {
+  const prefs = ensureVoicePreferences(state, roomId);
   const request = panel?.querySelector?.("[data-voice-request]");
   if (request) {
     request.onclick = () => {
@@ -565,10 +622,56 @@ function bindVoiceRequestControls(panel, state, roomId) {
       emit("state:save");
     };
   }
+
+  const listen = panel?.querySelector?.("[data-voice-listen]");
+  if (listen) {
+    listen.onclick = () => {
+      prefs.listening = !prefs.listening;
+      listen.classList.toggle("is-active", prefs.listening);
+      listen.setAttribute("aria-pressed", String(prefs.listening));
+      const icon = listen.querySelector("span");
+      const text = listen.querySelector("small");
+      if (icon) icon.textContent = prefs.listening ? "🔊" : "🔇";
+      if (text) text.textContent = `듣기 ${prefs.listening ? "ON" : "OFF"}`;
+      const session = ensureVoiceSession(state, roomId);
+      transitionVoiceState(session, prefs.listening ? VOICE_STATES.LISTENING : VOICE_STATES.MUTED);
+      updateVoiceStatusUi(panel, session);
+      if (!prefs.listening) window.speechSynthesis?.cancel?.();
+      emit("state:save");
+    };
+  }
+
+  const settings = panel?.querySelector?.("[data-voice-settings]");
+  const settingsPanel = panel?.querySelector?.("[data-voice-settings-panel]");
+  if (settings && settingsPanel) {
+    settings.onclick = () => {
+      const open = settingsPanel.hidden;
+      settingsPanel.hidden = !open;
+      settings.classList.toggle("is-active", open);
+      settings.setAttribute("aria-expanded", String(open));
+    };
+  }
+
+  const volume = panel?.querySelector?.("[data-voice-volume]");
+  if (volume) {
+    volume.oninput = () => {
+      prefs.volume = Number(volume.value);
+      const output = panel.querySelector("[data-voice-volume-output]");
+      if (output) output.textContent = `${prefs.volume}%`;
+      emit("state:save");
+    };
+  }
+  const choice = panel?.querySelector?.("[data-voice-choice]");
+  if (choice) choice.onchange = () => { prefs.voice = choice.value; emit("state:save"); };
+  const autoListen = panel?.querySelector?.("[data-voice-auto-listen]");
+  if (autoListen) autoListen.onchange = () => { prefs.autoListen = autoListen.checked; emit("state:save"); };
+  const keepGrid = panel?.querySelector?.("[data-voice-keep-grid]");
+  if (keepGrid) keepGrid.onchange = () => { prefs.keepOnGridChange = keepGrid.checked; emit("state:save"); };
+
   const participants = panel?.querySelector?.("[data-voice-participants]");
   if (participants) {
     participants.onclick = () => {
-      showSystemMessage("음성 참여자·마이크 좌석 팝업은 다음 단계에서 연결됩니다.");
+      showSystemMessage("참여자·발언 허용·차단 화면을 다음 단계에서 연결합니다.");
     };
   }
 }
@@ -588,19 +691,26 @@ function stopVoice() {
   }
 }
 
-function speakLatestMessage(panel) {
+function speakLatestMessage(panel, state, roomId) {
+  const prefs = ensureVoicePreferences(state, roomId);
+  if (!prefs.listening) return;
   const bubbles = [...(panel?.querySelectorAll?.("#chatScroll .bubble:not(.mine)") || [])];
   const text = String(bubbles.at(-1)?.textContent || "").trim();
   if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ko-KR";
+  utterance.volume = prefs.volume / 100;
+  utterance.pitch = prefs.voice === "low" ? 0.75 : prefs.voice === "high" ? 1.25 : 1;
   window.speechSynthesis.speak(utterance);
 }
 
 function activateVoiceMode(panel, state, roomId) {
-  speakLatestMessage(panel);
-  if (!voiceListening || voiceBoundToRoomId !== roomId) toggleVoice(panel, state, roomId);
+  const prefs = ensureVoicePreferences(state, roomId);
+  speakLatestMessage(panel, state, roomId);
+  if (prefs.autoListen && (!voiceListening || voiceBoundToRoomId !== roomId)) {
+    toggleVoice(panel, state, roomId);
+  }
 }
 
 export function pauseChatVoice() {
@@ -1585,7 +1695,8 @@ function renderChat(panel, state, peerId) {
   const room = state.rooms[peerId];
   if (!room) return renderRooms(panel, state);
 
-  stopVoice();
+  if (voiceBoundToRoomId && voiceBoundToRoomId !== peerId) stopVoice();
+  const composeMode = getChatComposeMode(state, peerId);
   activeRoomId = peerId;
   activePanel = panel;
   activeState = state;
@@ -1616,14 +1727,14 @@ function renderChat(panel, state, peerId) {
     <div id="chatScroll" class="chat-scroll">${bubbles}</div>
     <div class="chat-compose">
       <div class="tabs">
-        <button type="button" class="active" data-chatmode="text">텍스트</button>
-        <button type="button" data-chatmode="voice">음성</button>
+        <button type="button" class="${composeMode === "text" ? "active" : ""}" data-chatmode="text">텍스트</button>
+        <button type="button" class="${composeMode === "voice" ? "active" : ""}" data-chatmode="voice">음성</button>
       </div>
-      <div id="textCompose">
+      <div id="textCompose" style="display:${composeMode === "text" ? "block" : "none"}">
         <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
-      <div id="voiceCompose" style="display:none">
+      <div id="voiceCompose" style="display:${composeMode === "voice" ? "block" : "none"}">
         ${voiceControlsMarkup(state, peerId, "direct")}
       </div>
     </div>
@@ -1655,6 +1766,7 @@ function renderChat(panel, state, peerId) {
     b.onclick = () => {
       panel.querySelectorAll("[data-chatmode]").forEach(x => x.classList.toggle("active", x === b));
       const mode = b.dataset.chatmode;
+      setChatComposeMode(state, peerId, mode);
       panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
       panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
       if (mode === "voice") activateVoiceMode(panel, state, peerId);
@@ -1679,6 +1791,7 @@ function renderChat(panel, state, peerId) {
 
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, peerId);
   bindVoiceRequestControls(panel, state, peerId);
+  if (composeMode === "voice") activateVoiceMode(panel, state, peerId);
   mountChatUtilities(panel, state, { type: "direct", peerId });
 
   requestAnimationFrame(() => {
@@ -1820,7 +1933,8 @@ function renderGridChat(panel, state, gridId) {
   const room = state.rooms[roomId];
   if (!room) return renderRooms(panel, state);
 
-  stopVoice();
+  if (voiceBoundToRoomId && voiceBoundToRoomId !== roomId) stopVoice();
+  const composeMode = getChatComposeMode(state, roomId);
   activeRoomId = roomId;
   activePanel = panel;
   activeState = state;
@@ -1850,14 +1964,14 @@ function renderGridChat(panel, state, gridId) {
     <div id="chatScroll" class="chat-scroll">${bubbles}</div>
     <div class="chat-compose">
       <div class="tabs">
-        <button type="button" class="active" data-chatmode="text">텍스트</button>
-        <button type="button" data-chatmode="voice">음성</button>
+        <button type="button" class="${composeMode === "text" ? "active" : ""}" data-chatmode="text">텍스트</button>
+        <button type="button" class="${composeMode === "voice" ? "active" : ""}" data-chatmode="voice">음성</button>
       </div>
-      <div id="textCompose">
+      <div id="textCompose" style="display:${composeMode === "text" ? "block" : "none"}">
         <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
-      <div id="voiceCompose" style="display:none">
+      <div id="voiceCompose" style="display:${composeMode === "voice" ? "block" : "none"}">
         ${voiceControlsMarkup(state, roomId, "grid")}
       </div>
     </div>
@@ -1888,6 +2002,7 @@ function renderGridChat(panel, state, gridId) {
     b.onclick = () => {
       panel.querySelectorAll("[data-chatmode]").forEach(x => x.classList.toggle("active", x === b));
       const mode = b.dataset.chatmode;
+      setChatComposeMode(state, roomId, mode);
       panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
       panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
       if (mode === "voice") activateVoiceMode(panel, state, roomId);
@@ -1905,6 +2020,7 @@ function renderGridChat(panel, state, gridId) {
   });
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
   bindVoiceRequestControls(panel, state, roomId);
+  if (composeMode === "voice") activateVoiceMode(panel, state, roomId);
   mountChatUtilities(panel, state, { type: "grid", gridId });
 
   requestAnimationFrame(() => {
