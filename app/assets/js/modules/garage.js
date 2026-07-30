@@ -1,4 +1,6 @@
 import {emit} from "../core/events.js";
+import {carInfo} from "./data.js";
+import {getProgressionSummary} from "./progression.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
 const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
@@ -198,18 +200,29 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
   const mileage = metric(state.weekMileage, 128.4);
   const fuel = metric(state.fuelLevel, 95);
   const battery = metric(state.batteryLevel, 82);
+  const vehicle = carInfo(state.profile.car);
+  const progression = getProgressionSummary(state.vehicleProgression);
+  const heritageOwned = progression.currentTier.id === "heritage";
+  const heroEyebrow = heritageOwned ? "VROO FLAGSHIP · HERITAGE" : "FINAL GOAL PREVIEW · HERITAGE";
+  const heroTitle = heritageOwned ? "Heritage Executive S" : "Heritage Executive S · 목표 프리뷰";
 
   root.innerHTML = `
     <section class="garage-hero" aria-label="MY CAR Garage" data-garage-stage>
       <div class="garage-hero-copy">
-        <span class="garage-eyebrow">VROO FLAGSHIP · HERITAGE</span>
-        <h3>Heritage Executive S</h3>
-        <p>${state.profile.nickname} · ${state.profile.plate}</p>
+        <span class="garage-eyebrow">${heroEyebrow}</span>
+        <h3>${heroTitle}</h3>
+        <p>${heritageOwned
+          ? `${state.profile.nickname} · ${state.profile.plate}`
+          : `현재 차량 ${progression.currentTier.label} · 성장 목표 미리보기`}</p>
         <div class="garage-level-row">
           <b>LV.${level}</b>
           <div class="garage-exp"><i style="width:${xp}%"></i></div>
           <span>${xp}%</span>
         </div>
+      </div>
+      <div class="garage-current-vehicle" data-current-vehicle-tier="${progression.currentTier.id}">
+        <span>${vehicle.emoji}</span>
+        <div><small>CURRENT VEHICLE</small><b>${progression.currentTier.label}</b><em>${vehicle.name}</em></div>
       </div>
       <div class="garage-score"><small>VEHICLE SCORE</small><strong>${score}</strong></div>
       <button type="button" class="garage-light-toggle" data-garage-light-toggle aria-pressed="false">
@@ -228,7 +241,7 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
       <article><small>이번 주 주행</small><b>${mileage.toLocaleString("ko-KR")} km</b></article>
       <article><small>연료</small><b>${fuel}%</b><i><span style="width:${fuel}%"></span></i></article>
       <article><small>배터리</small><b>${battery}%</b><i><span style="width:${battery}%"></span></i></article>
-      <article><small>등급</small><b>HERITAGE S</b></article>
+      <article><small>현재 등급</small><b data-garage-tier>${progression.currentTier.label}</b></article>
     </section>
 
     <section class="garage-action-grid">
