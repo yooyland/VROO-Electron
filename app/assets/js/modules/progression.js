@@ -317,6 +317,7 @@ export function getProgressionSummary(value) {
 
 export function recordProgressionEvent(value, event = {}) {
   const progression = normalizeVehicleProgression(value);
+  const previousEvolutionPhase = getVehicleEvolutionSummary(progression).currentPhase;
   const kind = String(event.kind || "");
   const pointRate = PROGRESSION_EVENT_POINTS[kind];
   if (!pointRate) return {progression, applied: false, reason: "unknown-event"};
@@ -359,12 +360,16 @@ export function recordProgressionEvent(value, event = {}) {
     }
   }
   progression.tier = tierForPoints(progression.points).id;
+  const currentEvolutionPhase = getVehicleEvolutionSummary(progression).currentPhase;
 
   return {
     progression,
     applied: true,
     earnedPoints: earnedPoints + completedMissions.reduce((sum, mission) => sum + mission.rewardPoints, 0),
     completedMissions,
+    evolutionChanged: previousEvolutionPhase.id !== currentEvolutionPhase.id,
+    previousEvolutionPhase,
+    currentEvolutionPhase,
     tierChanged: progression.tier !== normalizeVehicleProgression(value).tier
   };
 }
