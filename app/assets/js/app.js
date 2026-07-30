@@ -406,8 +406,32 @@ on("spatialChat:back",()=>{
   else if(currentScreen==="grid")renderGrid(spatialPanel,state);
   else renderNearby(spatialPanel,state);
 });
+function openCommunityPost(post){
+  const listScroll = contentPanel.scrollTop;
+  const modal=document.querySelector("#modal");
+  const restoreList=()=>requestAnimationFrame(()=>{contentPanel.scrollTop=listScroll});
+  const cleanupBackdrop=()=>modal?.removeEventListener("click",restoreOnBackdrop);
+  const restoreAndCleanup=()=>{cleanupBackdrop();restoreList()};
+  const restoreOnBackdrop=event=>{if(event.target?.id==="modal")restoreAndCleanup()};
+  openModal(post.title,"<div class=\"card community-post-detail\"><div class=\"muted\" id=\"communityPostMeta\"></div><p id=\"communityPostBody\"></p><div class=\"convo-actions\" style=\"margin-top:12px\"><button type=\"button\" class=\"secondary\" id=\"communityPostLike\">좋아요</button><button type=\"button\" class=\"secondary\" id=\"communityPostComment\">댓글</button><button type=\"button\" class=\"secondary\" id=\"communityPostShare\">공유</button><button type=\"button\" class=\"secondary\" id=\"communityPostReport\">신고</button></div></div>",[{label:"닫기",onClick:()=>{closeModal();restoreAndCleanup()}}]);
+  document.querySelector("#modalClose")?.addEventListener("click",restoreAndCleanup,{once:true});
+  modal?.addEventListener("click",restoreOnBackdrop);
+  const meta=document.querySelector("#communityPostMeta");
+  const body=document.querySelector("#communityPostBody");
+  const like=document.querySelector("#communityPostLike");
+  if(meta)meta.textContent=(post.category||"커뮤니티")+" · "+(post.author||"")+" · 댓글 "+(post.comments||[]).length+" · 좋아요 "+(post.likes||0);
+  if(body)body.textContent=post.body||"";
+  if(like){
+    like.textContent="좋아요 "+(post.likes||0);
+    like.onclick=()=>{post.likes=(post.likes||0)+1;like.textContent="좋아요 "+post.likes;save()};
+  }
+  document.querySelector("#communityPostComment")?.addEventListener("click",()=>showSystemMessage("댓글 작성은 서버 연동 후 이용할 수 있습니다."));
+  document.querySelector("#communityPostShare")?.addEventListener("click",()=>showSystemMessage("게시글 공유 링크 기능을 준비 중입니다."));
+  document.querySelector("#communityPostReport")?.addEventListener("click",()=>showSystemMessage("신고·차단 기능을 준비 중입니다."));
+}
+
 on("post:create",createPost);
-on("post:view",p=>openModal(p.title,`<div class="card"><b>${p.author}</b><div class="muted">${p.scope}</div><p>${p.body}</p></div>`,[{label:"닫기",onClick:closeModal}]));
+on("post:view",openCommunityPost);
 on("map:rotate",d=>{state.mapBearing=(state.mapBearing+d+360)%360;rotateMap(state.mapBearing);save()});
 on("map:north",()=>{state.mapBearing=0;rotateMap(0);save()});
 
