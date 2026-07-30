@@ -1,4 +1,5 @@
 import {carInfo} from "./data.js";
+import {getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
 import {emit} from "../core/events.js";
 import {growthUpgradeCost,formatCredits,canAfford,spendCredits} from "../core/storage.js";
 import {showSystemMessage} from "../core/ui.js";
@@ -14,26 +15,41 @@ export function renderGrowth(panel,state){
   const mileage=clamp(state.weekMileage,0,9999);
   const driveProgress=Math.min(100,Math.round((mileage/10)*100));
   const visited=Math.min(3,Math.max(0,Number(state.visitedGridCount)||0));
+  const vehicle=carInfo(state.profile.car);
+  const progression=getProgressionSummary(state.vehicleProgression);
   let busy=false;
 
   panel.innerHTML=`
     <div class="play-shell">
       <section class="play-hero">
-        <div class="play-avatar">${carInfo(state.profile.car).emoji}</div>
+        <div class="play-avatar" aria-label="${vehicle.name}">${vehicle.emoji}</div>
         <div class="play-hero-copy">
-          <span>VROO PLAY</span>
-          <h3>${state.profile.nickname} · LV.${level}</h3>
+          <span>VROO PLAY · ${progression.currentTier.label}</span>
+          <h3>${state.profile.nickname} · ${vehicle.name}</h3>
           <p>주행·GRID·안전 운전 미션으로 차량과 계정을 성장시킵니다.</p>
-          <div class="progress" aria-label="레벨 경험치"><i style="width:${xp}%"></i></div>
-          <small>EXP ${xp}%</small>
+          <div class="progress" aria-label="${progression.currentTier.label} 성장 진행률"><i style="width:${progression.progress}%"></i></div>
+          <small>${progression.nextTier
+            ? `${progression.nextTier.label}까지 ${progression.pointsToNext.toLocaleString("ko-KR")}P`
+            : "HERITAGE 완성"}</small>
         </div>
         <button type="button" class="secondary" id="openGarageFromPlay">MY CAR · 차고</button>
       </section>
 
       <section class="play-summary" aria-label="PLAY 요약">
-        <article><small>현재 레벨</small><b>LV.${level}</b></article>
+        <article><small>현재 차량 등급</small><b>${progression.currentTier.label}</b></article>
+        <article><small>성장 포인트</small><b>${progression.points.toLocaleString("ko-KR")} P</b></article>
         <article><small>주간 주행</small><b>${mileage.toLocaleString("ko-KR")} km</b></article>
-        <article><small>다음 업그레이드</small><b>🪙 ${formatCredits(cost)}</b></article>
+        <article><small>계정 레벨</small><b>LV.${level} · ${xp}%</b></article>
+      </section>
+
+      <section class="play-tier-roadmap" aria-label="차량 성장 단계">
+        ${VEHICLE_TIERS.map(tier => {
+          const active=tier.id===progression.currentTier.id;
+          const completed=progression.points>=tier.minPoints && !active;
+          return `<div class="${active?"active":completed?"completed":""}">
+            <i></i><b>${tier.label}</b><small>${tier.minPoints.toLocaleString("ko-KR")}P</small>
+          </div>`;
+        }).join("")}
       </section>
 
       <section class="play-grid">
@@ -56,11 +72,11 @@ export function renderGrowth(panel,state){
         </div>
 
         <aside class="play-upgrade-card">
-          <span>LEVEL UP</span>
-          <h3>차량 성장</h3>
-          <p>레벨을 올리면 탐색 범위와 소셜 기능이 단계적으로 확장됩니다.</p>
-          <div class="play-cost">필요 크레딧 <b>🪙 ${formatCredits(cost)}</b></div>
-          <button class="primary" id="levelUp" type="button">업그레이드</button>
+          <span>ACCOUNT LEVEL</span>
+          <h3>계정 업그레이드</h3>
+          <p>차량 등급은 일상 활동으로 성장합니다. 크레딧 업그레이드는 계정 레벨과 별도로 유지됩니다.</p>
+          <div class="play-cost">LV.${level+1} 필요 크레딧 <b>🪙 ${formatCredits(cost)}</b></div>
+          <button class="primary" id="levelUp" type="button">계정 레벨 올리기</button>
         </aside>
       </section>
     </div>`;
