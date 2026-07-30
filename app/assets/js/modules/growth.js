@@ -1,5 +1,5 @@
 import {carInfo} from "./data.js";
-import {getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
+import {getDailyMissionSummary, getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
 import {emit} from "../core/events.js";
 import {growthUpgradeCost,formatCredits,canAfford,spendCredits} from "../core/storage.js";
 import {showSystemMessage} from "../core/ui.js";
@@ -13,10 +13,9 @@ export function renderGrowth(panel,state){
   const level=Math.max(1,Number(state.level)||1);
   const xp=clamp(state.xp,0,100);
   const mileage=clamp(state.weekMileage,0,9999);
-  const driveProgress=Math.min(100,Math.round((mileage/10)*100));
-  const visited=Math.min(3,Math.max(0,Number(state.visitedGridCount)||0));
   const vehicle=carInfo(state.profile.car);
   const progression=getProgressionSummary(state.vehicleProgression);
+  const daily=getDailyMissionSummary(state.vehicleProgression);
   let busy=false;
 
   panel.innerHTML=`
@@ -54,21 +53,14 @@ export function renderGrowth(panel,state){
 
       <section class="play-grid">
         <div class="play-missions">
-          <div class="play-section-head"><div><span>DAILY MISSION</span><h3>오늘의 미션</h3></div><small>로컬 진행 상태</small></div>
-          <article class="play-mission-card">
-            <div><b>오늘의 드라이브</b><small>10 km 주행</small></div>
-            <strong>${Math.min(10,mileage).toFixed(1)} / 10 km</strong>
-            <i><span style="width:${driveProgress}%"></span></i>
-          </article>
-          <article class="play-mission-card">
-            <div><b>GRID 방문</b><small>서로 다른 GRID 3곳 방문</small></div>
-            <strong>${visited} / 3</strong>
-            <i><span style="width:${Math.round((visited/3)*100)}%"></span></i>
-          </article>
-          <article class="play-mission-card is-planned">
-            <div><b>안전 운전 연속 기록</b><small>실제 센서 연동 전</small></div>
-            <strong>준비 중</strong>
-          </article>
+          <div class="play-section-head"><div><span>DAILY MISSION · ${daily.day}</span><h3>오늘의 미션</h3></div><small>${daily.completedCount} / ${daily.totalCount} 완료 · +${daily.rewardPoints}P</small></div>
+          ${daily.missions.map(mission=>`
+            <article class="play-mission-card ${mission.completed?"is-completed":""}">
+              <div><b>${mission.completed?"✓ ":""}${mission.label}</b><small>${mission.description} · 보상 +${mission.rewardPoints}P</small></div>
+              <strong>${mission.current.toFixed(mission.kind==="driveKm"?1:0)} / ${mission.target} ${mission.unit}</strong>
+              <i><span style="width:${mission.progress}%"></span></i>
+            </article>
+          `).join("")}
         </div>
 
         <aside class="play-upgrade-card">
