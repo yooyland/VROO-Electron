@@ -1,6 +1,6 @@
 import {emit} from "../core/events.js";
 import {carInfo} from "./data.js";
-import {getProgressionSummary} from "./progression.js";
+import {getProgressionSummary, getVehicleEvolutionSummary} from "./progression.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
 const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
@@ -202,6 +202,7 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
   const battery = metric(state.batteryLevel, 82);
   const vehicle = carInfo(state.profile.car);
   const progression = getProgressionSummary(state.vehicleProgression);
+  const evolution = getVehicleEvolutionSummary(state.vehicleProgression);
   const heritageOwned = progression.currentTier.id === "heritage";
   const heroEyebrow = heritageOwned ? "VROO FLAGSHIP · HERITAGE" : "FINAL GOAL PREVIEW · HERITAGE";
   const heroTitle = heritageOwned ? "Heritage Executive S" : "Heritage Executive S · 목표 프리뷰";
@@ -220,9 +221,15 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
           <span>${xp}%</span>
         </div>
       </div>
-      <div class="garage-current-vehicle" data-current-vehicle-tier="${progression.currentTier.id}">
+      <div class="garage-current-vehicle evolution-${evolution.currentPhase.id}" data-current-vehicle-tier="${progression.currentTier.id}" data-evolution-stage="${evolution.currentPhase.id}">
         <span>${vehicle.emoji}</span>
-        <div><small>CURRENT VEHICLE</small><b>${progression.currentTier.label}</b><em>${vehicle.name}</em></div>
+        <div><small>CURRENT VEHICLE · PHASE ${evolution.phaseNumber}/${evolution.phaseCount}</small><b>${progression.currentTier.label} · ${evolution.currentPhase.label}</b><em>${vehicle.name}</em></div>
+        <div class="garage-evolution-signals" aria-label="차량 성장 신호">
+          ${evolution.phases.map(phase => `<i class="${phase.unlocked?"unlocked":""} ${phase.active?"active":""}" title="${phase.description}">${phase.label}</i>`).join("")}
+        </div>
+        <small class="garage-next-evolution">${evolution.nextPhase
+          ? `${evolution.nextPhase.label}까지 ${evolution.pointsToNextPhase.toLocaleString("ko-KR")}P`
+          : `${progression.nextTier ? `${progression.nextTier.label} 진화를 준비하세요` : "VROO HERITAGE 완성"}`}</small>
       </div>
       <div class="garage-score"><small>VEHICLE SCORE</small><strong>${score}</strong></div>
       <button type="button" class="garage-light-toggle" data-garage-light-toggle aria-pressed="false">
