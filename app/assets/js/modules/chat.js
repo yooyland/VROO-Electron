@@ -4,7 +4,7 @@ import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
 import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
-import {getProgressionSummary, vehicleTierById, vehicleTierFromLegacyLevel} from "./progression.js";
+import {getProgressionSummary, getVehicleEvolutionSummary, vehicleTierById, vehicleTierFromLegacyLevel} from "./progression.js";
 import {
   ensureRoadChat,
   getRoadConversationCard,
@@ -1763,6 +1763,7 @@ function renderGridChat(panel, state, gridId) {
 
   const messages = Array.isArray(room.messages) ? room.messages : [];
   const myTier = getProgressionSummary(state.vehicleProgression).currentTier;
+  const myEvolution = getVehicleEvolutionSummary(state.vehicleProgression);
   const bubbles = messages
     .map(m => {
       const msg = normalizeMessage(m, "unknown", MY_USER_ID, roomId);
@@ -1779,7 +1780,7 @@ function renderGridChat(panel, state, gridId) {
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
-        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 내 차량 <span class="vehicle-tier-badge">${myTier.label}</span> · 동일 세션</div>
+        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 내 차량 <span class="vehicle-tier-badge">${myTier.label}</span> <span class="vehicle-evolution-badge evolution-${myEvolution.currentPhase.id}">${myEvolution.currentPhase.label}</span> · 동일 세션</div>
       </div>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
     </div>
