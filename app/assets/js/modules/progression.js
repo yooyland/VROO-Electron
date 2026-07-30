@@ -1,4 +1,4 @@
-export const PROGRESSION_SCHEMA_VERSION = 1;
+export const PROGRESSION_SCHEMA_VERSION = 2;
 
 export const VEHICLE_TIERS = Object.freeze([
   Object.freeze({id: "basic", label: "BASIC", minPoints: 0}),
@@ -111,6 +111,7 @@ export function createVehicleProgression() {
       pendingKm: 0
     },
     dailyActivity: createDailyActivity(),
+    milestones: [],
     completedEventIds: [],
     updatedAt: null
   };
@@ -158,6 +159,21 @@ export function normalizeVehicleProgression(value) {
   base.dailyActivity.helpfulMessages = nonNegativeNumber(dailyActivity.helpfulMessages);
   base.dailyActivity.completedMissionIds = Array.isArray(dailyActivity.completedMissionIds)
     ? [...new Set(dailyActivity.completedMissionIds.map(String).filter(id => DAILY_MISSIONS.some(mission => mission.id === id)))]
+    : [];
+  const milestoneIds = new Set();
+  base.milestones = Array.isArray(source.milestones)
+    ? source.milestones
+      .filter(item => item && typeof item === "object" && !Array.isArray(item))
+      .map(item => ({
+        id: String(item.id || "").trim(),
+        type: ["mission", "evolution", "tier"].includes(String(item.type)) ? String(item.type) : "mission",
+        label: String(item.label || "").trim(),
+        tier: vehicleTierById(item.tier).id,
+        phase: VEHICLE_EVOLUTION_PHASES.some(phase => phase.id === item.phase) ? String(item.phase) : null,
+        at: Number.isFinite(Number(item.at)) ? Number(item.at) : null
+      }))
+      .filter(item => item.id && item.label && !milestoneIds.has(item.id) && milestoneIds.add(item.id))
+      .slice(-50)
     : [];
   base.completedEventIds = Array.isArray(source.completedEventIds)
     ? [...new Set(source.completedEventIds.filter(value => value != null).map(String).filter(Boolean))].slice(-100)
@@ -219,6 +235,11 @@ export function getVehicleEvolutionSummary(value) {
       active: index === currentIndex
     }))
   };
+}
+
+export function getProgressionMilestones(value) {
+  return [...normalizeVehicleProgression(value).milestones]
+    .sort((left, right) => (right.at || 0) - (left.at || 0));
 }
 
 function distanceKm(from, to) {
@@ -317,6 +338,7 @@ export function getProgressionSummary(value) {
 
 export function recordProgressionEvent(value, event = {}) {
   const progression = normalizeVehicleProgression(value);
+  const previousTier = progression.tier;
   const previousEvolutionPhase = getVehicleEvolutionSummary(progression).currentPhase;
   const kind = String(event.kind || "");
   const pointRate = PROGRESSION_EVENT_POINTS[kind];
@@ -361,6 +383,42 @@ export function recordProgressionEvent(value, event = {}) {
   }
   progression.tier = tierForPoints(progression.points).id;
   const currentEvolutionPhase = getVehicleEvolutionSummary(progression).currentPhase;
+  const tierChanged = progression.tier !== previousTier;
+  const addMilestone = milestone => {
+    if (!milestone.id || progression.milestones.some(item => item.id === milestone.id)) return;
+    progression.milestones.push(milestone);
+    progression.milestones = progression.milestones.slice(-50);
+  };
+  for (const mission of completedMissions) {
+    addMilestone({
+      id: `${eventDay}:mission:${mission.id}`,
+      type: "mission",
+      label: `${mission.label} 완료`,
+      tier: progression.tier,
+      phase: currentEvolutionPhase.id,
+      at: progression.updatedAt
+    });
+  }
+  if (previousEvolutionPhase.id !== currentEvolutionPhase.id) {
+    addMilestone({
+      id: `evolution:${progression.tier}:${currentEvolutionPhase.id}`,
+      type: "evolution",
+      label: `${vehicleTierById(progression.tier).label} · ${currentEvolutionPhase.label}`,
+      tier: progression.tier,
+      phase: currentEvolutionPhase.id,
+      at: progression.updatedAt
+    });
+  }
+  if (tierChanged) {
+    addMilestone({
+      id: `tier:${progression.tier}`,
+      type: "tier",
+      label: `${vehicleTierById(progression.tier).label} 등급 달성`,
+      tier: progression.tier,
+      phase: currentEvolutionPhase.id,
+      at: progression.updatedAt
+    });
+  }
 
   return {
     progression,
@@ -370,6 +428,6 @@ export function recordProgressionEvent(value, event = {}) {
     evolutionChanged: previousEvolutionPhase.id !== currentEvolutionPhase.id,
     previousEvolutionPhase,
     currentEvolutionPhase,
-    tierChanged: progression.tier !== normalizeVehicleProgression(value).tier
+    tierChanged
   };
 }
