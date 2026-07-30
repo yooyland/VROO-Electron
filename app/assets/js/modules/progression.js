@@ -17,6 +17,12 @@ export const PROGRESSION_EVENT_POINTS = Object.freeze({
   connection: 30
 });
 
+export const DAILY_MISSIONS = Object.freeze([
+  Object.freeze({id: "daily-drive", kind: "driveKm", label: "오늘의 드라이브", description: "검증된 거리 1 km 주행", target: 1, unit: "km", rewardPoints: 100}),
+  Object.freeze({id: "daily-grid", kind: "gridVisit", label: "새로운 GRID", description: "오늘 GRID 1곳 방문", target: 1, unit: "곳", rewardPoints: 100}),
+  Object.freeze({id: "daily-help", kind: "helpfulMessage", label: "도로 위 도움", description: "도움·상황 메시지 1회 전송", target: 1, unit: "회", rewardPoints: 100})
+]);
+
 const COUNTER_KEYS = Object.freeze({
   driveKm: "driveKm",
   gridVisit: "gridVisits",
@@ -29,6 +35,26 @@ const COUNTER_KEYS = Object.freeze({
 function nonNegativeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function localDayKey(value = Date.now()) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "unknown";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function createDailyActivity(day = localDayKey()) {
+  return {
+    day,
+    driveKm: 0,
+    gridVisits: 0,
+    helpfulMessages: 0,
+    completedMissionIds: []
+  };
 }
 
 function tierForPoints(points) {
@@ -78,6 +104,7 @@ export function createVehicleProgression() {
       at: null,
       pendingKm: 0
     },
+    dailyActivity: createDailyActivity(),
     completedEventIds: [],
     updatedAt: null
   };
@@ -116,11 +143,49 @@ export function normalizeVehicleProgression(value) {
   base.driveTracker.lng = Number.isFinite(lng) && lng >= -180 && lng <= 180 ? lng : null;
   base.driveTracker.at = Number.isFinite(trackerAt) ? trackerAt : null;
   base.driveTracker.pendingKm = Math.min(0.099999, nonNegativeNumber(driveTracker.pendingKm));
+  const dailyActivity = source.dailyActivity && typeof source.dailyActivity === "object" && !Array.isArray(source.dailyActivity)
+    ? source.dailyActivity
+    : {};
+  base.dailyActivity.day = String(dailyActivity.day || localDayKey());
+  base.dailyActivity.driveKm = nonNegativeNumber(dailyActivity.driveKm);
+  base.dailyActivity.gridVisits = nonNegativeNumber(dailyActivity.gridVisits);
+  base.dailyActivity.helpfulMessages = nonNegativeNumber(dailyActivity.helpfulMessages);
+  base.dailyActivity.completedMissionIds = Array.isArray(dailyActivity.completedMissionIds)
+    ? [...new Set(dailyActivity.completedMissionIds.map(String).filter(id => DAILY_MISSIONS.some(mission => mission.id === id)))]
+    : [];
   base.completedEventIds = Array.isArray(source.completedEventIds)
     ? [...new Set(source.completedEventIds.filter(value => value != null).map(String).filter(Boolean))].slice(-100)
     : [];
   base.updatedAt = Number.isFinite(Number(source.updatedAt)) ? Number(source.updatedAt) : null;
   return base;
+}
+
+export function getDailyMissionSummary(value, at = Date.now()) {
+  const progression = normalizeVehicleProgression(value);
+  const day = localDayKey(at);
+  const activity = progression.dailyActivity.day === day ? progression.dailyActivity : createDailyActivity(day);
+  const counterByKind = {
+    driveKm: activity.driveKm,
+    gridVisit: activity.gridVisits,
+    helpfulMessage: activity.helpfulMessages
+  };
+  const missions = DAILY_MISSIONS.map(mission => {
+    const current = Math.min(mission.target, nonNegativeNumber(counterByKind[mission.kind]));
+    const completed = activity.completedMissionIds.includes(mission.id);
+    return {
+      ...mission,
+      current,
+      completed,
+      progress: Math.max(0, Math.min(100, Math.round((current / mission.target) * 100)))
+    };
+  });
+  return {
+    day,
+    missions,
+    completedCount: missions.filter(mission => mission.completed).length,
+    totalCount: missions.length,
+    rewardPoints: missions.filter(mission => mission.completed).reduce((sum, mission) => sum + mission.rewardPoints, 0)
+  };
 }
 
 function distanceKm(from, to) {
@@ -238,12 +303,35 @@ export function recordProgressionEvent(value, event = {}) {
   if (eventId) progression.completedEventIds.push(eventId);
   progression.completedEventIds = progression.completedEventIds.slice(-100);
   progression.updatedAt = Number.isFinite(Number(event.at)) ? Number(event.at) : Date.now();
+  const eventDay = localDayKey(progression.updatedAt);
+  if (progression.dailyActivity.day !== eventDay) progression.dailyActivity = createDailyActivity(eventDay);
+  const dailyCounterKey = {
+    driveKm: "driveKm",
+    gridVisit: "gridVisits",
+    helpfulMessage: "helpfulMessages"
+  }[kind];
+  const completedMissions = [];
+  if (dailyCounterKey) {
+    progression.dailyActivity[dailyCounterKey] += amount;
+    for (const mission of DAILY_MISSIONS.filter(item => item.kind === kind)) {
+      if (
+        progression.dailyActivity[dailyCounterKey] >= mission.target
+        && !progression.dailyActivity.completedMissionIds.includes(mission.id)
+      ) {
+        progression.dailyActivity.completedMissionIds.push(mission.id);
+        progression.points += mission.rewardPoints;
+        progression.counters.missionsCompleted += 1;
+        completedMissions.push(mission);
+      }
+    }
+  }
   progression.tier = tierForPoints(progression.points).id;
 
   return {
     progression,
     applied: true,
-    earnedPoints,
+    earnedPoints: earnedPoints + completedMissions.reduce((sum, mission) => sum + mission.rewardPoints, 0),
+    completedMissions,
     tierChanged: progression.tier !== normalizeVehicleProgression(value).tier
   };
 }
