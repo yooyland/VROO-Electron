@@ -1,3 +1,9 @@
+import {
+  createVehicleProgression,
+  normalizeVehicleProgression,
+  progressionFromLegacyState
+} from "../modules/progression.js";
+
 /** 테스트용 무한 크레딧. 기본 false — 실제 잔액 규칙 사용 */
 export const DEV_MODE = false;
 
@@ -14,7 +20,7 @@ export const PLATE_REVEAL_COST = 300;
 export const LEVEL_UP_COST_FACTOR = 900;
 
 export const STORAGE_KEY = "vrooBeta10";
-export const STORAGE_SCHEMA_VERSION = 1;
+export const STORAGE_SCHEMA_VERSION = 2;
 export const STORAGE_BACKUP_KEY = `${STORAGE_KEY}:backup`;
 export const STORAGE_CORRUPT_KEY = `${STORAGE_KEY}:corrupt`;
 
@@ -64,6 +70,7 @@ export const defaults = {
   credits: DEFAULT_CREDITS,
   level: 1,
   xp: 0,
+  vehicleProgression: createVehicleProgression(),
   currentScreen: "nearby",
   currentView: "near",
   currentGridId: "g_my",
@@ -112,7 +119,7 @@ export const defaults = {
   profile: {
     nickname: "VROO 관리자",
     plate: "12가 3456",
-    car: "sport",
+    car: "basic",
     status: "1.1.0-beta.1 테스트 중"
   },
   location: {lat: 37.5665, lng: 126.9780},
@@ -143,6 +150,7 @@ function sanitizeState(s) {
   s.level = Math.max(1, Math.floor(Number(s.level) || 1));
   const xp = Number(s.xp);
   s.xp = Number.isFinite(xp) ? Math.max(0, Math.min(100, Math.floor(xp))) : 0;
+  s.vehicleProgression = normalizeVehicleProgression(s.vehicleProgression);
 
   for (const key of ["joinedGrids", "connections", "favoriteRooms", "favoritePlaceIds", "registeredPlaces", "posts", "grids", "revealedPlateUserIds", "blockedUserIds"]) {
     if (!Array.isArray(s[key])) s[key] = structuredClone(defaults[key] || []);
@@ -579,6 +587,9 @@ export function loadState() {
       }
       parsed = parseStateJson(localStorage.getItem(STORAGE_BACKUP_KEY));
       recoveredFromBackup = !!parsed;
+    }
+    if (parsed && !parsed.vehicleProgression) {
+      parsed.vehicleProgression = progressionFromLegacyState(parsed);
     }
     const s = sanitizeState(merge(structuredClone(defaults), parsed || {}));
     s._schemaVersion = STORAGE_SCHEMA_VERSION;
