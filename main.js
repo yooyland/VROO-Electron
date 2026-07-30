@@ -291,11 +291,44 @@ async function runWorkspaceRuntimeTest(win) {
         await click('[data-screen="chat"]');
         const commandGrid = await waitFor(() => document.querySelector(".chat-command-grid"), "chat command grid");
         const chat = {
-          zoneCount: commandGrid.children.length,
-          filterCount: document.querySelectorAll(".chat-live-rail-head [data-rooms-filter]").length,
+          zoneCount: commandGrid.querySelectorAll(":scope > .chat-road-scene, :scope > .chat-grid-map, :scope > .chat-live-rail").length,
+          filterCount: document.querySelectorAll(".chat-command-control-row [data-rooms-filter]").length,
           roomHost: Boolean(document.querySelector("[data-chat-room-host]")),
-          filtersInsideThirdZone: Boolean(document.querySelector(".chat-live-rail .chat-command-filters"))
+          cleanTopControls: Boolean(document.querySelector(".chat-command-shell > .chat-command-control-row")),
+          defaultConversation: Boolean(await waitFor(
+            () => document.querySelector("[data-chat-room-host] .chat-shell"),
+            "default conversation in third zone"
+          )),
+          unreadBadge: Boolean(document.querySelector(".chat-command-unread strong")),
+          toolCount: document.querySelectorAll(".chat-command-control-row [data-chat-popup]").length,
+          phraseToggle: Boolean(document.querySelector('[data-chat-popup="phrases"]')),
+          phraseAcrossWorkspaceBottom: Boolean(document.querySelector(".chat-command-shell > .chat-bottom-phrase-drawer")),
+          roadTickerRemoved: !document.querySelector(".chat-road-alert-ticker")
         };
+        const chatScrollBeforePopup = document.querySelector("[data-chat-room-host] #chatScroll");
+        if (chatScrollBeforePopup) chatScrollBeforePopup.scrollTop = 1;
+        await click('[data-chat-popup="gifts"]');
+        chat.toolsPopupAcrossWorkspace = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid > [data-chat-tools-popup]:not([hidden])"),
+          "workspace tools popup"
+        ));
+        await click("[data-chat-popup-close]");
+        chat.popupCloseRestoresConversation = Boolean(
+          document.querySelector("[data-chat-room-host] .chat-shell") &&
+          document.querySelector("[data-chat-tools-popup]")?.hidden
+        );
+        await click('[data-chat-popup="phrases"]');
+        chat.phrasePopupAcrossWorkspace = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid > [data-chat-tools-popup]:not([hidden]) .chat-phrase-groups"),
+          "phrase popup across workspace"
+        ));
+        await click("[data-chat-popup-close]");
+        await click('[data-rooms-filter="all"]');
+        chat.roomListPopupAcrossWorkspace = Boolean(await waitFor(
+          () => document.querySelector(".chat-command-grid > [data-chat-tools-popup]:not([hidden]) .chat-popup-room-list"),
+          "room list popup across workspace"
+        ));
+        await click("[data-chat-popup-close]");
 
         await click("[data-open-road-scene]");
         chat.roadDetailInThirdZone = Boolean(await waitFor(
@@ -319,6 +352,21 @@ async function runWorkspaceRuntimeTest(win) {
           "direct chat in third zone"
         ));
         chat.directKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
+        const runtimeText = "Runtime three-pane message";
+        const runtimeTextarea = await waitFor(() => document.querySelector("[data-chat-room-host] #chatText"), "direct textarea");
+        runtimeTextarea.value = runtimeText;
+        await click("[data-chat-room-host] #sendChat");
+        chat.messageInRoadPane = Boolean(await waitFor(
+          () => [...document.querySelectorAll(".chat-road-bubble")].some(node => node.textContent.includes(runtimeText)),
+          "message preview in road pane"
+        ));
+        chat.messageInMapPane = Boolean(await waitFor(
+          () => [...document.querySelectorAll(".chat-map-message")].some(node => node.textContent.includes(runtimeText)),
+          "message preview in map pane"
+        ));
+        chat.previewMaxTwo =
+          document.querySelectorAll(".chat-road-bubble").length <= 2 &&
+          document.querySelectorAll(".chat-map-message").length <= 2;
         await click("#chatBack");
         chat.directBackRestoresThreeZones = Boolean(await waitFor(
           () => document.querySelector(".chat-command-grid [data-chat-room-host]"),
@@ -354,14 +402,16 @@ async function runWorkspaceRuntimeTest(win) {
 
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
+        const autoBeforeDirection =
+          document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed");
         await click('[data-garage-view="front"]');
         const garage = {
           visible: true,
           viewCount: document.querySelectorAll("[data-garage-view]").length,
           actionCount: document.querySelectorAll("[data-garage-action]").length,
           autoControl: Boolean(document.querySelector("[data-garage-auto]")),
-          directionRestartsAuto:
-            document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true"
+          directionPreservesAutoState:
+            document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === autoBeforeDirection
         };
         const garageStage = document.querySelector("[data-garage-stage]");
         const viewBeforeDrag = document.querySelector("[data-garage-view].active")?.dataset.garageView;
@@ -412,9 +462,22 @@ async function runWorkspaceRuntimeTest(win) {
           map.gridHighlight,
           map.myHighlight,
           chat.zoneCount === 3,
-          chat.filterCount === 4,
+          chat.filterCount === 6,
           chat.roomHost,
-          chat.filtersInsideThirdZone,
+          chat.cleanTopControls,
+          chat.defaultConversation,
+          chat.unreadBadge,
+          chat.toolCount === 6,
+          chat.phraseToggle,
+          chat.phraseAcrossWorkspaceBottom,
+          chat.phrasePopupAcrossWorkspace,
+          chat.roomListPopupAcrossWorkspace,
+          chat.toolsPopupAcrossWorkspace,
+          chat.popupCloseRestoresConversation,
+          chat.roadTickerRemoved,
+          chat.messageInRoadPane,
+          chat.messageInMapPane,
+          chat.previewMaxTwo,
           chat.roadDetailInThirdZone,
           chat.backRestoresRoomList,
           chat.directInThirdZone,
@@ -429,7 +492,7 @@ async function runWorkspaceRuntimeTest(win) {
           garage.viewCount === 9,
           garage.actionCount === 4,
           garage.autoControl,
-          garage.directionRestartsAuto,
+          garage.directionPreservesAutoState,
           garage.dragRotation,
           garage.missionInternal,
           garage.collectionInternal,

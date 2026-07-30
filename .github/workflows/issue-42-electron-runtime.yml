@@ -1,0 +1,51 @@
+name: Issue 42 Electron Runtime
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "main.js"
+      - "app/assets/js/modules/chat.js"
+      - "app/assets/js/modules/map.js"
+      - "app/assets/css/app.css"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/issue-42-electron-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-42-electron-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  electron-runtime:
+    name: Electron workspace runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      ELECTRON_DISABLE_GPU: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax validation
+        run: npm run check:syntax
+
+      - name: Electron three-pane runtime
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npx electron --no-sandbox . -- --workspace-runtime-test

@@ -129,6 +129,7 @@ function setContentTitle(name){
 }
 
 function setScreen(name){
+  if(name==="chat")state.chatRoomListRequested=false;
   if(CONTENT_SCREENS.has(name)){
     setWorkspace("content");
     setContentTitle(name);
