@@ -81,8 +81,16 @@ assert.equal(getVehicleEvolutionSummary(createVehicleProgression()).currentPhase
 assert.equal(getVehicleEvolutionSummary({points: 340}).currentPhase.id, "signature");
 assert.equal(getVehicleEvolutionSummary({points: 670}).currentPhase.id, "flow");
 assert.equal(getVehicleEvolutionSummary({points: 670}).pointsToNextPhase, 0);
-
 const today = new Date("2026-07-30T12:00:00+09:00").getTime();
+const evolutionCrossing = recordProgressionEvent({points: 300}, {
+  id: "grid:evolution-crossing",
+  kind: "gridVisit",
+  at: today
+});
+assert.equal(evolutionCrossing.evolutionChanged, true);
+assert.equal(evolutionCrossing.previousEvolutionPhase.id, "core");
+assert.equal(evolutionCrossing.currentEvolutionPhase.id, "signature");
+
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
   id: "grid:daily",
