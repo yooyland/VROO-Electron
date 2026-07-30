@@ -1,6 +1,6 @@
 import {emit} from "../core/events.js";
 import {carInfo} from "./data.js";
-import {getNextProgressionAction, getProgressionMilestones, getProgressionSummary, getVehicleEvolutionSummary} from "./progression.js";
+import {getNextProgressionAction, getProgressionMilestones, getProgressionSummary, getVehicleEvolutionSummary, getWeeklyProgressionSummary} from "./progression.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
 const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
@@ -341,6 +341,7 @@ function renderFriends(root, state) {
 function renderRecord(root, state) {
   const mileage = metric(state.weekMileage, 128.4);
   const milestones = getProgressionMilestones(state.vehicleProgression);
+  const weekly = getWeeklyProgressionSummary(state.vehicleProgression);
   root.innerHTML = `
     <div class="garage-record-stack">
     <div class="garage-record-card">
@@ -350,6 +351,11 @@ function renderRecord(root, state) {
         <path class="garage-chart-fill" d="M10 130 C80 120 90 85 160 92 S245 118 310 70 S420 82 470 45 S550 38 590 18 L590 145 L10 145 Z"/>
         <path class="garage-chart-line" d="M10 130 C80 120 90 85 160 92 S245 118 310 70 S420 82 470 45 S550 38 590 18"/>
       </svg>
+      <div class="garage-weekly-rhythm">
+        <small>주간 생활 루프</small>
+        <strong>${weekly.completedDays} / 7일</strong>
+        <span>활동 ${weekly.activeDays}일 · 미션 ${weekly.completedMissions}/${weekly.missionGoal}</span>
+      </div>
     </div>
     <section class="garage-milestone-card" aria-label="차량 성장 기록">
       <div class="garage-milestone-head"><div><small>VEHICLE JOURNEY</small><h3>차량 성장 기록</h3></div><b>${milestones.length}</b></div>
