@@ -3,6 +3,7 @@ import {
   createVehicleProgression,
   getDailyMissionSummary,
   getProgressionMilestones,
+  getNextProgressionAction,
   getProgressionSummary,
   getVehicleEvolutionSummary,
   normalizeVehicleProgression,
@@ -103,6 +104,26 @@ const tierCrossing = recordProgressionEvent({points: 950}, {
 assert.equal(tierCrossing.tierChanged, true);
 assert.equal(tierCrossing.progression.tier, "street");
 assert.equal(getProgressionMilestones(tierCrossing.progression).some(item => item.id === "tier:street"), true);
+assert.equal(getNextProgressionAction(createVehicleProgression(), today).route, "road");
+let routedProgression = recordProgressionEvent(createVehicleProgression(), {
+  id: "drive:route",
+  kind: "driveKm",
+  amount: 1,
+  at: today
+}).progression;
+assert.equal(getNextProgressionAction(routedProgression, today).route, "grid");
+routedProgression = recordProgressionEvent(routedProgression, {
+  id: "grid:route",
+  kind: "gridVisit",
+  at: today
+}).progression;
+assert.equal(getNextProgressionAction(routedProgression, today).route, "road-chat");
+routedProgression = recordProgressionEvent(routedProgression, {
+  id: "help:route",
+  kind: "helpfulMessage",
+  at: today
+}).progression;
+assert.equal(getNextProgressionAction(routedProgression, today).completedToday, true);
 
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
