@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   createVehicleProgression,
   getDailyMissionSummary,
+  getProgressionMilestones,
   getProgressionSummary,
   getVehicleEvolutionSummary,
   normalizeVehicleProgression,
@@ -90,6 +91,18 @@ const evolutionCrossing = recordProgressionEvent({points: 300}, {
 assert.equal(evolutionCrossing.evolutionChanged, true);
 assert.equal(evolutionCrossing.previousEvolutionPhase.id, "core");
 assert.equal(evolutionCrossing.currentEvolutionPhase.id, "signature");
+assert.deepEqual(
+  new Set(getProgressionMilestones(evolutionCrossing.progression).map(item => item.type)),
+  new Set(["mission", "evolution"])
+);
+const tierCrossing = recordProgressionEvent({points: 950}, {
+  id: "grid:tier-crossing",
+  kind: "gridVisit",
+  at: today
+});
+assert.equal(tierCrossing.tierChanged, true);
+assert.equal(tierCrossing.progression.tier, "street");
+assert.equal(getProgressionMilestones(tierCrossing.progression).some(item => item.id === "tier:street"), true);
 
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
