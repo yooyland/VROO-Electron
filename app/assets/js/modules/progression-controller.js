@@ -1,6 +1,6 @@
-import {on} from "../core/events.js";
+import {emit, on} from "../core/events.js";
 import {MY_USER_ID} from "./data.js";
-import {getProgressionSummary, recordDriveLocation, recordProgressionEvent} from "./progression.js";
+import {getProgressionSummary, getVehicleEvolutionSummary, recordDriveLocation, recordProgressionEvent} from "./progression.js";
 
 function dayKey(value = Date.now()) {
   const date = new Date(value);
@@ -53,6 +53,7 @@ export function missionProgressionEvent(detail) {
 
 export function applyDriveLocation(state, detail, options = {}) {
   const before = getProgressionSummary(state.vehicleProgression);
+  const beforeEvolution = getVehicleEvolutionSummary(state.vehicleProgression);
   const result = recordDriveLocation(state.vehicleProgression, detail);
   if (!result.changed) return result;
   state.vehicleProgression = result.progression;
@@ -63,8 +64,19 @@ export function applyDriveLocation(state, detail, options = {}) {
     }
   }
   const after = getProgressionSummary(result.progression);
+  const afterEvolution = getVehicleEvolutionSummary(result.progression);
+  if (beforeEvolution.currentPhase.id !== afterEvolution.currentPhase.id && typeof options.notify === "function") {
+    options.notify(`차량이 ${afterEvolution.currentPhase.label} 단계로 진화했습니다.`);
+  }
   if (before.currentTier.id !== after.currentTier.id && typeof options.notify === "function") {
     options.notify(`차량 등급이 ${after.currentTier.label}(으)로 성장했습니다.`);
+  }
+  if (result.applied) {
+    emit("progression:changed", {
+      kind: "driveKm",
+      currentTier: after.currentTier.id,
+      evolutionStage: afterEvolution.currentPhase.id
+    });
   }
   return result;
 }
@@ -83,10 +95,18 @@ export function bindProgressionController(state, options = {}) {
     for (const mission of result.completedMissions || []) {
       notify(`${mission.label} 완료 · 차량 성장 +${mission.rewardPoints}P`);
     }
+    if (result.evolutionChanged) {
+      notify(`차량이 ${result.currentEvolutionPhase.label} 단계로 진화했습니다.`);
+    }
     const after = getProgressionSummary(result.progression);
     if (before.currentTier.id !== after.currentTier.id) {
       notify(`차량 등급이 ${after.currentTier.label}(으)로 성장했습니다.`);
     }
+    emit("progression:changed", {
+      kind: event.kind,
+      currentTier: after.currentTier.id,
+      evolutionStage: result.currentEvolutionPhase?.id || getVehicleEvolutionSummary(result.progression).currentPhase.id
+    });
     return true;
   };
 
