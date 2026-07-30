@@ -6,6 +6,11 @@ import {
   progressionFromLegacyState,
   recordProgressionEvent
 } from "../app/assets/js/modules/progression.js";
+import {
+  gridVisitProgressionEvent,
+  helpfulMessageProgressionEvent,
+  missionProgressionEvent
+} from "../app/assets/js/modules/progression-controller.js";
 
 const fresh = createVehicleProgression();
 assert.equal(fresh.tier, "basic");
@@ -59,6 +64,32 @@ assert.deepEqual(malformed.completedEventIds, ["same"]);
 assert.equal(progressionFromLegacyState({level: 1}).tier, "basic");
 assert.equal(progressionFromLegacyState({level: 18}).tier, "sport");
 assert.equal(progressionFromLegacyState({level: 52}).tier, "heritage");
+
+const visitEvent = gridVisitProgressionEvent(
+  {gridId: "KR:L3:169:340", action: "location"},
+  new Date("2026-07-30T12:00:00+09:00").getTime()
+);
+assert.equal(visitEvent.id, "grid-visit:KR:L3:169:340:2026-07-30");
+assert.equal(gridVisitProgressionEvent({gridId: "g_my", action: "leave"}), null);
+
+const helpfulEvent = helpfulMessageProgressionEvent({
+  messageId: "road-help-1",
+  senderId: "me",
+  roomType: "road",
+  purpose: "help",
+  category: "help",
+  createdAt: 2000
+});
+assert.equal(helpfulEvent.id, "helpful-message:road-help-1");
+assert.equal(helpfulMessageProgressionEvent({
+  messageId: "road-chat-1",
+  senderId: "me",
+  roomType: "road",
+  purpose: "chat",
+  category: "chat"
+}), null);
+assert.equal(missionProgressionEvent({missionId: ""}), null);
+assert.equal(missionProgressionEvent({missionId: "daily-drive"}).id, "mission:daily-drive");
 
 const values = new Map();
 globalThis.localStorage = {
