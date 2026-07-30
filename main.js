@@ -400,6 +400,36 @@ async function runWorkspaceRuntimeTest(win) {
           "chat command center after conversation back"
         ));
 
+        await click('[data-screen="shop"]');
+        const shopList = await waitFor(() => document.querySelector("#shopList"), "shop list");
+        const shopPanel = shopList.parentElement;
+        shopPanel.scrollTop = 7;
+        const selectedCarBefore = document.querySelector("[data-car]")?.dataset.car;
+        await click("[data-car]");
+        const shopOverlay = await waitFor(
+          () => document.querySelector("#shopDetailOverlay:not([hidden])"),
+          "shop detail overlay"
+        );
+        const shop = {
+          oneLineRows: document.querySelectorAll("#shopList .product-row").length > 0,
+          detailVisible: shopOverlay.style.display === "flex",
+          confirmBeforeApply: document.querySelector("#shopDetailConfirm")?.textContent.includes("차량 선택"),
+          selectedCarBefore
+        };
+        await click("#shopDetailCancel");
+        shop.cancelCloses = document.querySelector("#shopDetailOverlay")?.hidden === true;
+        shop.scrollRestored = shopPanel.scrollTop === 7;
+        await click("[data-car]");
+        await click("#shopDetailConfirm");
+        shop.confirmCloses = document.querySelector("#shopDetailOverlay")?.hidden === true;
+        await click("[data-benefit]");
+        shop.plannedDetailVisible = Boolean(document.querySelector("#shopDetailOverlay:not([hidden])"));
+        shop.plannedActionBlocked = document.querySelector("#shopDetailConfirm")?.disabled === true;
+        const shopOverlayForEscape = document.querySelector("#shopDetailOverlay");
+        shopOverlayForEscape.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        await wait(50);
+        shop.escapeCloses = shopOverlayForEscape.hidden === true;
+
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
         const autoBeforeDirection =
@@ -488,6 +518,15 @@ async function runWorkspaceRuntimeTest(win) {
           chat.conversationEventInThirdZone,
           chat.conversationEventKeepsThreeZones,
           chat.conversationBackStaysInChat,
+          shop.oneLineRows,
+          shop.detailVisible,
+          shop.confirmBeforeApply,
+          shop.cancelCloses,
+          shop.scrollRestored,
+          shop.confirmCloses,
+          shop.plannedDetailVisible,
+          shop.plannedActionBlocked,
+          shop.escapeCloses,
           garage.visible,
           garage.viewCount === 9,
           garage.actionCount === 4,
@@ -499,7 +538,7 @@ async function runWorkspaceRuntimeTest(win) {
           garage.customizeRoutesToStore,
           garage.upgradeRoutesToGame
         ];
-        return { boot: true, map, chat, garage, pass: checks.every(Boolean) };
+        return { boot: true, map, chat, shop, garage, pass: checks.every(Boolean) };
       })()
     `, true);
     console.log(`WORKSPACE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
