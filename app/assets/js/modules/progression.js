@@ -242,6 +242,51 @@ export function getProgressionMilestones(value) {
     .sort((left, right) => (right.at || 0) - (left.at || 0));
 }
 
+export function getNextProgressionAction(value, at = Date.now()) {
+  const daily = getDailyMissionSummary(value, at);
+  const mission = daily.missions.find(item => !item.completed);
+  if (!mission) {
+    const evolution = getVehicleEvolutionSummary(value);
+    return {
+      id: "keep-driving",
+      route: "road",
+      eyebrow: "TODAY COMPLETE",
+      title: evolution.nextPhase ? `${evolution.nextPhase.label} 진화 준비` : "다음 차량 등급 준비",
+      description: evolution.nextPhase
+        ? `오늘 미션을 모두 완료했습니다. ${evolution.pointsToNextPhase.toLocaleString("ko-KR")}P를 더 모으면 다음 성장 신호가 열립니다.`
+        : "오늘 미션을 모두 완료했습니다. 계속 주행하며 다음 차량 등급을 준비하세요.",
+      cta: "도로로 이동",
+      completedToday: true
+    };
+  }
+  const actions = {
+    "daily-drive": {
+      route: "road",
+      title: "오늘의 드라이브",
+      description: `도로에서 검증된 거리 ${(mission.target - mission.current).toFixed(1)}km를 더 주행하세요.`,
+      cta: "도로로 이동"
+    },
+    "daily-grid": {
+      route: "grid",
+      title: "새로운 GRID 방문",
+      description: "내 주변 GRID를 열어 오늘의 공간 방문을 완료하세요.",
+      cta: "GRID 열기"
+    },
+    "daily-help": {
+      route: "road-chat",
+      title: "도로 위 도움",
+      description: "도로 대화에서 도움 또는 상황 메시지를 한 번 보내세요.",
+      cta: "도로 대화 열기"
+    }
+  };
+  return {
+    id: mission.id,
+    eyebrow: "NEXT ACTION",
+    completedToday: false,
+    ...actions[mission.id]
+  };
+}
+
 function distanceKm(from, to) {
   const radians = value => value * Math.PI / 180;
   const lat1 = radians(from.lat);
