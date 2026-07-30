@@ -36,6 +36,29 @@ function tierForPoints(points) {
   return [...VEHICLE_TIERS].reverse().find(tier => score >= tier.minPoints) || VEHICLE_TIERS[0];
 }
 
+export function vehicleTierById(tierId) {
+  return VEHICLE_TIERS.find(tier => tier.id === tierId) || VEHICLE_TIERS[0];
+}
+
+export function vehicleTierFromLegacyLevel(level) {
+  const normalized = Math.max(1, Math.floor(Number(level) || 1));
+  const tierId = normalized >= 51
+    ? "heritage"
+    : normalized >= 31
+      ? "performance"
+      : normalized >= 16
+        ? "sport"
+        : normalized >= 6
+          ? "street"
+          : "basic";
+  return vehicleTierById(tierId);
+}
+
+export function vehicleTierIndex(tierId) {
+  const index = VEHICLE_TIERS.findIndex(tier => tier.id === tierId);
+  return index >= 0 ? index + 1 : 1;
+}
+
 export function createVehicleProgression() {
   return {
     schemaVersion: PROGRESSION_SCHEMA_VERSION,
@@ -55,17 +78,7 @@ export function createVehicleProgression() {
 }
 
 export function progressionFromLegacyState(state = {}) {
-  const level = Math.max(1, Math.floor(Number(state.level) || 1));
-  const legacyTier = level >= 51
-    ? "heritage"
-    : level >= 31
-      ? "performance"
-      : level >= 16
-        ? "sport"
-        : level >= 6
-          ? "street"
-          : "basic";
-  const tier = VEHICLE_TIERS.find(item => item.id === legacyTier) || VEHICLE_TIERS[0];
+  const tier = vehicleTierFromLegacyLevel(state.level);
   return {
     ...createVehicleProgression(),
     tier: tier.id,
