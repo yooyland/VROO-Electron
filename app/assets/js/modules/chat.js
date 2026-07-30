@@ -4,6 +4,7 @@ import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
 import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
+import {getProgressionSummary, vehicleTierById, vehicleTierFromLegacyLevel} from "./progression.js";
 import {
   ensureRoadChat,
   getRoadConversationCard,
@@ -20,6 +21,12 @@ import {
 
 /** 주변 대화 — 로컬 세션 (road와 분리) */
 const NEARBY_CHAT_FEATURE = { enabled: true, status: "local" };
+
+function userVehicleTier(user) {
+  return user?.vehicleTier
+    ? vehicleTierById(user.vehicleTier)
+    : vehicleTierFromLegacyLevel(user?.level);
+}
 
 /** @type {SpeechRecognition|null} */
 let voiceRecognition = null;
@@ -594,7 +601,8 @@ function refreshPresence(panel, state, users) {
     const metaEl = el.querySelector("[data-peer-meta]");
     if (metaEl) {
       const plate = live.plate ? `${live.plate} · ` : "";
-      metaEl.textContent = `${plate}Lv.${live.level ?? "?"} · ${onlineLabel(live)}`;
+      const tier = userVehicleTier(live);
+      metaEl.textContent = `${plate}${tier.label} · Lv.${live.level ?? "?"} · ${onlineLabel(live)}`;
     }
   });
 
@@ -1518,6 +1526,7 @@ function renderChat(panel, state, peerId) {
   viewMode = "chat";
 
   const peer = liveUser(peerId, room.user);
+  const peerTier = userVehicleTier(peer);
   room.user = peer;
   room.title = peer.nickname || room.title;
 
@@ -1535,7 +1544,7 @@ function renderChat(panel, state, peerId) {
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name" data-peer-title>${escapeHtml(peer.nickname || room.title)}</b>
-        <div class="muted chat-peer-meta" data-peer-meta>1:1 대화 · ${peer.plate ? `${escapeHtml(peer.plate)} · ` : ""}Lv.${peer.level ?? "?"} · <span class="status-dot ${peer.online ? "online" : "offline"}" data-online-dot></span> <span data-online-text>${onlineLabel(peer)}</span></div>
+        <div class="muted chat-peer-meta" data-peer-meta>1:1 대화 · ${peer.plate ? `${escapeHtml(peer.plate)} · ` : ""}<span class="vehicle-tier-badge">${peerTier.label}</span> · Lv.${peer.level ?? "?"} · <span class="status-dot ${peer.online ? "online" : "offline"}" data-online-dot></span> <span data-online-text>${onlineLabel(peer)}</span></div>
       </div>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(peerId) ? "★" : "☆"}</button>
     </div>
@@ -1753,6 +1762,7 @@ function renderGridChat(panel, state, gridId) {
   viewMode = "chat";
 
   const messages = Array.isArray(room.messages) ? room.messages : [];
+  const myTier = getProgressionSummary(state.vehicleProgression).currentTier;
   const bubbles = messages
     .map(m => {
       const msg = normalizeMessage(m, "unknown", MY_USER_ID, roomId);
@@ -1769,7 +1779,7 @@ function renderGridChat(panel, state, gridId) {
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
-        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 동일 세션</div>
+        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 내 차량 <span class="vehicle-tier-badge">${myTier.label}</span> · 동일 세션</div>
       </div>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
     </div>
