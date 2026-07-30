@@ -217,12 +217,13 @@ async function runWorkspaceRuntimeTest(win) {
           filterCount: mapLegend.querySelectorAll("[data-map-filter]").length,
           layerCount: mapLegend.querySelectorAll("[data-layer]").length
         };
-        const [{ emit }, mapModule, dataModule, conversationStore, storageModule] = await Promise.all([
+        const [{ emit }, mapModule, dataModule, conversationStore, storageModule, progressionModule] = await Promise.all([
           import("./assets/js/core/events.js"),
           import("./assets/js/modules/map.js"),
           import("./assets/js/modules/data.js"),
           import("./assets/js/modules/conversation-store.js"),
-          import("./assets/js/core/storage.js")
+          import("./assets/js/core/storage.js"),
+          import("./assets/js/modules/progression.js")
         ]);
         await click('[data-screen="nearby"]');
         await click('[data-nearby-tab="poi"]');
@@ -459,6 +460,23 @@ async function runWorkspaceRuntimeTest(win) {
         await click('[data-room="garage"]');
         await click('[data-garage-action="upgrade"]');
         garage.upgradeRoutesToGame = Boolean(await waitFor(() => document.querySelector("#levelUp"), "Game upgrade"));
+        const syncSample = progressionModule.recordProgressionEvent(
+          progressionModule.createVehicleProgression(),
+          { id: "runtime:grid", kind: "gridVisit", at: Date.now() }
+        ).progression;
+        const syncPayload = progressionModule.buildProgressionSyncPayload(syncSample);
+        const progression = {
+          weeklyRecap: Boolean(document.querySelector(".play-weekly-recap")),
+          weeklyDayCount: document.querySelectorAll(".play-weekly-days > div").length,
+          nextAction: Boolean(document.querySelector("[data-next-progression-action]")),
+          syncContract: syncPayload.contractVersion === progressionModule.PROGRESSION_SYNC_CONTRACT_VERSION,
+          syncExcludesLocation:
+            !("driveTracker" in syncPayload) &&
+            !JSON.stringify(syncPayload).includes('"lat"') &&
+            !JSON.stringify(syncPayload).includes('"lng"'),
+          staleRestoreRejected:
+            progressionModule.applyProgressionSyncPayload(syncSample, syncPayload).reason === "stale-revision"
+        };
 
         const checks = [
           map.legendVisible,
@@ -513,9 +531,15 @@ async function runWorkspaceRuntimeTest(win) {
           garage.missionInternal,
           garage.collectionInternal,
           garage.customizeRoutesToStore,
-          garage.upgradeRoutesToGame
+          garage.upgradeRoutesToGame,
+          progression.weeklyRecap,
+          progression.weeklyDayCount === 7,
+          progression.nextAction,
+          progression.syncContract,
+          progression.syncExcludesLocation,
+          progression.staleRestoreRejected
         ];
-        return { boot: true, map, chat, garage, pass: checks.every(Boolean) };
+        return { boot: true, map, chat, garage, progression, pass: checks.every(Boolean) };
       })()
     `, true);
     console.log(`WORKSPACE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
