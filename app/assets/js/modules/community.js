@@ -160,11 +160,21 @@ function optionMenuHtml(sortMode, authorScope) {
   return `<div class="community-menu-group"><div class="community-menu-label">정렬</div>${sortGroup}</div><div class="community-menu-group"><div class="community-menu-label">글 범위</div>${authorGroup}</div>`;
 }
 
+function formatPostTime(value) {
+  const time = Number(value);
+  if (!Number.isFinite(time)) return "";
+  const diff = Math.max(0, Date.now() - time);
+  if (diff < 60000) return "방금";
+  if (diff < 3600000) return Math.floor(diff / 60000) + "분 전";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "시간 전";
+  return new Date(time).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
 function postListHtml(posts) {
   if (!posts.length) return '<div class="card muted">게시글이 없습니다.</div>';
   return posts
     .map(
-      p => `<div class="card post-row"><div class="avatar">📝</div><div><b>${escapeHtml(p.title)}</b><div class="muted">${escapeHtml(p.body)}</div></div><button type="button" class="secondary" data-post="${escapeHtml(p.id)}">보기</button></div>`
+      p => `<div class="card post-row" data-post-row="${escapeHtml(p.id)}"><div class="avatar">📝</div><div style="min-width:0;flex:1"><div style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span class="muted">${escapeHtml(p.category)}</span><b style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.title)}</b></div><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.author)} · ${formatPostTime(p.createdAt)} · 댓글 ${(p.comments || []).length} · 좋아요 ${p.likes || 0}</div></div><button type="button" class="secondary" data-post="${escapeHtml(p.id)}">상세</button></div>`
     )
     .join("");
 }
