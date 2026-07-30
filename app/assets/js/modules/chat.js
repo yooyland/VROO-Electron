@@ -3,6 +3,17 @@ import {emit, on} from "../core/events.js";
 import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
+import {
+  approveSpeaker,
+  ensureVoiceSession,
+  removeSpeaker,
+  requestToSpeak,
+  setParticipantBlocked,
+  setParticipantMuted,
+  transitionVoiceState,
+  VOICE_ROLES,
+  VOICE_STATES
+} from "./voice-session.js";
 import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
 import {
   ensureRoadChat,
@@ -25,6 +36,7 @@ const NEARBY_CHAT_FEATURE = { enabled: true, status: "local" };
 let voiceRecognition = null;
 let voiceListening = false;
 let voiceBoundToRoomId = null;
+let voiceReconnectTimer = null;
 
 /** 현재 패널에 열린 채팅방 peer id (목록이면 null) */
 let activeRoomId = null;
@@ -499,7 +511,344 @@ function updateSpatialBadges(by) {
   }
 }
 
+function ensureChatComposeModes(state) {
+  if (!state.chatComposeModes || typeof state.chatComposeModes !== "object") {
+    state.chatComposeModes = {};
+  }
+  return state.chatComposeModes;
+}
+
+function getChatComposeMode(state, roomId) {
+  return ensureChatComposeModes(state)[roomId] === "voice" ? "voice" : "text";
+}
+
+function setChatComposeMode(state, roomId, mode) {
+  ensureChatComposeModes(state)[roomId] = mode === "voice" ? "voice" : "text";
+  emit("state:save");
+}
+
+function ensureVoicePreferences(state, roomId) {
+  if (!state.voicePreferences || typeof state.voicePreferences !== "object") {
+    state.voicePreferences = {};
+  }
+  const current = state.voicePreferences[roomId] || {};
+  const profiles = ["device-default", "male-calm", "male-bright", "female-calm", "female-bright"];
+  const legacyMap = {default: "device-default", low: "male-calm", high: "female-bright"};
+  const preferences = {
+    listening: current.listening !== false,
+    volume: Math.min(100, Math.max(0, Number(current.volume) || 80)),
+    myVoice: profiles.includes(current.myVoice) ? current.myVoice : (legacyMap[current.myVoice || current.voice] || "male-calm"),
+    otherVoice: profiles.includes(current.otherVoice) ? current.otherVoice : (legacyMap[current.otherVoice] || "female-calm"),
+    autoParticipantVoices: current.autoParticipantVoices !== false,
+    autoListen: current.autoListen !== false,
+    keepOnGridChange: current.keepOnGridChange === true
+  };
+  state.voicePreferences[roomId] = preferences;
+  return preferences;
+}
+
+function voiceStatusLabel(session) {
+  const reasonLabels = {
+    "permission-denied": "마이크 권한이 필요합니다",
+    "microphone-missing": "사용 가능한 마이크가 없습니다",
+    "network-error": "음성 연결을 다시 시도합니다",
+    "no-speech": "음성이 감지되지 않았습니다",
+    "start-failed": "마이크를 시작하지 못했습니다"
+  };
+  if (session?.reason && reasonLabels[session.reason]) return reasonLabels[session.reason];
+  const labels = {
+    idle: "음성 대기",
+    listening: "듣기·음성 인식 중",
+    requesting: "발언 요청 중",
+    queued: "발언 대기",
+    speaking: "말하는 중",
+    muted: "듣기 꺼짐",
+    reconnecting: "재연결 중",
+    blocked: "이용 제한"
+  };
+  return labels[session?.state] || "음성 대기";
+}
+
+function voiceParticipantIds(state, roomId, roomType) {
+  const context = state?.activeConversationContext;
+  const contextual = context?.roomId === roomId && Array.isArray(context.participantIds)
+    ? context.participantIds
+    : [];
+  const fallback = roomType === "direct" ? [MY_USER_ID, roomId] : [MY_USER_ID];
+  return [...new Set([...fallback, ...contextual].map(String).filter(Boolean))];
+}
+
+function voiceParticipantName(state, userId) {
+  if (userId === MY_USER_ID) return state.profile?.nickname || "나";
+  const user = getUsers().find((item) => String(item?.id) === String(userId));
+  return user?.nickname || state.rooms?.[userId]?.title || userId;
+}
+
+function voiceParticipantState(session, userId) {
+  if (session.blockedIds.includes(userId)) return {key: "blocked", label: "차단"};
+  if (session.mutedIds.includes(userId)) return {key: "muted", label: "음소거"};
+  if (session.speakerIds.includes(userId)) return {key: "speaker", label: "발언 중"};
+  if (session.requestQueue.includes(userId)) return {key: "queued", label: "발언 대기"};
+  return {key: "listener", label: "듣는 중"};
+}
+
+function voiceParticipantRows(state, roomId, roomType) {
+  const session = ensureVoiceSession(state, roomId);
+  const canModerate = session.hostId === MY_USER_ID || session.moderatorIds.includes(MY_USER_ID);
+  return voiceParticipantIds(state, roomId, roomType).map((userId) => {
+    const status = voiceParticipantState(session, userId);
+    const online = userId === MY_USER_ID || getUsers().some((item) => String(item?.id) === userId && item.online);
+    const isSelf = userId === MY_USER_ID;
+    const role = userId === session.hostId
+      ? "방장"
+      : session.moderatorIds.includes(userId)
+        ? "관리자"
+        : session.speakerIds.includes(userId)
+          ? "발언자"
+          : "참여자";
+    const controls = canModerate && !isSelf
+      ? `<div class="chat-voice-member-actions">
+          <button type="button" data-voice-member-action="allow" data-user-id="${escapeHtml(userId)}">${session.speakerIds.includes(userId) ? "내리기" : "허용"}</button>
+          <button type="button" data-voice-member-action="mute" data-user-id="${escapeHtml(userId)}">${session.mutedIds.includes(userId) ? "음소거 해제" : "음소거"}</button>
+          <button type="button" data-voice-member-action="block" data-user-id="${escapeHtml(userId)}">${session.blockedIds.includes(userId) ? "차단 해제" : "차단"}</button>
+        </div>`
+      : `<div class="chat-voice-member-actions"><span>${isSelf ? "내 음성 상태" : "청취 전용"}</span></div>`;
+    return `<div class="chat-voice-member" data-member-state="${status.key}">
+      <span class="chat-voice-member-avatar">${escapeHtml(voiceParticipantName(state, userId).slice(0, 1))}</span>
+      <div class="chat-voice-member-copy">
+        <b>${escapeHtml(voiceParticipantName(state, userId))}${isSelf ? " · 나" : ""}</b>
+        <small><i class="${online ? "online" : ""}"></i>${role} · ${status.label}</small>
+      </div>
+      ${controls}
+    </div>`;
+  }).join("");
+}
+
+function voiceParticipantsPopupMarkup(state, roomId, roomType) {
+  return `<div class="chat-voice-participant-popup" data-voice-participant-popup hidden>
+    <div class="chat-voice-participant-card" role="dialog" aria-modal="true" aria-label="음성 참여자 관리">
+      <div class="chat-voice-participant-head">
+        <div><b>음성 참여자</b><small>발언 요청·허용·음소거·차단</small></div>
+        <button class="secondary" type="button" data-close-voice-participants aria-label="음성 참여자 닫기">×</button>
+      </div>
+      <div class="chat-voice-member-list" data-voice-member-list>${voiceParticipantRows(state, roomId, roomType)}</div>
+      <div class="chat-voice-participant-foot">현재 단계의 권한·상태 제어는 로컬 프로토타입이며 실제 음성 서버 연결 후 동기화됩니다.</div>
+    </div>
+  </div>`;
+}
+
+function voiceControlsMarkup(state, roomId, roomType) {
+  if (!state.voiceHosts || typeof state.voiceHosts !== "object") state.voiceHosts = {};
+  const hostId = state.voiceHosts[roomId] || MY_USER_ID;
+  state.voiceHosts[roomId] = hostId;
+  const session = ensureVoiceSession(state, roomId, {
+    hostId,
+    role: hostId === MY_USER_ID ? VOICE_ROLES.HOST : (roomType === "grid" ? VOICE_ROLES.LISTENER : VOICE_ROLES.SPEAKER),
+    mode: roomType === "grid" ? "approval" : "open"
+  });
+  const prefs = ensureVoicePreferences(state, roomId);
+  const recognizing = voiceListening && voiceBoundToRoomId === roomId;
+  const requestControl = roomType === "grid"
+    ? '<button class="secondary chat-voice-control" type="button" data-voice-request><span>✋</span><small>발언 요청</small></button>'
+    : "";
+  return `
+    <div class="chat-voice-status" data-voice-state="${escapeHtml(session.state)}">
+      <span class="chat-voice-dot" aria-hidden="true"></span>
+      <div><b data-voice-status>${escapeHtml(voiceStatusLabel(session))}</b><small data-voice-detail>이 방의 음성모드는 계속 유지됩니다.</small></div>
+    </div>
+    <div class="chat-voice-toolbar">
+      <button class="secondary chat-voice-control ${prefs.listening ? "is-active" : ""}" type="button" data-voice-listen aria-pressed="${prefs.listening}">
+        <span>${prefs.listening ? "🔊" : "🔇"}</span><small>듣기 ${prefs.listening ? "ON" : "OFF"}</small>
+      </button>
+      <button class="secondary chat-voice-control ${recognizing ? "is-active" : ""}" id="voiceChat" type="button" aria-pressed="${recognizing}">
+        <span>🎙️</span><small>${recognizing ? "마이크 끄기" : "마이크"}</small>
+      </button>
+      ${requestControl}
+      <button class="secondary chat-voice-control" type="button" data-voice-participants>
+        <span>👥</span><small>참여자</small>
+      </button>
+      <button class="secondary chat-voice-control" type="button" data-voice-settings aria-expanded="false">
+        <span>⚙️</span><small>설정</small>
+      </button>
+    </div>
+    <div class="chat-voice-settings" data-voice-settings-panel hidden>
+      <label><span>상대 목소리 크기</span><input type="range" min="0" max="100" value="${prefs.volume}" data-voice-volume><output data-voice-volume-output>${prefs.volume}%</output></label>
+      <label><span>내 글 목소리</span><select data-my-voice-choice>
+        <option value="device-default" ${prefs.myVoice === "device-default" ? "selected" : ""}>기기 기본 목소리</option>
+        <option value="male-calm" ${prefs.myVoice === "male-calm" ? "selected" : ""}>남성 1 · 차분</option>
+        <option value="male-bright" ${prefs.myVoice === "male-bright" ? "selected" : ""}>남성 2 · 활기</option>
+        <option value="female-calm" ${prefs.myVoice === "female-calm" ? "selected" : ""}>여성 1 · 편안</option>
+        <option value="female-bright" ${prefs.myVoice === "female-bright" ? "selected" : ""}>여성 2 · 밝음</option>
+      </select><button type="button" class="secondary chat-voice-preview" data-preview-voice="mine">미리듣기</button></label>
+      <label><span>상대 글 목소리</span><select data-other-voice-choice>
+        <option value="device-default" ${prefs.otherVoice === "device-default" ? "selected" : ""}>기기 기본 목소리</option>
+        <option value="male-calm" ${prefs.otherVoice === "male-calm" ? "selected" : ""}>남성 1 · 차분</option>
+        <option value="male-bright" ${prefs.otherVoice === "male-bright" ? "selected" : ""}>남성 2 · 활기</option>
+        <option value="female-calm" ${prefs.otherVoice === "female-calm" ? "selected" : ""}>여성 1 · 편안</option>
+        <option value="female-bright" ${prefs.otherVoice === "female-bright" ? "selected" : ""}>여성 2 · 밝음</option>
+      </select><button type="button" class="secondary chat-voice-preview" data-preview-voice="other">미리듣기</button></label>
+      <label class="chat-voice-check"><input type="checkbox" data-auto-participant-voices ${prefs.autoParticipantVoices ? "checked" : ""}><span>GRID 참여자마다 목소리 자동 구분</span></label>
+      <label class="chat-voice-check"><input type="checkbox" data-voice-auto-listen ${prefs.autoListen ? "checked" : ""}><span>음성 탭을 열면 자동 듣기</span></label>
+      <label class="chat-voice-check"><input type="checkbox" data-voice-keep-grid ${prefs.keepOnGridChange ? "checked" : ""}><span>GRID가 바뀌어도 음성모드 유지</span></label>
+      <p>방장·관리자의 발언 허용/차단은 참여자 화면에서 설정합니다.</p>
+    </div>
+    <div class="chat-voice-transcript" data-voice-transcript hidden></div>
+    <div class="muted chat-voice-notice">음성인식은 현재 사용할 수 있으며, 실시간 상대 음성 송수신은 음성 서버 연결 후 활성화됩니다.</div>
+    ${voiceParticipantsPopupMarkup(state, roomId, roomType)}`;
+}
+
+function updateVoiceStatusUi(panel, session) {
+  const host = panel?.querySelector?.(".chat-voice-status");
+  if (!host || !session) return;
+  host.dataset.voiceState = session.state;
+  const label = host.querySelector("[data-voice-status]");
+  if (label) label.textContent = voiceStatusLabel(session);
+  const detail = host.querySelector("[data-voice-detail]");
+  if (detail) {
+    detail.textContent = session.reason
+      ? "음성모드는 유지됩니다. 마이크 버튼으로 다시 시도할 수 있습니다."
+      : "이 방의 음성모드는 계속 유지됩니다.";
+  }
+  const microphone = panel.querySelector("#voiceChat");
+  if (microphone && [VOICE_STATES.BLOCKED, VOICE_STATES.RECONNECTING].includes(session.state)) {
+    const text = microphone.querySelector("small");
+    if (text) text.textContent = session.state === VOICE_STATES.RECONNECTING ? "재연결 중" : "다시 시도";
+  }
+  const request = panel.querySelector("[data-voice-request]");
+  if (request) {
+    request.disabled = session.state === VOICE_STATES.QUEUED || session.state === VOICE_STATES.REQUESTING;
+    const text = request.querySelector("small");
+    if (text) text.textContent = session.state === VOICE_STATES.QUEUED ? "발언 대기" : "발언 요청";
+  }
+}
+
+function refreshVoiceParticipantRows(panel, state, roomId, roomType) {
+  const list = panel?.querySelector?.("[data-voice-member-list]");
+  if (list) list.innerHTML = voiceParticipantRows(state, roomId, roomType);
+}
+
+function bindVoiceParticipantActions(panel, state, roomId, roomType) {
+  const popup = panel?.querySelector?.("[data-voice-participant-popup]");
+  const opener = panel?.querySelector?.("[data-voice-participants]");
+  const close = panel?.querySelector?.("[data-close-voice-participants]");
+  if (!popup || !opener || !close) return;
+
+  const closePopup = () => {
+    popup.hidden = true;
+    opener.focus();
+  };
+  opener.onclick = () => {
+    refreshVoiceParticipantRows(panel, state, roomId, roomType);
+    popup.hidden = false;
+    close.focus();
+  };
+  close.onclick = closePopup;
+  popup.onclick = (event) => {
+    if (event.target === popup) closePopup();
+  };
+  popup.onkeydown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closePopup();
+    }
+  };
+
+  popup.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-voice-member-action]");
+    if (!button) return;
+    const userId = String(button.dataset.userId || "");
+    const action = button.dataset.voiceMemberAction;
+    const session = ensureVoiceSession(state, roomId);
+    if (action === "allow") {
+      if (session.speakerIds.includes(userId)) removeSpeaker(session, userId, MY_USER_ID);
+      else approveSpeaker(session, userId, MY_USER_ID);
+    } else if (action === "mute") {
+      setParticipantMuted(session, userId, !session.mutedIds.includes(userId), MY_USER_ID);
+    } else if (action === "block") {
+      setParticipantBlocked(session, userId, !session.blockedIds.includes(userId), MY_USER_ID);
+    }
+    refreshVoiceParticipantRows(panel, state, roomId, roomType);
+    updateVoiceStatusUi(panel, session);
+    emit("state:save");
+  });
+}
+
+function bindVoiceRequestControls(panel, state, roomId, roomType) {
+  const prefs = ensureVoicePreferences(state, roomId);
+  const request = panel?.querySelector?.("[data-voice-request]");
+  if (request) {
+    request.onclick = () => {
+      const session = ensureVoiceSession(state, roomId);
+      if (!requestToSpeak(session, MY_USER_ID)) return;
+      transitionVoiceState(session, VOICE_STATES.QUEUED, "awaiting approval");
+      updateVoiceStatusUi(panel, session);
+      emit("state:save");
+    };
+  }
+
+  const listen = panel?.querySelector?.("[data-voice-listen]");
+  if (listen) {
+    listen.onclick = () => {
+      prefs.listening = !prefs.listening;
+      listen.classList.toggle("is-active", prefs.listening);
+      listen.setAttribute("aria-pressed", String(prefs.listening));
+      const icon = listen.querySelector("span");
+      const text = listen.querySelector("small");
+      if (icon) icon.textContent = prefs.listening ? "🔊" : "🔇";
+      if (text) text.textContent = `듣기 ${prefs.listening ? "ON" : "OFF"}`;
+      const session = ensureVoiceSession(state, roomId);
+      transitionVoiceState(session, prefs.listening ? VOICE_STATES.LISTENING : VOICE_STATES.MUTED);
+      updateVoiceStatusUi(panel, session);
+      if (!prefs.listening) window.speechSynthesis?.cancel?.();
+      emit("state:save");
+    };
+  }
+
+  const settings = panel?.querySelector?.("[data-voice-settings]");
+  const settingsPanel = panel?.querySelector?.("[data-voice-settings-panel]");
+  if (settings && settingsPanel) {
+    settings.onclick = () => {
+      const open = settingsPanel.hidden;
+      settingsPanel.hidden = !open;
+      settings.classList.toggle("is-active", open);
+      settings.setAttribute("aria-expanded", String(open));
+    };
+  }
+
+  const volume = panel?.querySelector?.("[data-voice-volume]");
+  if (volume) {
+    volume.oninput = () => {
+      prefs.volume = Number(volume.value);
+      const output = panel.querySelector("[data-voice-volume-output]");
+      if (output) output.textContent = `${prefs.volume}%`;
+      emit("state:save");
+    };
+  }
+  const myVoiceChoice = panel?.querySelector?.("[data-my-voice-choice]");
+  if (myVoiceChoice) myVoiceChoice.onchange = () => { prefs.myVoice = myVoiceChoice.value; emit("state:save"); };
+  const otherVoiceChoice = panel?.querySelector?.("[data-other-voice-choice]");
+  if (otherVoiceChoice) otherVoiceChoice.onchange = () => { prefs.otherVoice = otherVoiceChoice.value; emit("state:save"); };
+  const autoParticipantVoices = panel?.querySelector?.("[data-auto-participant-voices]");
+  if (autoParticipantVoices) autoParticipantVoices.onchange = () => {
+    prefs.autoParticipantVoices = autoParticipantVoices.checked;
+    emit("state:save");
+  };
+  panel?.querySelectorAll?.("[data-preview-voice]").forEach((button) => {
+    button.onclick = () => {
+      const profile = button.dataset.previewVoice === "mine" ? prefs.myVoice : prefs.otherVoice;
+      previewVoiceProfile(profile, prefs.volume);
+    };
+  });
+  const autoListen = panel?.querySelector?.("[data-voice-auto-listen]");
+  if (autoListen) autoListen.onchange = () => { prefs.autoListen = autoListen.checked; emit("state:save"); };
+  const keepGrid = panel?.querySelector?.("[data-voice-keep-grid]");
+  if (keepGrid) keepGrid.onchange = () => { prefs.keepOnGridChange = keepGrid.checked; emit("state:save"); };
+
+  bindVoiceParticipantActions(panel, state, roomId, roomType);
+}
+
 function stopVoice() {
+  const stoppedRoomId = voiceBoundToRoomId;
   voiceListening = false;
   voiceBoundToRoomId = null;
   try {
@@ -509,24 +858,126 @@ function stopVoice() {
   }
   const b = activePanel?.querySelector("#voiceChat");
   if (b) {
-    b.textContent = "🎙️ 음성 듣기 시작";
-    b.classList.remove("voice-listening");
+    b.classList.remove("voice-listening", "is-active");
+    b.setAttribute("aria-pressed", "false");
+    const text = b.querySelector("small");
+    if (text) text.textContent = "마이크";
+  }
+  if (stoppedRoomId && activeState) {
+    const session = ensureVoiceSession(activeState, stoppedRoomId);
+    transitionVoiceState(session, VOICE_STATES.IDLE);
+    updateVoiceStatusUi(activePanel, session);
   }
 }
 
-function speakLatestMessage(panel) {
-  const bubbles = [...(panel?.querySelectorAll?.("#chatScroll .bubble:not(.mine)") || [])];
-  const text = String(bubbles.at(-1)?.textContent || "").trim();
-  if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
+function ensureVoiceReadIds(state, roomId) {
+  if (!state.voiceReadMessageIds || typeof state.voiceReadMessageIds !== "object") {
+    state.voiceReadMessageIds = {};
+  }
+  if (!Array.isArray(state.voiceReadMessageIds[roomId])) {
+    state.voiceReadMessageIds[roomId] = [];
+  }
+  return state.voiceReadMessageIds[roomId];
+}
+
+function speechFriendlyText(value) {
+  return String(value || "")
+    .replace(/👍(?:🏻|🏼|🏽|🏾|🏿)?/gu, " 좋아요 ")
+    .replace(/👎(?:🏻|🏼|🏽|🏾|🏿)?/gu, " 싫어요 ")
+    .replace(/\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier}|\u200D\p{Extended_Pictographic})*/gu, " ")
+    .replace(/[\uFE0E\uFE0F\u200D]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function koreanDeviceVoices() {
+  if (!window.speechSynthesis?.getVoices) return [];
+  const voices = window.speechSynthesis.getVoices();
+  const korean = voices.filter((voice) => String(voice.lang || "").toLowerCase().startsWith("ko"));
+  return korean.length ? korean : voices;
+}
+
+function voiceProfileIndex(profile) {
+  return {
+    "device-default": 0,
+    "male-calm": 0,
+    "male-bright": 1,
+    "female-calm": 2,
+    "female-bright": 3
+  }[profile] || 0;
+}
+
+function applySpeechProfile(utterance, profile) {
+  const voices = koreanDeviceVoices();
+  if (voices.length) utterance.voice = voices[voiceProfileIndex(profile) % voices.length];
+  const settings = {
+    "device-default": {pitch: 1, rate: 1},
+    "male-calm": {pitch: 0.78, rate: 0.93},
+    "male-bright": {pitch: 0.9, rate: 1.06},
+    "female-calm": {pitch: 1.08, rate: 0.94},
+    "female-bright": {pitch: 1.24, rate: 1.07}
+  }[profile] || {pitch: 1, rate: 1};
+  utterance.pitch = settings.pitch;
+  utterance.rate = settings.rate;
+}
+
+function previewVoiceProfile(profile, volume = 80) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const utterance = new SpeechSynthesisUtterance("안녕하세요. 부르 기본 목소리입니다.");
   utterance.lang = "ko-KR";
+  utterance.volume = Math.min(1, Math.max(0, Number(volume) / 100));
+  applySpeechProfile(utterance, profile);
   window.speechSynthesis.speak(utterance);
 }
 
+function participantVoiceProfile(senderId) {
+  const profiles = ["male-calm", "female-calm", "male-bright", "female-bright"];
+  const hash = [...String(senderId || "")].reduce((value, char) => ((value * 31) + char.charCodeAt(0)) >>> 0, 7);
+  return profiles[hash % profiles.length];
+}
+
+function speakPendingMessages(state, roomId) {
+  const prefs = ensureVoicePreferences(state, roomId);
+  if (!prefs.listening || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const room = state?.rooms?.[roomId];
+  if (!Array.isArray(room?.messages)) return;
+
+  const readIds = ensureVoiceReadIds(state, roomId);
+  const readSet = new Set(readIds);
+  let changed = false;
+
+  for (const rawMessage of room.messages) {
+    const message = normalizeMessage(rawMessage, room.peerId || "unknown", MY_USER_ID, roomId);
+    if (!message?.id || readSet.has(message.id)) continue;
+
+    const spokenText = speechFriendlyText(message.text);
+    readSet.add(message.id);
+    readIds.push(message.id);
+    changed = true;
+    if (!spokenText) continue;
+
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    utterance.lang = "ko-KR";
+    utterance.volume = prefs.volume / 100;
+    const profile = message.mine
+      ? prefs.myVoice
+      : (room.type === "grid" && prefs.autoParticipantVoices ? participantVoiceProfile(message.senderId) : prefs.otherVoice);
+    applySpeechProfile(utterance, profile);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  if (readIds.length > 300) {
+    state.voiceReadMessageIds[roomId] = readIds.slice(-300);
+  }
+  if (changed) emit("state:save");
+}
+
 function activateVoiceMode(panel, state, roomId) {
-  speakLatestMessage(panel);
-  if (!voiceListening || voiceBoundToRoomId !== roomId) toggleVoice(panel, state, roomId);
+  const prefs = ensureVoicePreferences(state, roomId);
+  speakPendingMessages(state, roomId);
+  if (prefs.autoListen && (!voiceListening || voiceBoundToRoomId !== roomId)) {
+    toggleVoice(panel, state, roomId);
+  }
 }
 
 export function pauseChatVoice() {
@@ -1511,7 +1962,8 @@ function renderChat(panel, state, peerId) {
   const room = state.rooms[peerId];
   if (!room) return renderRooms(panel, state);
 
-  stopVoice();
+  if (voiceBoundToRoomId && voiceBoundToRoomId !== peerId) stopVoice();
+  const composeMode = getChatComposeMode(state, peerId);
   activeRoomId = peerId;
   activePanel = panel;
   activeState = state;
@@ -1542,16 +1994,15 @@ function renderChat(panel, state, peerId) {
     <div id="chatScroll" class="chat-scroll">${bubbles}</div>
     <div class="chat-compose">
       <div class="tabs">
-        <button type="button" class="active" data-chatmode="text">텍스트</button>
-        <button type="button" data-chatmode="voice">음성</button>
+        <button type="button" class="${composeMode === "text" ? "active" : ""}" data-chatmode="text">텍스트</button>
+        <button type="button" class="${composeMode === "voice" ? "active" : ""}" data-chatmode="voice">음성</button>
       </div>
-      <div id="textCompose">
+      <div id="textCompose" style="display:${composeMode === "text" ? "block" : "none"}">
         <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
-      <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">🎙️ 음성 듣기 시작</button>
-        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
+      <div id="voiceCompose" style="display:${composeMode === "voice" ? "block" : "none"}">
+        ${voiceControlsMarkup(state, peerId, "direct")}
       </div>
     </div>
   </div>`;
@@ -1582,6 +2033,7 @@ function renderChat(panel, state, peerId) {
     b.onclick = () => {
       panel.querySelectorAll("[data-chatmode]").forEach(x => x.classList.toggle("active", x === b));
       const mode = b.dataset.chatmode;
+      setChatComposeMode(state, peerId, mode);
       panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
       panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
       if (mode === "voice") activateVoiceMode(panel, state, peerId);
@@ -1605,6 +2057,8 @@ function renderChat(panel, state, peerId) {
   });
 
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, peerId);
+  bindVoiceRequestControls(panel, state, peerId, "direct");
+  if (composeMode === "voice") activateVoiceMode(panel, state, peerId);
   mountChatUtilities(panel, state, { type: "direct", peerId });
 
   requestAnimationFrame(() => {
@@ -1746,7 +2200,8 @@ function renderGridChat(panel, state, gridId) {
   const room = state.rooms[roomId];
   if (!room) return renderRooms(panel, state);
 
-  stopVoice();
+  if (voiceBoundToRoomId && voiceBoundToRoomId !== roomId) stopVoice();
+  const composeMode = getChatComposeMode(state, roomId);
   activeRoomId = roomId;
   activePanel = panel;
   activeState = state;
@@ -1776,16 +2231,15 @@ function renderGridChat(panel, state, gridId) {
     <div id="chatScroll" class="chat-scroll">${bubbles}</div>
     <div class="chat-compose">
       <div class="tabs">
-        <button type="button" class="active" data-chatmode="text">텍스트</button>
-        <button type="button" data-chatmode="voice">음성</button>
+        <button type="button" class="${composeMode === "text" ? "active" : ""}" data-chatmode="text">텍스트</button>
+        <button type="button" class="${composeMode === "voice" ? "active" : ""}" data-chatmode="voice">음성</button>
       </div>
-      <div id="textCompose">
+      <div id="textCompose" style="display:${composeMode === "text" ? "block" : "none"}">
         <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
-      <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">음성 듣기 시작</button>
-        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
+      <div id="voiceCompose" style="display:${composeMode === "voice" ? "block" : "none"}">
+        ${voiceControlsMarkup(state, roomId, "grid")}
       </div>
     </div>
   </div>`;
@@ -1815,6 +2269,7 @@ function renderGridChat(panel, state, gridId) {
     b.onclick = () => {
       panel.querySelectorAll("[data-chatmode]").forEach(x => x.classList.toggle("active", x === b));
       const mode = b.dataset.chatmode;
+      setChatComposeMode(state, roomId, mode);
       panel.querySelector("#textCompose").style.display = mode === "text" ? "block" : "none";
       panel.querySelector("#voiceCompose").style.display = mode === "voice" ? "block" : "none";
       if (mode === "voice") activateVoiceMode(panel, state, roomId);
@@ -1831,6 +2286,8 @@ function renderGridChat(panel, state, gridId) {
     doSend();
   });
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
+  bindVoiceRequestControls(panel, state, roomId, "grid");
+  if (composeMode === "voice") activateVoiceMode(panel, state, roomId);
   mountChatUtilities(panel, state, { type: "grid", gridId });
 
   requestAnimationFrame(() => {
@@ -1905,6 +2362,58 @@ function scheduleGridDemoReply(panel, state, gridId) {
   replyTimers.set(roomId, timer);
 }
 
+function showVoiceRuntimeMessage(panel, message, isError = false) {
+  const transcript = panel?.querySelector?.("[data-voice-transcript]");
+  if (!transcript) return;
+  transcript.hidden = false;
+  transcript.classList.toggle("is-error", isError);
+  transcript.textContent = message;
+}
+
+function scheduleVoiceReconnect(panel, state, roomId) {
+  if (voiceReconnectTimer) clearTimeout(voiceReconnectTimer);
+  voiceReconnectTimer = setTimeout(() => {
+    voiceReconnectTimer = null;
+    if (activePanel !== panel || activeRoomId !== roomId) return;
+    if (getChatComposeMode(state, roomId) !== "voice") return;
+    const prefs = ensureVoicePreferences(state, roomId);
+    if (!prefs.autoListen) return;
+    toggleVoice(panel, state, roomId);
+  }, 1500);
+}
+
+function handleVoiceRecognitionError(errorCode) {
+  const roomId = voiceBoundToRoomId || activeRoomId;
+  const panel = activePanel;
+  const state = activeState;
+  if (!roomId || !panel || !state) return;
+
+  if (errorCode === "no-speech") {
+    const session = ensureVoiceSession(state, roomId);
+    transitionVoiceState(session, VOICE_STATES.LISTENING, "no-speech");
+    updateVoiceStatusUi(panel, session);
+    showVoiceRuntimeMessage(panel, "음성이 감지되지 않았습니다. 계속 듣고 있습니다.");
+    return;
+  }
+  if (errorCode === "aborted" && !voiceListening) return;
+
+  const failure = ["not-allowed", "service-not-allowed"].includes(errorCode)
+    ? {state: VOICE_STATES.BLOCKED, reason: "permission-denied", message: "마이크 권한을 허용한 뒤 다시 시도해 주세요."}
+    : errorCode === "audio-capture"
+      ? {state: VOICE_STATES.BLOCKED, reason: "microphone-missing", message: "사용 가능한 마이크를 찾을 수 없습니다."}
+      : errorCode === "network"
+        ? {state: VOICE_STATES.RECONNECTING, reason: "network-error", message: "음성 네트워크 연결을 다시 시도합니다."}
+        : {state: VOICE_STATES.IDLE, reason: "start-failed", message: "음성 인식을 시작하지 못했습니다."};
+
+  stopVoice();
+  const session = ensureVoiceSession(state, roomId);
+  transitionVoiceState(session, failure.state, failure.reason);
+  updateVoiceStatusUi(panel, session);
+  showVoiceRuntimeMessage(panel, failure.message, true);
+  showSystemMessage(failure.message);
+  if (failure.state === VOICE_STATES.RECONNECTING) scheduleVoiceReconnect(panel, state, roomId);
+}
+
 function toggleVoice(panel, state, peerId) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
@@ -1924,21 +2433,19 @@ function toggleVoice(panel, state, peerId) {
       }
       chunk = chunk.trim();
       if (!chunk) return;
-      // 자동 전송하지 않음 — 입력창에만 채움
+      // 음성모드는 유지하고 인식 문장만 전송 대기 상태로 보관
       const ta = activePanel?.querySelector("#chatText");
-      const textCompose = activePanel?.querySelector("#textCompose");
-      const voiceCompose = activePanel?.querySelector("#voiceCompose");
       if (ta) {
         ta.value = ta.value.trim() ? `${ta.value.trim()} ${chunk}` : chunk;
       }
-      activePanel?.querySelectorAll("[data-chatmode]").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.chatmode === "text");
-      });
-      if (textCompose) textCompose.style.display = "block";
-      if (voiceCompose) voiceCompose.style.display = "none";
+      const transcript = activePanel?.querySelector("[data-voice-transcript]");
+      if (transcript) {
+        transcript.hidden = false;
+        transcript.textContent = `인식됨: ${chunk}`;
+      }
     };
-    voiceRecognition.onerror = () => {
-      stopVoice();
+    voiceRecognition.onerror = (event) => {
+      handleVoiceRecognitionError(String(event?.error || "unknown"));
     };
     voiceRecognition.onend = () => {
       if (voiceListening && voiceBoundToRoomId === activeRoomId) {
@@ -1961,14 +2468,19 @@ function toggleVoice(panel, state, peerId) {
   voiceBoundToRoomId = peerId;
   const b = panel.querySelector("#voiceChat");
   if (b) {
-    b.textContent = "🔴 음성 듣기 종료";
-    b.classList.add("voice-listening");
+    b.classList.add("voice-listening", "is-active");
+    b.setAttribute("aria-pressed", "true");
+    const text = b.querySelector("small");
+    if (text) text.textContent = "마이크 끄기";
   }
+  const session = ensureVoiceSession(state, peerId);
+  transitionVoiceState(session, VOICE_STATES.LISTENING);
+  updateVoiceStatusUi(panel, session);
   try {
     voiceRecognition.start();
-  } catch (e) {
-    stopVoice();
-    showSystemMessage("음성 인식을 시작하지 못했습니다.");
+    showVoiceRuntimeMessage(panel, "마이크가 연결되었습니다.");
+  } catch (error) {
+    handleVoiceRecognitionError("start-failed");
   }
 }
 
