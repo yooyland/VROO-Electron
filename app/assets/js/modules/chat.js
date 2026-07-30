@@ -881,7 +881,6 @@ function speakPendingMessages(state, roomId) {
     utterance.lang = "ko-KR";
     utterance.volume = prefs.volume / 100;
     applySpeechProfile(utterance, message.mine ? prefs.myVoice : prefs.otherVoice);
-    utterance.dataset = undefined;
     window.speechSynthesis.speak(utterance);
   }
 
