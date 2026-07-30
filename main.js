@@ -419,6 +419,10 @@ async function runWorkspaceRuntimeTest(win) {
         await click("#modalClose");
         community.closeRestoresList = document.querySelector("#modal")?.getAttribute("aria-hidden") === "true";
         community.scrollRestored = communityPanel.scrollTop === communityScrollBefore;
+        await click("[data-post]");
+        await click("#communityPostLike");
+        await click("#modal");
+        community.backdropAfterActionCloses = document.querySelector("#modal")?.getAttribute("aria-hidden") === "true";
 
         await click("#myPageButton");
         await waitFor(() => document.querySelector(".garage-shell"), "Garage shell");
@@ -515,6 +519,7 @@ async function runWorkspaceRuntimeTest(win) {
           community.likePersistsInDetail,
           community.closeRestoresList,
           community.scrollRestored,
+          community.backdropAfterActionCloses,
           garage.visible,
           garage.viewCount === 9,
           garage.actionCount === 4,
