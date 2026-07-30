@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   createVehicleProgression,
+  getDailyMissionSummary,
   getProgressionSummary,
   normalizeVehicleProgression,
   progressionFromLegacyState,
@@ -28,8 +29,10 @@ const firstDrive = recordProgressionEvent(fresh, {
   at: 1000
 });
 assert.equal(firstDrive.applied, true);
-assert.equal(firstDrive.earnedPoints, 100);
+assert.equal(firstDrive.earnedPoints, 200);
 assert.equal(firstDrive.progression.counters.driveKm, 10);
+assert.equal(firstDrive.progression.counters.missionsCompleted, 1);
+assert.equal(firstDrive.completedMissions[0].id, "daily-drive");
 
 const duplicateDrive = recordProgressionEvent(firstDrive.progression, {
   id: "drive:first",
@@ -38,7 +41,7 @@ const duplicateDrive = recordProgressionEvent(firstDrive.progression, {
 });
 assert.equal(duplicateDrive.applied, false);
 assert.equal(duplicateDrive.reason, "duplicate-event");
-assert.equal(duplicateDrive.progression.points, 100);
+assert.equal(duplicateDrive.progression.points, 200);
 
 let growing = firstDrive.progression;
 for (let index = 0; index < 9; index += 1) {
@@ -47,13 +50,13 @@ for (let index = 0; index < 9; index += 1) {
     kind: "missionComplete"
   }).progression;
 }
-assert.equal(growing.points, 1000);
+assert.equal(growing.points, 1100);
 assert.equal(growing.tier, "street");
 
 const summary = getProgressionSummary(growing);
 assert.equal(summary.currentTier.id, "street");
 assert.equal(summary.nextTier.id, "sport");
-assert.equal(summary.pointsToNext, 2500);
+assert.equal(summary.pointsToNext, 2400);
 
 const malformed = normalizeVehicleProgression({
   points: -10,
@@ -73,6 +76,24 @@ assert.equal(vehicleTierFromLegacyLevel(6).id, "street");
 assert.equal(vehicleTierFromLegacyLevel(31).id, "performance");
 assert.equal(vehicleTierById("not-a-tier").id, "basic");
 assert.equal(vehicleTierIndex("heritage"), 5);
+
+const today = new Date("2026-07-30T12:00:00+09:00").getTime();
+let dailyProgression = createVehicleProgression();
+dailyProgression = recordProgressionEvent(dailyProgression, {
+  id: "grid:daily",
+  kind: "gridVisit",
+  at: today
+}).progression;
+dailyProgression = recordProgressionEvent(dailyProgression, {
+  id: "help:daily",
+  kind: "helpfulMessage",
+  at: today
+}).progression;
+const dailySummary = getDailyMissionSummary(dailyProgression, today);
+assert.equal(dailySummary.completedCount, 2);
+assert.equal(dailySummary.rewardPoints, 200);
+assert.equal(dailyProgression.counters.missionsCompleted, 2);
+assert.equal(getDailyMissionSummary(dailyProgression, new Date("2026-07-31T12:00:00+09:00").getTime()).completedCount, 0);
 
 const driveBaseline = recordDriveLocation(fresh, {
   lat: 37.5665,
