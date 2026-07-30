@@ -72,6 +72,12 @@ export function createVehicleProgression() {
       safeDrives: 0,
       connections: 0
     },
+    driveTracker: {
+      lat: null,
+      lng: null,
+      at: null,
+      pendingKm: 0
+    },
     completedEventIds: [],
     updatedAt: null
   };
@@ -100,11 +106,95 @@ export function normalizeVehicleProgression(value) {
   for (const key of Object.keys(base.counters)) {
     base.counters[key] = nonNegativeNumber(counters[key]);
   }
+  const driveTracker = source.driveTracker && typeof source.driveTracker === "object" && !Array.isArray(source.driveTracker)
+    ? source.driveTracker
+    : {};
+  const lat = driveTracker.lat == null ? NaN : Number(driveTracker.lat);
+  const lng = driveTracker.lng == null ? NaN : Number(driveTracker.lng);
+  const trackerAt = driveTracker.at == null ? NaN : Number(driveTracker.at);
+  base.driveTracker.lat = Number.isFinite(lat) && lat >= -90 && lat <= 90 ? lat : null;
+  base.driveTracker.lng = Number.isFinite(lng) && lng >= -180 && lng <= 180 ? lng : null;
+  base.driveTracker.at = Number.isFinite(trackerAt) ? trackerAt : null;
+  base.driveTracker.pendingKm = Math.min(0.099999, nonNegativeNumber(driveTracker.pendingKm));
   base.completedEventIds = Array.isArray(source.completedEventIds)
     ? [...new Set(source.completedEventIds.filter(value => value != null).map(String).filter(Boolean))].slice(-100)
     : [];
   base.updatedAt = Number.isFinite(Number(source.updatedAt)) ? Number(source.updatedAt) : null;
   return base;
+}
+
+function distanceKm(from, to) {
+  const radians = value => value * Math.PI / 180;
+  const lat1 = radians(from.lat);
+  const lat2 = radians(to.lat);
+  const deltaLat = lat2 - lat1;
+  const deltaLng = radians(to.lng - from.lng);
+  const value = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+  const bounded = Math.max(0, Math.min(1, value));
+  return 6371 * 2 * Math.atan2(Math.sqrt(bounded), Math.sqrt(1 - bounded));
+}
+
+export function recordDriveLocation(value, sample = {}) {
+  const progression = normalizeVehicleProgression(value);
+  const lat = Number(sample.lat);
+  const lng = Number(sample.lng);
+  const at = Number(sample.at);
+  const accuracy = Number(sample.accuracy);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    return {progression, changed: false, applied: false, reason: "invalid-location"};
+  }
+  if (Number.isFinite(accuracy) && accuracy > 100) {
+    return {progression, changed: false, applied: false, reason: "low-accuracy"};
+  }
+
+  const tracker = progression.driveTracker;
+  const timestamp = Number.isFinite(at) ? at : Date.now();
+  const setBaseline = reason => {
+    tracker.lat = lat;
+    tracker.lng = lng;
+    tracker.at = timestamp;
+    return {progression, changed: true, applied: false, reason};
+  };
+  if (tracker.lat == null || tracker.lng == null) return setBaseline("baseline");
+  if (tracker.at != null && timestamp <= tracker.at) {
+    return {progression, changed: false, applied: false, reason: "stale-location"};
+  }
+
+  const travelledKm = distanceKm(tracker, {lat, lng});
+  if (travelledKm > 10) {
+    tracker.pendingKm = 0;
+    return setBaseline("location-jump");
+  }
+  if (travelledKm < 0.02) {
+    tracker.at = timestamp;
+    return {progression, changed: true, applied: false, reason: "gps-jitter", distanceKm: travelledKm};
+  }
+
+  tracker.lat = lat;
+  tracker.lng = lng;
+  tracker.at = timestamp;
+  const totalKm = tracker.pendingKm + travelledKm;
+  const awardedUnits = Math.floor((totalKm + 1e-9) * 10);
+  const awardedKm = awardedUnits / 10;
+  tracker.pendingKm = totalKm - awardedKm;
+  if (!awardedUnits) {
+    return {progression, changed: true, applied: false, reason: "distance-pending", distanceKm: travelledKm};
+  }
+
+  const result = recordProgressionEvent(progression, {
+    kind: "driveKm",
+    amount: awardedKm,
+    at: timestamp
+  });
+  result.progression.driveTracker = tracker;
+  return {
+    ...result,
+    changed: true,
+    reason: "drive-distance",
+    distanceKm: travelledKm,
+    awardedKm
+  };
 }
 
 export function getProgressionSummary(value) {
