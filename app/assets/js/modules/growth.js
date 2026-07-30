@@ -1,5 +1,5 @@
 import {carInfo} from "./data.js";
-import {getDailyMissionSummary, getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
+import {getDailyMissionSummary, getNextProgressionAction, getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
 import {emit} from "../core/events.js";
 import {growthUpgradeCost,formatCredits,canAfford,spendCredits} from "../core/storage.js";
 import {showSystemMessage} from "../core/ui.js";
@@ -16,6 +16,7 @@ export function renderGrowth(panel,state){
   const vehicle=carInfo(state.profile.car);
   const progression=getProgressionSummary(state.vehicleProgression);
   const daily=getDailyMissionSummary(state.vehicleProgression);
+  const nextAction=getNextProgressionAction(state.vehicleProgression);
   let busy=false;
 
   panel.innerHTML=`
@@ -51,6 +52,11 @@ export function renderGrowth(panel,state){
         }).join("")}
       </section>
 
+      <button type="button" class="progression-next-action ${nextAction.completedToday?"is-complete":""}" data-next-progression-action="${nextAction.route}">
+        <div><span>${nextAction.eyebrow}</span><b>${nextAction.title}</b><small>${nextAction.description}</small></div>
+        <strong>${nextAction.cta} →</strong>
+      </button>
+
       <section class="play-grid">
         <div class="play-missions">
           <div class="play-section-head"><div><span>DAILY MISSION · ${daily.day}</span><h3>오늘의 미션</h3></div><small>${daily.completedCount} / ${daily.totalCount} 완료 · +${daily.rewardPoints}P</small></div>
@@ -74,6 +80,7 @@ export function renderGrowth(panel,state){
     </div>`;
 
   panel.querySelector("#openGarageFromPlay").onclick=()=>emit("growth:openGarage");
+  panel.querySelector("[data-next-progression-action]").onclick=()=>emit("growth:nextAction",nextAction);
   panel.querySelector("#levelUp").onclick=()=>{
     if(busy)return;
     if(!canAfford(state,cost)){
