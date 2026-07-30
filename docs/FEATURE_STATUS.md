@@ -8,6 +8,19 @@
 
 코드 미러: `app/assets/js/config/feature-status.js`
 
+## 보존 수명주기
+
+기능의 구현 상태와 별도로 다음 수명주기를 사용한다.
+
+| 값 | 의미 |
+|---|---|
+| `keep` | 현재 기능·데이터·에셋·테스트 유지. 수명주기 미지정 시 기본값 |
+| `hide` | 코드와 데이터를 보존하고 현재 UI에서만 숨김 |
+| `backend-ready` | 로컬 기능을 유지하면서 향후 서버 서비스로 교체 가능한 경계로 분리 |
+| `review-for-delete` | 삭제 후보. 근거·대체 경로·영향·회귀검증·복구 계획 없이는 삭제 금지 |
+
+`review-for-delete`는 삭제 승인이 아니다. 실제 삭제는 별도 이슈와 검증을 거쳐야 한다.
+
 ---
 
 ## DRIVE
@@ -81,6 +94,7 @@
 | 기능 | 상태 |
 |------|------|
 | 성장·크레딧·레벨 | prototype |
+| Basic → Street → Sport → Performance → Heritage 진행 모델 | prototype |
 | 미션·랭킹·시즌·출석·주행 보상 | planned |
 
 ## MY
