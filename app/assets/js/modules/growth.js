@@ -1,5 +1,5 @@
 import {carInfo} from "./data.js";
-import {getDailyMissionSummary, getNextProgressionAction, getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
+import {getDailyMissionSummary, getNextProgressionAction, getProgressionStreak, getProgressionSummary, VEHICLE_TIERS} from "./progression.js";
 import {emit} from "../core/events.js";
 import {growthUpgradeCost,formatCredits,canAfford,spendCredits} from "../core/storage.js";
 import {showSystemMessage} from "../core/ui.js";
@@ -17,6 +17,7 @@ export function renderGrowth(panel,state){
   const progression=getProgressionSummary(state.vehicleProgression);
   const daily=getDailyMissionSummary(state.vehicleProgression);
   const nextAction=getNextProgressionAction(state.vehicleProgression);
+  const streak=getProgressionStreak(state.vehicleProgression);
   let busy=false;
 
   panel.innerHTML=`
@@ -59,7 +60,7 @@ export function renderGrowth(panel,state){
 
       <section class="play-grid">
         <div class="play-missions">
-          <div class="play-section-head"><div><span>DAILY MISSION · ${daily.day}</span><h3>오늘의 미션</h3></div><small>${daily.completedCount} / ${daily.totalCount} 완료 · +${daily.rewardPoints}P</small></div>
+          <div class="play-section-head"><div><span>DAILY MISSION · ${daily.day}</span><h3>오늘의 미션</h3></div><small>🔥 ${streak.current}일 연속 · 최고 ${streak.best}일 · ${daily.completedCount}/${daily.totalCount} 완료</small></div>
           ${daily.missions.map(mission=>`
             <article class="play-mission-card ${mission.completed?"is-completed":""}">
               <div><b>${mission.completed?"✓ ":""}${mission.label}</b><small>${mission.description} · 보상 +${mission.rewardPoints}P</small></div>
