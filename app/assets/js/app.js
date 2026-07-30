@@ -295,6 +295,19 @@ on("user:profile",payload=>openUserDetail(state,payload));
 on("mypage:open",()=>setScreen("my"));
 on("garage:openGrowth",()=>setScreen("growth"));
 on("growth:openGarage",()=>setScreen("my"));
+on("growth:nextAction",action=>{
+  if(action?.route==="grid"){
+    setScreen("grid");
+    setView("near");
+    return;
+  }
+  if(action?.route==="road-chat"){
+    openRoadConversation();
+    return;
+  }
+  setScreen("nearby");
+  setView("road");
+});
 on("garage:openCustomize",()=>{
   state.shopCategory="feature";
   save();
