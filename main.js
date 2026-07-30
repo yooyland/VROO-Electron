@@ -80,6 +80,7 @@ async function runHeritageRuntimeTest(win) {
         const currentVehicle = document.querySelector("[data-current-vehicle-tier]");
         const progressionPilot = {
           currentTier: currentVehicle?.dataset.currentVehicleTier || "",
+          evolutionStage: currentVehicle?.dataset.evolutionStage || "",
           statTier: document.querySelector("[data-garage-tier]")?.textContent?.trim().toLowerCase() || "",
           heritageLabeledAsGoal: document.querySelector(".garage-hero-copy h3")?.textContent?.includes("목표 프리뷰") === true
         };
@@ -168,6 +169,7 @@ async function runHeritageRuntimeTest(win) {
       !result.autoPilot?.stopHoldsView;
     const progressionFailed =
       !result.progressionPilot?.currentTier ||
+      !["core", "signature", "flow"].includes(result.progressionPilot.evolutionStage) ||
       result.progressionPilot.currentTier !== result.progressionPilot.statTier ||
       (result.progressionPilot.currentTier !== "heritage" && !result.progressionPilot.heritageLabeledAsGoal);
     console.log(`HERITAGE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
