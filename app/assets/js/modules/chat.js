@@ -1780,7 +1780,7 @@ function renderGridChat(panel, state, gridId) {
       <button class="secondary" id="chatBack" type="button">←</button>
       <div class="chat-header-main">
         <b class="chat-peer-name">${escapeHtml(room.title || "GRID 대화")}</b>
-        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 내 차량 <span class="vehicle-tier-badge">${myTier.label}</span> <span class="vehicle-evolution-badge evolution-${myEvolution.currentPhase.id}">${myEvolution.currentPhase.label}</span> · 동일 세션</div>
+        <div class="muted chat-peer-meta">${isSpatialGridId(gridId) ? "Spatial GRID 단체 대화" : "GRID 단체 대화"} · 내 차량 <span class="vehicle-tier-badge" data-my-vehicle-tier>${myTier.label}</span> <span class="vehicle-evolution-badge evolution-${myEvolution.currentPhase.id}" data-my-evolution-stage>${myEvolution.currentPhase.label}</span> · 동일 세션</div>
       </div>
       <button class="secondary" id="favoriteRoom" type="button">${state.favoriteRooms?.includes(roomId) ? "★" : "☆"}</button>
     </div>
@@ -1988,4 +1988,18 @@ export function refreshChatBadge(state) {
   if (!state) return;
   state.rooms = sanitizeRooms(state.rooms);
   updateNavBadge(state);
+}
+
+export function refreshChatVehicleProgression(state) {
+  if (!state) return;
+  const tier = getProgressionSummary(state.vehicleProgression).currentTier;
+  const evolution = getVehicleEvolutionSummary(state.vehicleProgression).currentPhase;
+  document.querySelectorAll("[data-my-vehicle-tier]").forEach(element => {
+    element.textContent = tier.label;
+  });
+  document.querySelectorAll("[data-my-evolution-stage]").forEach(element => {
+    element.textContent = evolution.label;
+    element.classList.remove("evolution-core", "evolution-signature", "evolution-flow");
+    element.classList.add(`evolution-${evolution.id}`);
+  });
 }
