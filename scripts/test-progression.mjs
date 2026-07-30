@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  applyProgressionSyncPayload,
   buildProgressionSyncPayload,
   createVehicleProgression,
   getDailyMissionSummary,
@@ -156,6 +157,21 @@ assert.equal(syncPayload.streak.current, 2);
 assert.equal(syncPayload.milestones.length, getProgressionMilestones(routedProgression).length);
 assert.equal("driveTracker" in syncPayload, false);
 assert.equal(JSON.parse(JSON.stringify(syncPayload)).completedEventIds.length, syncPayload.completedEventIds.length);
+const localWithPrivateTracker = normalizeVehicleProgression({
+  points: 10,
+  updatedAt: 100,
+  driveTracker: {lat: 37.5665, lng: 126.978, at: 99, pendingKm: 0.04}
+});
+const newerPayload = {...syncPayload, revision: tomorrow + 1000};
+const restoredSync = applyProgressionSyncPayload(localWithPrivateTracker, newerPayload);
+assert.equal(restoredSync.applied, true);
+assert.equal(restoredSync.reason, "remote-newer");
+assert.equal(restoredSync.progression.points, routedProgression.points);
+assert.equal(restoredSync.progression.driveTracker.lat, 37.5665);
+assert.equal(restoredSync.progression.driveTracker.pendingKm, 0.04);
+assert.equal(applyProgressionSyncPayload(restoredSync.progression, newerPayload).reason, "stale-revision");
+assert.equal(applyProgressionSyncPayload(localWithPrivateTracker, {...newerPayload, contractVersion: 2}).reason, "unsupported-contract");
+assert.equal(applyProgressionSyncPayload(localWithPrivateTracker, {...newerPayload, revision: null}).reason, "invalid-revision");
 
 let dailyProgression = createVehicleProgression();
 dailyProgression = recordProgressionEvent(dailyProgression, {
