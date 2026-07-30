@@ -62,6 +62,9 @@ export function applyDriveLocation(state, detail, options = {}) {
     for (const mission of result.completedMissions || []) {
       options.notify(`${mission.label} 완료 · 차량 성장 +${mission.rewardPoints}P`);
     }
+    if (result.streakCompleted) {
+      options.notify(`오늘의 VROO 루프 완료 · ${result.streak.current}일 연속`);
+    }
   }
   const after = getProgressionSummary(result.progression);
   const afterEvolution = getVehicleEvolutionSummary(result.progression);
@@ -97,6 +100,9 @@ export function bindProgressionController(state, options = {}) {
     }
     if (result.evolutionChanged) {
       notify(`차량이 ${result.currentEvolutionPhase.label} 단계로 진화했습니다.`);
+    }
+    if (result.streakCompleted) {
+      notify(`오늘의 VROO 루프 완료 · ${result.streak.current}일 연속`);
     }
     const after = getProgressionSummary(result.progression);
     if (before.currentTier.id !== after.currentTier.id) {
