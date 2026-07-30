@@ -707,6 +707,12 @@ export function syncRoadUsers(users) {
   }
 }
 
+export function refreshMyRoadVehicle() {
+  if (!mineMesh || !stateRef) return false;
+  applyCarAppearance(mineMesh, buildMineUser());
+  return true;
+}
+
 function ensureUsersListener() {
   if (usersListenerBound) return;
   usersListenerBound = true;
