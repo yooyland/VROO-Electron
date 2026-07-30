@@ -123,6 +123,7 @@ body[data-map-view="all"] .road-hud b{font-size:12px}body[data-map-view="all"] .
 .user-row,.room-row,.product-row,.post-row{display:grid;grid-template-columns:45px minmax(0,1fr) auto;gap:9px;align-items:center}.avatar{font-size:30px}.status-dot{display:inline-block;width:9px;height:9px;border-radius:50%}.online{background:var(--green)}.offline{background:#697481}
 .chat-shell{height:100%;display:flex;flex-direction:column}.chat-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-bottom:10px}.bubble{max-width:84%;padding:10px 12px;border-radius:14px;background:#252e39}.bubble.mine{align-self:flex-end;background:#4bd570;color:#071109}.chat-compose{border-top:1px solid var(--line);padding-top:10px}.chat-compose textarea{width:100%;min-height:75px;background:#080b10;color:white;border:1px solid #354150;border-radius:10px;padding:10px}.compose-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
 .chat-header{display:flex;align-items:center;gap:10px}.chat-header-main{flex:1;min-width:0}.chat-peer-name{display:block;font-size:18px;font-weight:900}.chat-peer-meta{margin-top:4px;font-size:12px}.room-actions{display:flex;align-items:center;gap:8px}.chat-room-unread,.chat-unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#ff4d5a;color:#fff;font-size:11px;font-weight:900}.main-menu button{position:relative}.main-menu button .chat-unread-badge{position:absolute;top:10px;right:2px}.main-menu button.has-unread{color:var(--yellow)}.voice-listening{border-color:#ff4d5a!important;color:#ffd5d9!important}
+.vehicle-tier-badge{display:inline-flex;align-items:center;padding:1px 6px;border:1px solid #d7aa4366;border-radius:999px;background:#d7aa4314;color:#ffd45c;font-size:9px;font-weight:900;letter-spacing:.04em;vertical-align:1px}
 .bubble-sender{align-self:flex-start;margin:0 0 2px 4px;color:var(--muted);font-size:11px}.grid-detail-actions{gap:8px;flex-wrap:wrap}.grid-detail-actions .muted{font-size:12px}
 .nearby-search-card .nearby-search{margin:10px 0 8px;width:100%}.nearby-search-card b{display:block}
 .progress{height:9px;border-radius:8px;background:#27313e;overflow:hidden}.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--yellow),#ff7a00)}
@@ -522,6 +523,7 @@ body[data-map-view="all"] .view-guidebar .environment-select{
 .vroo-marker--vehicle.is-selected .vroo-marker-vehicle-card{border-color:#6ec1ff}
 .vroo-marker-vehicle-card b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vroo-marker-meta{display:block;margin-top:2px;font-size:10px;color:#9ec9ef}
+.vroo-marker-meta strong{color:#ffd45c;font-size:9px}
 .vroo-marker--me{width:72px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
 .vroo-me-core{
   width:16px;height:16px;border-radius:50%;background:#ffc400;border:2px solid #fff;position:relative;z-index:1
