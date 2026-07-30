@@ -1,6 +1,6 @@
 import {emit} from "../core/events.js";
 import {carInfo} from "./data.js";
-import {getProgressionMilestones, getProgressionSummary, getVehicleEvolutionSummary} from "./progression.js";
+import {getNextProgressionAction, getProgressionMilestones, getProgressionSummary, getVehicleEvolutionSummary} from "./progression.js";
 
 const HERITAGE_VIEW_ROOT = "./assets/characters/05_Heritage/views";
 const HERITAGE_LAYER_ROOT = "./assets/characters/05_Heritage/layers";
@@ -203,6 +203,7 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
   const vehicle = carInfo(state.profile.car);
   const progression = getProgressionSummary(state.vehicleProgression);
   const evolution = getVehicleEvolutionSummary(state.vehicleProgression);
+  const nextAction = getNextProgressionAction(state.vehicleProgression);
   const heritageOwned = progression.currentTier.id === "heritage";
   const heroEyebrow = heritageOwned ? "VROO FLAGSHIP · HERITAGE" : "FINAL GOAL PREVIEW · HERITAGE";
   const heroTitle = heritageOwned ? "Heritage Executive S" : "Heritage Executive S · 목표 프리뷰";
@@ -244,6 +245,11 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
 
     ${viewSelector(activeView)}
 
+    <button type="button" class="progression-next-action ${nextAction.completedToday?"is-complete":""}" data-next-progression-action="${nextAction.route}">
+      <div><span>${nextAction.eyebrow}</span><b>${nextAction.title}</b><small>${nextAction.description}</small></div>
+      <strong>${nextAction.cta} →</strong>
+    </button>
+
     <section class="garage-stat-grid" aria-label="차량 상태">
       <article><small>이번 주 주행</small><b>${mileage.toLocaleString("ko-KR")} km</b></article>
       <article><small>연료</small><b>${fuel}%</b><i><span style="width:${fuel}%"></span></i></article>
@@ -259,6 +265,7 @@ function renderOverview(root, state, requestedView = "front", openRoom = () => {
     </section>`;
 
   root.querySelector('[data-garage-action="upgrade"]').onclick = () => emit("garage:openGrowth");
+  root.querySelector("[data-next-progression-action]").onclick = () => emit("growth:nextAction", nextAction);
   root.querySelector('[data-garage-action="mission"]').onclick = () => openRoom("mission");
   root.querySelector('[data-garage-action="customize"]').onclick = () => emit("garage:openCustomize");
   root.querySelector('[data-garage-action="collection"]').onclick = () => openRoom("inventory");
