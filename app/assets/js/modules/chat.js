@@ -3,6 +3,12 @@ import {emit, on} from "../core/events.js";
 import {getUsers} from "./map.js";
 import {showSystemMessage} from "../core/ui.js";
 import {gridChatRoomId, MY_USER_ID, SEED_GRIDS} from "./data.js";
+import {
+  ensureVoiceSession,
+  requestToSpeak,
+  transitionVoiceState,
+  VOICE_STATES
+} from "./voice-session.js";
 import {getGridDisplayName, isSpatialGridId, getGridCellFromLatLng, ACTIVE_GRID_LEVEL} from "./spatial-grid.js";
 import {
   ensureRoadChat,
@@ -496,6 +502,74 @@ function updateSpatialBadges(by) {
       b?.remove();
       if (!gridBtn.querySelector(".chat-unread-badge")) gridBtn.classList.remove("has-unread");
     }
+  }
+}
+
+function voiceStatusLabel(session) {
+  const labels = {
+    idle: "마이크 꺼짐",
+    listening: "음성 인식 중",
+    requesting: "발언 요청 중",
+    queued: "발언 대기",
+    speaking: "말하는 중",
+    muted: "음소거",
+    reconnecting: "재연결 중",
+    blocked: "이용 제한"
+  };
+  return labels[session?.state] || "마이크 꺼짐";
+}
+
+function voiceControlsMarkup(state, roomId, roomType) {
+  const session = ensureVoiceSession(state, roomId, {
+    hostId: roomType === "grid" ? "grid-host" : MY_USER_ID,
+    role: roomType === "grid" ? "listener" : "speaker",
+    mode: roomType === "grid" ? "approval" : "open"
+  });
+  const requestControl = roomType === "grid"
+    ? '<button class="secondary chat-voice-request" type="button" data-voice-request>발언 요청</button>'
+    : "";
+  return `
+    <div class="chat-voice-status" data-voice-state="${escapeHtml(session.state)}">
+      <span class="chat-voice-dot" aria-hidden="true"></span>
+      <div><b data-voice-status>${escapeHtml(voiceStatusLabel(session))}</b><small>현재 대화방 음성 상태</small></div>
+      <button class="secondary chat-voice-participants" type="button" data-voice-participants aria-label="음성 참여자 보기">참여자</button>
+    </div>
+    <div class="chat-voice-actions">
+      <button class="secondary chat-voice-main" id="voiceChat" type="button">🎙️ 음성 인식 시작</button>
+      ${requestControl}
+    </div>
+    <div class="muted chat-voice-notice">현재는 음성인식·발언 상태 프로토타입입니다. 실제 그룹 음성 송수신은 서버 연결 단계에서 활성화됩니다.</div>`;
+}
+
+function updateVoiceStatusUi(panel, session) {
+  const host = panel?.querySelector?.(".chat-voice-status");
+  if (!host || !session) return;
+  host.dataset.voiceState = session.state;
+  const label = host.querySelector("[data-voice-status]");
+  if (label) label.textContent = voiceStatusLabel(session);
+  const request = panel.querySelector("[data-voice-request]");
+  if (request) {
+    request.disabled = session.state === VOICE_STATES.QUEUED || session.state === VOICE_STATES.REQUESTING;
+    request.textContent = session.state === VOICE_STATES.QUEUED ? "발언 대기 중" : "발언 요청";
+  }
+}
+
+function bindVoiceRequestControls(panel, state, roomId) {
+  const request = panel?.querySelector?.("[data-voice-request]");
+  if (request) {
+    request.onclick = () => {
+      const session = ensureVoiceSession(state, roomId);
+      if (!requestToSpeak(session, MY_USER_ID)) return;
+      transitionVoiceState(session, VOICE_STATES.QUEUED, "awaiting approval");
+      updateVoiceStatusUi(panel, session);
+      emit("state:save");
+    };
+  }
+  const participants = panel?.querySelector?.("[data-voice-participants]");
+  if (participants) {
+    participants.onclick = () => {
+      showSystemMessage("음성 참여자·마이크 좌석 팝업은 다음 단계에서 연결됩니다.");
+    };
   }
 }
 
@@ -1550,8 +1624,7 @@ function renderChat(panel, state, peerId) {
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
       <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">🎙️ 음성 듣기 시작</button>
-        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
+        ${voiceControlsMarkup(state, peerId, "direct")}
       </div>
     </div>
   </div>`;
@@ -1605,6 +1678,7 @@ function renderChat(panel, state, peerId) {
   });
 
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, peerId);
+  bindVoiceRequestControls(panel, state, peerId);
   mountChatUtilities(panel, state, { type: "direct", peerId });
 
   requestAnimationFrame(() => {
@@ -1784,8 +1858,7 @@ function renderGridChat(panel, state, gridId) {
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
       <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">음성 듣기 시작</button>
-        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
+        ${voiceControlsMarkup(state, roomId, "grid")}
       </div>
     </div>
   </div>`;
@@ -1831,6 +1904,7 @@ function renderGridChat(panel, state, gridId) {
     doSend();
   });
   panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
+  bindVoiceRequestControls(panel, state, roomId);
   mountChatUtilities(panel, state, { type: "grid", gridId });
 
   requestAnimationFrame(() => {
