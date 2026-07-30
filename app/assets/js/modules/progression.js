@@ -345,6 +345,44 @@ export function buildProgressionSyncPayload(value, at = Date.now()) {
   };
 }
 
+export function applyProgressionSyncPayload(localValue, payload) {
+  const local = normalizeVehicleProgression(localValue);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {progression: local, applied: false, reason: "invalid-payload"};
+  }
+  if (Number(payload.contractVersion) !== PROGRESSION_SYNC_CONTRACT_VERSION) {
+    return {progression: local, applied: false, reason: "unsupported-contract"};
+  }
+  if (Number(payload.schemaVersion) > PROGRESSION_SCHEMA_VERSION) {
+    return {progression: local, applied: false, reason: "unsupported-schema"};
+  }
+  const revision = Number(payload.revision);
+  if (!Number.isFinite(revision) || revision <= 0) {
+    return {progression: local, applied: false, reason: "invalid-revision"};
+  }
+  if (local.updatedAt != null && revision <= local.updatedAt) {
+    return {progression: local, applied: false, reason: "stale-revision"};
+  }
+  const vehicle = payload.vehicle && typeof payload.vehicle === "object" && !Array.isArray(payload.vehicle)
+    ? payload.vehicle
+    : {};
+  const points = Number(vehicle.points);
+  if (!Number.isFinite(points) || points < 0) {
+    return {progression: local, applied: false, reason: "invalid-vehicle"};
+  }
+  const progression = normalizeVehicleProgression({
+    points,
+    counters: payload.counters,
+    dailyActivity: payload.dailyActivity,
+    streak: payload.streak,
+    milestones: payload.milestones,
+    completedEventIds: payload.completedEventIds,
+    driveTracker: local.driveTracker,
+    updatedAt: revision
+  });
+  return {progression, applied: true, reason: "remote-newer"};
+}
+
 export function getNextProgressionAction(value, at = Date.now()) {
   const daily = getDailyMissionSummary(value, at);
   const mission = daily.missions.find(item => !item.completed);
