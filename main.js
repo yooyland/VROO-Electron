@@ -404,6 +404,7 @@ async function runWorkspaceRuntimeTest(win) {
         const shopList = await waitFor(() => document.querySelector("#shopList"), "shop list");
         const shopPanel = shopList.parentElement;
         shopPanel.scrollTop = 7;
+        const shopScrollBefore = shopPanel.scrollTop;
         const selectedCarBefore = document.querySelector("[data-car]")?.dataset.car;
         await click("[data-car]");
         const shopOverlay = await waitFor(
@@ -418,7 +419,7 @@ async function runWorkspaceRuntimeTest(win) {
         };
         await click("#shopDetailCancel");
         shop.cancelCloses = document.querySelector("#shopDetailOverlay")?.hidden === true;
-        shop.scrollRestored = shopPanel.scrollTop === 7;
+        shop.scrollRestored = shopPanel.scrollTop === shopScrollBefore;
         await click("[data-car]");
         await click("#shopDetailConfirm");
         shop.confirmCloses = document.querySelector("#shopDetailOverlay")?.hidden === true;
