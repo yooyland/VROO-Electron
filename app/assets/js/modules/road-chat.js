@@ -885,6 +885,8 @@ function sendRoadMessage(state, text, opts = {}) {
     conversationType: "road",
     senderId: MY_USER_ID,
     text: msg.body,
+    purpose: msg.purpose,
+    category: msg.category,
     createdAt: msg.createdAt
   });
   saveState();
