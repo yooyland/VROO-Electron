@@ -273,6 +273,48 @@ export function getProgressionStreak(value, at = Date.now()) {
   };
 }
 
+export function getWeeklyProgressionSummary(value, at = Date.now()) {
+  const progression = normalizeVehicleProgression(value);
+  const end = new Date(at);
+  if (!Number.isFinite(end.getTime())) return getWeeklyProgressionSummary(progression, Date.now());
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+  start.setHours(0, 0, 0, 0);
+  const days = Array.from({length: 7}, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      day: localDayKey(date),
+      label: new Intl.DateTimeFormat("ko-KR", {weekday: "short"}).format(date),
+      completedMissions: 0,
+      loopCompleted: false
+    };
+  });
+  const dayByKey = new Map(days.map(day => [day.day, day]));
+  for (const milestone of progression.milestones) {
+    if (!milestone.at || milestone.at < start.getTime() || milestone.at > end.getTime()) continue;
+    const day = dayByKey.get(localDayKey(milestone.at));
+    if (!day) continue;
+    if (milestone.type === "mission") day.completedMissions = Math.min(DAILY_MISSIONS.length, day.completedMissions + 1);
+    if (milestone.type === "streak") day.loopCompleted = true;
+  }
+  const completedMissions = days.reduce((sum, day) => sum + day.completedMissions, 0);
+  const completedDays = days.filter(day => day.loopCompleted).length;
+  const activeDays = days.filter(day => day.completedMissions > 0).length;
+  const missionGoal = DAILY_MISSIONS.length * days.length;
+  return {
+    startDay: days[0].day,
+    endDay: days[days.length - 1].day,
+    days,
+    completedMissions,
+    completedDays,
+    activeDays,
+    missionGoal,
+    progress: Math.round((completedMissions / missionGoal) * 100)
+  };
+}
+
 export function getNextProgressionAction(value, at = Date.now()) {
   const daily = getDailyMissionSummary(value, at);
   const mission = daily.missions.find(item => !item.completed);
