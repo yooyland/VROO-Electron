@@ -77,6 +77,12 @@ async function runHeritageRuntimeTest(win) {
         if (!mounted) throw new Error("Garage nine-direction selector missing");
         const initialAutoEnabled =
           document.querySelector("[data-garage-auto]")?.getAttribute("aria-pressed") === "true";
+        const currentVehicle = document.querySelector("[data-current-vehicle-tier]");
+        const progressionPilot = {
+          currentTier: currentVehicle?.dataset.currentVehicleTier || "",
+          statTier: document.querySelector("[data-garage-tier]")?.textContent?.trim().toLowerCase() || "",
+          heritageLabeledAsGoal: document.querySelector(".garage-hero-copy h3")?.textContent?.includes("목표 프리뷰") === true
+        };
 
         const expected = ["front","front_45","front_right","right","rear_right","rear","rear_left","left","front_left"];
         const results = [];
@@ -133,6 +139,7 @@ async function runHeritageRuntimeTest(win) {
         return {
           boot: window.__VROO_BOOT_OK === true,
           selectorCount: document.querySelectorAll("[data-garage-view]").length,
+          progressionPilot,
           results,
           lightPilot,
           autoPilot
@@ -159,11 +166,16 @@ async function runHeritageRuntimeTest(win) {
       !result.autoPilot?.runningShowsStop ||
       !result.autoPilot?.advancesFromClickedView ||
       !result.autoPilot?.stopHoldsView;
+    const progressionFailed =
+      !result.progressionPilot?.currentTier ||
+      result.progressionPilot.currentTier !== result.progressionPilot.statTier ||
+      (result.progressionPilot.currentTier !== "heritage" && !result.progressionPilot.heritageLabeledAsGoal);
     console.log(`HERITAGE_RUNTIME_TEST_RESULT ${JSON.stringify(result)}`);
-    if (failed.length || lightFailed || autoFailed) {
+    if (failed.length || lightFailed || autoFailed || progressionFailed) {
       const details = failed.map(item => item.id)
         .concat(lightFailed ? ["front_45_light_pilot"] : [])
-        .concat(autoFailed ? ["garage_auto_rotation"] : []);
+        .concat(autoFailed ? ["garage_auto_rotation"] : [])
+        .concat(progressionFailed ? ["garage_progression_role"] : []);
       throw new Error(`Heritage runtime failures: ${details.join(", ")}`);
     }
     console.log("HERITAGE_RUNTIME_TEST_PASS");
