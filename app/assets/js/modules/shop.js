@@ -42,7 +42,7 @@ export function renderShop(panel, state) {
       `<button class="${c.id === initialCategory ? "active" : ""}" data-cat="${c.id}">${c.label}${c.status === "planned" ? " ·" : ""}</button>`
     ).join("")}</div>
     <div id="shopList"></div>
-    <div id="shopDetailOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="shopDetailTitle" tabindex="-1" style="position:fixed;inset:0;z-index:1200;background:rgba(4,7,13,.78);display:flex;align-items:center;justify-content:center;padding:24px">
+    <div id="shopDetailOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="shopDetailTitle" tabindex="-1" style="position:fixed;inset:0;z-index:1200;background:rgba(4,7,13,.78);display:none;align-items:center;justify-content:center;padding:24px">
       <section class="card" style="width:min(560px,92vw);max-height:82vh;overflow:auto;border:1px solid rgba(212,175,55,.55);box-shadow:0 22px 70px rgba(0,0,0,.6)">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div><div class="muted" id="shopDetailCategory"></div><h2 id="shopDetailTitle" style="margin:4px 0 0"></h2></div>
