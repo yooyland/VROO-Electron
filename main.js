@@ -414,6 +414,11 @@ async function runWorkspaceRuntimeTest(win) {
 
         await click('[data-screen="shop"]');
         const shopList = await waitFor(() => document.querySelector("#shopList"), "shop list");
+        const shopOverlayInitial = document.querySelector("#shopDetailOverlay");
+        const shopInitiallyHidden = Boolean(
+          shopOverlayInitial?.hidden &&
+          getComputedStyle(shopOverlayInitial).display === "none"
+        );
         const shopPanel = shopList.parentElement;
         shopPanel.scrollTop = 7;
         const shopScrollBefore = shopPanel.scrollTop;
@@ -424,6 +429,7 @@ async function runWorkspaceRuntimeTest(win) {
           "shop detail overlay"
         );
         const shop = {
+          initiallyHidden: shopInitiallyHidden,
           oneLineRows: document.querySelectorAll("#shopList .product-row").length > 0,
           detailVisible: shopOverlay.style.display === "flex",
           confirmBeforeApply: document.querySelector("#shopDetailConfirm")?.textContent.includes("차량 선택"),
@@ -556,6 +562,7 @@ async function runWorkspaceRuntimeTest(win) {
           chat.conversationEventInThirdZone,
           chat.conversationEventKeepsThreeZones,
           chat.conversationBackStaysInChat,
+          shop.initiallyHidden,
           shop.oneLineRows,
           shop.detailVisible,
           shop.confirmBeforeApply,
