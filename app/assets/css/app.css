@@ -1492,3 +1492,121 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Voice settings: compact composer + workspace sample popup */
+.chat-voice-compact {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.chat-voice-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chat-voice-current b {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-voice-compact-actions {
+  display: grid;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+  gap: 6px;
+}
+
+.chat-voice-compact-actions button {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.chat-voice-popup {
+  display: grid;
+  gap: 14px;
+}
+
+.chat-voice-popup > p {
+  margin: 0;
+}
+
+.chat-voice-sample-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chat-voice-sample-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(9, 15, 24, .82);
+}
+
+.chat-voice-sample-card.is-selected {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 0, .18);
+}
+
+.chat-voice-sample-card > div {
+  display: grid;
+  min-width: 0;
+}
+
+.chat-voice-sample-card b,
+.chat-voice-sample-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-voice-sample-card small {
+  color: var(--muted);
+}
+
+.chat-voice-sample-card button {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.chat-voice-popup-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chat-voice-popup-options button[aria-pressed="true"] {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.chat-voice-popup-note {
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .chat-voice-sample-list,
+  .chat-voice-popup-options {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-voice-sample-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .chat-voice-sample-card > button:last-child {
+    grid-column: 1 / -1;
+  }
+}
