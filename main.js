@@ -366,16 +366,22 @@ async function runWorkspaceRuntimeTest(win) {
         chat.directKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
         await click('[data-chat-room-host] [data-chatmode="voice"]');
         chat.voiceSettingsVisible = Boolean(
-          document.querySelector("[data-chat-room-host] #chatVoiceSelect") &&
-          document.querySelector("[data-chat-room-host] #voiceSpeakerMute") &&
-          document.querySelector("[data-chat-room-host] #voiceMicMute") &&
-          document.querySelector("[data-chat-room-host] #voiceAutoRead")
+          document.querySelector("[data-chat-room-host] #voiceSettingsOpen") &&
+          document.querySelector("[data-chat-room-host] #voiceChat")
         );
-        const speakerMute = document.querySelector("[data-chat-room-host] #voiceSpeakerMute");
+        await click("[data-chat-room-host] #voiceSettingsOpen");
+        const voicePopup = await waitFor(
+          () => document.querySelector(".chat-command-grid > [data-chat-tools-popup]:not([hidden]) [data-chat-voice-popup]"),
+          "voice settings sample popup"
+        );
+        chat.voiceSamplePopupAcrossWorkspace = Boolean(voicePopup);
+        chat.voiceSamplesVisible = document.querySelectorAll("[data-voice-sample]").length > 0;
+        const speakerMute = voicePopup?.querySelector("#voiceSpeakerMute");
         const speakerMuteBefore = speakerMute?.getAttribute("aria-pressed");
         speakerMute?.click();
         chat.voiceMutePersists = speakerMute?.getAttribute("aria-pressed") !== speakerMuteBefore;
         speakerMute?.click();
+        await click("[data-chat-popup-close]");
         await click('[data-chat-room-host] [data-chatmode="text"]');
         const runtimeText = "Runtime three-pane message";
         const runtimeTextarea = await waitFor(() => document.querySelector("[data-chat-room-host] #chatText"), "direct textarea");
@@ -570,6 +576,8 @@ async function runWorkspaceRuntimeTest(win) {
           chat.directInThirdZone,
           chat.directKeepsThreeZones,
           chat.voiceSettingsVisible,
+          chat.voiceSamplePopupAcrossWorkspace,
+          chat.voiceSamplesVisible,
           chat.voiceMutePersists,
           chat.directBackRestoresThreeZones,
           chat.gridInThirdZone,
