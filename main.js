@@ -364,6 +364,19 @@ async function runWorkspaceRuntimeTest(win) {
           "direct chat in third zone"
         ));
         chat.directKeepsThreeZones = Boolean(document.querySelector(".chat-command-grid"));
+        await click('[data-chat-room-host] [data-chatmode="voice"]');
+        chat.voiceSettingsVisible = Boolean(
+          document.querySelector("[data-chat-room-host] #chatVoiceSelect") &&
+          document.querySelector("[data-chat-room-host] #voiceSpeakerMute") &&
+          document.querySelector("[data-chat-room-host] #voiceMicMute") &&
+          document.querySelector("[data-chat-room-host] #voiceAutoRead")
+        );
+        const speakerMute = document.querySelector("[data-chat-room-host] #voiceSpeakerMute");
+        const speakerMuteBefore = speakerMute?.getAttribute("aria-pressed");
+        speakerMute?.click();
+        chat.voiceMutePersists = speakerMute?.getAttribute("aria-pressed") !== speakerMuteBefore;
+        speakerMute?.click();
+        await click('[data-chat-room-host] [data-chatmode="text"]');
         const runtimeText = "Runtime three-pane message";
         const runtimeTextarea = await waitFor(() => document.querySelector("[data-chat-room-host] #chatText"), "direct textarea");
         runtimeTextarea.value = runtimeText;
@@ -556,6 +569,8 @@ async function runWorkspaceRuntimeTest(win) {
           chat.backRestoresRoomList,
           chat.directInThirdZone,
           chat.directKeepsThreeZones,
+          chat.voiceSettingsVisible,
+          chat.voiceMutePersists,
           chat.directBackRestoresThreeZones,
           chat.gridInThirdZone,
           chat.gridKeepsThreeZones,
