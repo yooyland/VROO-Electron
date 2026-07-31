@@ -55,33 +55,57 @@ function availableKoreanVoices() {
   return korean.length ? korean : voices;
 }
 
-function populateVoiceSelect(panel, state) {
-  const select = panel?.querySelector?.("#chatVoiceSelect");
-  if (!select) return;
-  const settings = ensureChatVoiceSettings(state);
-  const voices = availableKoreanVoices();
-  select.innerHTML = [
-    '<option value="">시스템 기본 목소리</option>',
-    ...voices.map((voice) =>
-      `<option value="${escapeHtml(voice.voiceURI)}">${escapeHtml(voice.name)} · ${escapeHtml(voice.lang || "")}</option>`
-    )
-  ].join("");
-  select.value = voices.some((voice) => voice.voiceURI === settings.voiceURI)
-    ? settings.voiceURI
-    : "";
-}
-
 function voiceControlsMarkup(state) {
   const settings = ensureChatVoiceSettings(state);
+  const selected = availableKoreanVoices().find((voice) => voice.voiceURI === settings.voiceURI);
+  const voiceName = selected?.name || "시스템 기본 목소리";
   return `
-    <div class="chat-voice-settings" data-chat-voice-settings>
-      <label class="chat-voice-select">
-        <span>목소리</span>
-        <select id="chatVoiceSelect" aria-label="읽어줄 목소리">
-          <option value="">시스템 기본 목소리</option>
-        </select>
-      </label>
-      <div class="chat-voice-toggle-grid">
+    <div class="chat-voice-compact" data-chat-voice-settings>
+      <div class="chat-voice-current">
+        <span>현재 목소리</span>
+        <b data-current-voice-name>${escapeHtml(voiceName)}</b>
+      </div>
+      <div class="chat-voice-compact-actions">
+        <button class="secondary" id="voiceSettingsOpen" type="button">⚙ 음성 설정</button>
+        <button class="secondary" id="voiceChat" type="button">🎙️ 음성 듣기 시작</button>
+      </div>
+      <div class="muted chat-voice-status" id="voiceStatus" aria-live="polite">
+        음성 모드에 들어오면 읽기와 듣기가 자동으로 시작됩니다.
+      </div>
+    </div>`;
+}
+
+function voiceSettingCardsHtml(state) {
+  const settings = ensureChatVoiceSettings(state);
+  const voices = availableKoreanVoices().slice(0, 5);
+  const choices = [
+    {voiceURI: "", name: "시스템 기본", lang: "자동 선택"},
+    ...voices.map((voice) => ({voiceURI: voice.voiceURI, name: voice.name, lang: voice.lang || ""}))
+  ];
+  return choices.map((voice, index) => {
+    const selected = settings.voiceURI === voice.voiceURI || (!settings.voiceURI && index === 0);
+    return `<article class="chat-voice-sample-card ${selected ? "is-selected" : ""}">
+      <div>
+        <b>${escapeHtml(voice.name)}</b>
+        <small>${escapeHtml(voice.lang)}</small>
+      </div>
+      <button type="button" class="secondary" data-voice-sample="${escapeHtml(voice.voiceURI)}">▶ 샘플</button>
+      <button type="button" class="${selected ? "primary" : "secondary"}" data-voice-choice="${escapeHtml(voice.voiceURI)}">
+        ${selected ? "사용 중" : "선택"}
+      </button>
+    </article>`;
+  }).join("");
+}
+
+function voiceSettingsPopupHtml(state) {
+  const settings = ensureChatVoiceSettings(state);
+  return `
+    <div class="chat-voice-popup" data-chat-voice-popup>
+      <p class="muted">샘플을 듣고 대화방에서 사용할 목소리를 선택하세요.</p>
+      <div class="chat-voice-sample-list" data-voice-sample-list>
+        ${voiceSettingCardsHtml(state)}
+      </div>
+      <section class="chat-voice-popup-options">
         <button class="secondary" id="voiceSpeakerMute" type="button" aria-pressed="${settings.speakerMuted}">
           ${settings.speakerMuted ? "🔇 스피커 음소거" : "🔊 읽어주기 켜짐"}
         </button>
@@ -91,12 +115,88 @@ function voiceControlsMarkup(state) {
         <button class="secondary" id="voiceAutoRead" type="button" aria-pressed="${settings.autoRead}">
           ${settings.autoRead ? "자동 읽기 켜짐" : "자동 읽기 꺼짐"}
         </button>
-      </div>
-      <button class="secondary" id="voiceChat" type="button">🎙️ 음성 듣기 시작</button>
-      <div class="muted chat-voice-status" id="voiceStatus" aria-live="polite">
-        음성 모드에 들어오면 읽기와 듣기가 자동으로 시작됩니다.
-      </div>
+      </section>
+      <div class="muted chat-voice-popup-note">설정은 1:1과 GRID 대화에 공통으로 저장됩니다.</div>
     </div>`;
+}
+
+function playVoiceSample(voiceURI) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance("안녕하세요. 안전하고 즐거운 드라이브 되세요.");
+  utterance.lang = "ko-KR";
+  const selected = availableKoreanVoices().find((voice) => voice.voiceURI === voiceURI);
+  if (selected) utterance.voice = selected;
+  window.speechSynthesis.speak(utterance);
+}
+
+function bindVoiceSettingsPopup(panel, state, roomId, popupBody) {
+  const rerenderCards = () => {
+    const list = popupBody.querySelector("[data-voice-sample-list]");
+    if (list) list.innerHTML = voiceSettingCardsHtml(state);
+    bindCards();
+  };
+  const bindCards = () => {
+    popupBody.querySelectorAll("[data-voice-sample]").forEach((button) => {
+      button.onclick = () => playVoiceSample(button.dataset.voiceSample || "");
+    });
+    popupBody.querySelectorAll("[data-voice-choice]").forEach((button) => {
+      button.onclick = () => {
+        ensureChatVoiceSettings(state).voiceURI = button.dataset.voiceChoice || "";
+        emit("state:save");
+        rerenderCards();
+        const selected = availableKoreanVoices().find((voice) => voice.voiceURI === button.dataset.voiceChoice);
+        const label = panel.querySelector("[data-current-voice-name]");
+        if (label) label.textContent = selected?.name || "시스템 기본 목소리";
+        playVoiceSample(button.dataset.voiceChoice || "");
+      };
+    });
+  };
+  bindCards();
+
+  popupBody.querySelector("#voiceSpeakerMute")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.speakerMuted = !settings.speakerMuted;
+    if (settings.speakerMuted) window.speechSynthesis?.cancel?.();
+    updateVoiceSettingsUi(popupBody, state);
+    emit("state:save");
+  });
+  popupBody.querySelector("#voiceMicMute")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.microphoneMuted = !settings.microphoneMuted;
+    if (settings.microphoneMuted) stopVoice("마이크가 음소거되어 있습니다.");
+    else if (!voiceListening) toggleVoice(panel, state, roomId);
+    updateVoiceSettingsUi(popupBody, state);
+    emit("state:save");
+  });
+  popupBody.querySelector("#voiceAutoRead")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.autoRead = !settings.autoRead;
+    if (!settings.autoRead) window.speechSynthesis?.cancel?.();
+    updateVoiceSettingsUi(popupBody, state);
+    emit("state:save");
+  });
+}
+
+function openVoiceSettingsPopup(panel, state, roomId) {
+  const shell = commandShellFor(panel);
+  const popup = shell?.querySelector?.("[data-chat-tools-popup]");
+  const title = shell?.querySelector?.("[data-chat-popup-title]");
+  const body = shell?.querySelector?.("[data-chat-popup-body]");
+  if (!popup || !title || !body) {
+    showSystemMessage("대화방 화면에서 음성 설정을 열어주세요.");
+    return;
+  }
+  title.textContent = "음성 설정 · 목소리 샘플";
+  body.innerHTML = voiceSettingsPopupHtml(state);
+  popup.hidden = false;
+  bindVoiceSettingsPopup(panel, state, roomId, body);
+  window.speechSynthesis?.addEventListener?.("voiceschanged", () => {
+    if (!popup.hidden) {
+      body.innerHTML = voiceSettingsPopupHtml(state);
+      bindVoiceSettingsPopup(panel, state, roomId, body);
+    }
+  }, {once: true});
 }
 
 /** 현재 패널에 열린 채팅방 peer id (목록이면 null) */
@@ -639,46 +739,9 @@ function activateVoiceMode(panel, state, roomId) {
 }
 
 function bindVoiceControls(panel, state, roomId) {
-  populateVoiceSelect(panel, state);
-  window.speechSynthesis?.addEventListener?.("voiceschanged", () => populateVoiceSelect(panel, state), {once: true});
-  updateVoiceSettingsUi(panel, state);
-
-  const select = panel.querySelector("#chatVoiceSelect");
-  if (select) {
-    select.onchange = () => {
-      ensureChatVoiceSettings(state).voiceURI = select.value;
-      emit("state:save");
-      setVoiceStatus(panel, "목소리 설정을 저장했습니다.");
-    };
-  }
-
-  panel.querySelector("#voiceSpeakerMute")?.addEventListener("click", () => {
-    const settings = ensureChatVoiceSettings(state);
-    settings.speakerMuted = !settings.speakerMuted;
-    if (settings.speakerMuted) window.speechSynthesis?.cancel?.();
-    else if (settings.autoRead) speakLatestMessage(panel, state);
-    updateVoiceSettingsUi(panel, state);
-    emit("state:save");
+  panel.querySelector("#voiceSettingsOpen")?.addEventListener("click", () => {
+    openVoiceSettingsPopup(panel, state, roomId);
   });
-
-  panel.querySelector("#voiceMicMute")?.addEventListener("click", () => {
-    const settings = ensureChatVoiceSettings(state);
-    settings.microphoneMuted = !settings.microphoneMuted;
-    if (settings.microphoneMuted) stopVoice("마이크가 음소거되어 있습니다.");
-    else if (!voiceListening) toggleVoice(panel, state, roomId);
-    updateVoiceSettingsUi(panel, state);
-    emit("state:save");
-  });
-
-  panel.querySelector("#voiceAutoRead")?.addEventListener("click", () => {
-    const settings = ensureChatVoiceSettings(state);
-    settings.autoRead = !settings.autoRead;
-    if (!settings.autoRead) window.speechSynthesis?.cancel?.();
-    else if (!settings.speakerMuted) speakLatestMessage(panel, state);
-    updateVoiceSettingsUi(panel, state);
-    emit("state:save");
-  });
-
   panel.querySelector("#voiceChat")?.addEventListener("click", () => toggleVoice(panel, state, roomId));
 }
 
