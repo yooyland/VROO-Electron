@@ -37,7 +37,9 @@ const CHAT_VOICE_DEFAULTS = Object.freeze({
   voiceURI: "",
   speakerMuted: false,
   microphoneMuted: false,
-  autoRead: true
+  autoRead: true,
+  autoListen: true,
+  rate: 1
 });
 
 function ensureChatVoiceSettings(state) {
@@ -45,6 +47,7 @@ function ensureChatVoiceSettings(state) {
     ? state.chatVoiceSettings
     : {};
   const settings = {...CHAT_VOICE_DEFAULTS, ...current};
+  settings.rate = [0.85, 1, 1.15].includes(Number(settings.rate)) ? Number(settings.rate) : 1;
   if (state) state.chatVoiceSettings = settings;
   return settings;
 }
@@ -59,18 +62,27 @@ function voiceControlsMarkup(state) {
   const settings = ensureChatVoiceSettings(state);
   const selected = availableKoreanVoices().find((voice) => voice.voiceURI === settings.voiceURI);
   const voiceName = selected?.name || "시스템 기본 목소리";
+  const modeLabel = settings.microphoneMuted
+    ? "마이크 꺼짐"
+    : settings.autoListen
+      ? "자동 듣기"
+      : "수동 듣기";
   return `
     <div class="chat-voice-compact" data-chat-voice-settings>
-      <div class="chat-voice-current">
-        <span>현재 목소리</span>
-        <b data-current-voice-name>${escapeHtml(voiceName)}</b>
+      <div class="chat-voice-summary">
+        <span class="chat-voice-mode-icon" aria-hidden="true">◉</span>
+        <div>
+          <b data-current-voice-name>${escapeHtml(voiceName)}</b>
+          <small>${escapeHtml(modeLabel)} · ${settings.autoRead && !settings.speakerMuted ? "자동 읽기" : "읽기 대기"}</small>
+        </div>
+        <span class="chat-voice-ready-badge">VOICE</span>
       </div>
       <div class="chat-voice-compact-actions">
-        <button class="secondary" id="voiceSettingsOpen" type="button">⚙ 음성 설정</button>
-        <button class="secondary" id="voiceChat" type="button">🎙️ 음성 듣기 시작</button>
+        <button class="primary" id="voiceChat" type="button">🎙️ 듣기 시작</button>
+        <button class="secondary" id="voiceSettingsOpen" type="button">⚙ 설정</button>
       </div>
       <div class="muted chat-voice-status" id="voiceStatus" aria-live="polite">
-        음성 모드에 들어오면 읽기와 듣기가 자동으로 시작됩니다.
+        음성 상태를 준비하고 있습니다.
       </div>
     </div>`;
 }
@@ -101,22 +113,42 @@ function voiceSettingsPopupHtml(state) {
   const settings = ensureChatVoiceSettings(state);
   return `
     <div class="chat-voice-popup" data-chat-voice-popup>
-      <p class="muted">샘플을 듣고 대화방에서 사용할 목소리를 선택하세요.</p>
+      <header class="chat-voice-popup-intro">
+        <div>
+          <b>목소리 선택</b>
+          <small>샘플을 듣고 대화에 사용할 목소리를 고르세요.</small>
+        </div>
+      </header>
       <div class="chat-voice-sample-list" data-voice-sample-list>
         ${voiceSettingCardsHtml(state)}
       </div>
-      <section class="chat-voice-popup-options">
-        <button class="secondary" id="voiceSpeakerMute" type="button" aria-pressed="${settings.speakerMuted}">
-          ${settings.speakerMuted ? "🔇 스피커 음소거" : "🔊 읽어주기 켜짐"}
-        </button>
-        <button class="secondary" id="voiceMicMute" type="button" aria-pressed="${settings.microphoneMuted}">
-          ${settings.microphoneMuted ? "🎙️ 마이크 음소거" : "🎤 마이크 켜짐"}
-        </button>
-        <button class="secondary" id="voiceAutoRead" type="button" aria-pressed="${settings.autoRead}">
-          ${settings.autoRead ? "자동 읽기 켜짐" : "자동 읽기 꺼짐"}
-        </button>
+      <section class="chat-voice-preferences" aria-label="음성 동작 설정">
+        <div class="chat-voice-setting-row">
+          <span><b>상대 메시지 자동 읽기</b><small>새 메시지를 선택한 목소리로 읽습니다.</small></span>
+          <button class="secondary" id="voiceAutoRead" type="button" aria-pressed="${settings.autoRead}">${settings.autoRead ? "켜짐" : "꺼짐"}</button>
+        </div>
+        <div class="chat-voice-setting-row">
+          <span><b>마이크 자동 시작</b><small>음성 모드에 들어오면 바로 듣기 시작합니다.</small></span>
+          <button class="secondary" id="voiceAutoListen" type="button" aria-pressed="${settings.autoListen}">${settings.autoListen ? "켜짐" : "꺼짐"}</button>
+        </div>
+        <div class="chat-voice-setting-row">
+          <span><b>스피커</b><small>상대 메시지와 목소리 샘플 재생을 제어합니다.</small></span>
+          <button class="secondary" id="voiceSpeakerMute" type="button" aria-pressed="${settings.speakerMuted}">${settings.speakerMuted ? "음소거" : "사용"}</button>
+        </div>
+        <div class="chat-voice-setting-row">
+          <span><b>마이크</b><small>내 음성 인식 사용 여부를 제어합니다.</small></span>
+          <button class="secondary" id="voiceMicMute" type="button" aria-pressed="${settings.microphoneMuted}">${settings.microphoneMuted ? "음소거" : "사용"}</button>
+        </div>
+        <label class="chat-voice-setting-row chat-voice-rate-row">
+          <span><b>읽기 속도</b><small>상대 메시지와 샘플의 재생 속도입니다.</small></span>
+          <select id="voiceRateSelect" aria-label="읽기 속도">
+            <option value="0.85" ${settings.rate === 0.85 ? "selected" : ""}>느리게</option>
+            <option value="1" ${settings.rate === 1 ? "selected" : ""}>보통</option>
+            <option value="1.15" ${settings.rate === 1.15 ? "selected" : ""}>빠르게</option>
+          </select>
+        </label>
       </section>
-      <div class="muted chat-voice-popup-note">설정은 1:1과 GRID 대화에 공통으로 저장됩니다.</div>
+      <div class="muted chat-voice-popup-note">설정은 자동 저장되며 1:1·GRID 대화에 공통 적용됩니다.</div>
     </div>`;
 }
 
@@ -125,6 +157,7 @@ function playVoiceSample(voiceURI) {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance("안녕하세요. 안전하고 즐거운 드라이브 되세요.");
   utterance.lang = "ko-KR";
+  utterance.rate = ensureChatVoiceSettings(activeState).rate;
   const selected = availableKoreanVoices().find((voice) => voice.voiceURI === voiceURI);
   if (selected) utterance.voice = selected;
   window.speechSynthesis.speak(utterance);
@@ -176,6 +209,21 @@ function bindVoiceSettingsPopup(panel, state, roomId, popupBody) {
     updateVoiceSettingsUi(popupBody, state);
     emit("state:save");
   });
+  popupBody.querySelector("#voiceAutoListen")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.autoListen = !settings.autoListen;
+    if (!settings.autoListen && voiceListening) stopVoice("자동 듣기를 껐습니다.");
+    updateVoiceSettingsUi(popupBody, state);
+    emit("state:save");
+  });
+  const rateSelect = popupBody.querySelector("#voiceRateSelect");
+  if (rateSelect) {
+    rateSelect.onchange = () => {
+      ensureChatVoiceSettings(state).rate = Number(rateSelect.value) || 1;
+      emit("state:save");
+      playVoiceSample(ensureChatVoiceSettings(state).voiceURI);
+    };
+  }
 }
 
 function openVoiceSettingsPopup(panel, state, roomId) {
@@ -679,21 +727,20 @@ function setVoiceStatus(panel, message) {
 
 function updateVoiceSettingsUi(panel, state) {
   const settings = ensureChatVoiceSettings(state);
-  const speaker = panel?.querySelector?.("#voiceSpeakerMute");
-  const mic = panel?.querySelector?.("#voiceMicMute");
-  const autoRead = panel?.querySelector?.("#voiceAutoRead");
-  if (speaker) {
-    speaker.setAttribute("aria-pressed", String(settings.speakerMuted));
-    speaker.textContent = settings.speakerMuted ? "🔇 스피커 음소거" : "🔊 읽어주기 켜짐";
-  }
-  if (mic) {
-    mic.setAttribute("aria-pressed", String(settings.microphoneMuted));
-    mic.textContent = settings.microphoneMuted ? "🎙️ 마이크 음소거" : "🎤 마이크 켜짐";
-  }
-  if (autoRead) {
-    autoRead.setAttribute("aria-pressed", String(settings.autoRead));
-    autoRead.textContent = settings.autoRead ? "자동 읽기 켜짐" : "자동 읽기 꺼짐";
-  }
+  const controls = [
+    ["#voiceSpeakerMute", settings.speakerMuted, settings.speakerMuted ? "음소거" : "사용"],
+    ["#voiceMicMute", settings.microphoneMuted, settings.microphoneMuted ? "음소거" : "사용"],
+    ["#voiceAutoRead", settings.autoRead, settings.autoRead ? "켜짐" : "꺼짐"],
+    ["#voiceAutoListen", settings.autoListen, settings.autoListen ? "켜짐" : "꺼짐"]
+  ];
+  controls.forEach(([selector, pressed, label]) => {
+    const button = panel?.querySelector?.(selector);
+    if (!button) return;
+    button.setAttribute("aria-pressed", String(pressed));
+    button.textContent = label;
+  });
+  const rate = panel?.querySelector?.("#voiceRateSelect");
+  if (rate) rate.value = String(settings.rate);
 }
 
 function stopVoice(message = "음성 듣기가 중지되었습니다.") {
@@ -721,6 +768,7 @@ function speakLatestMessage(panel, state) {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ko-KR";
+  utterance.rate = settings.rate;
   const selected = availableKoreanVoices().find((voice) => voice.voiceURI === settings.voiceURI);
   if (selected) utterance.voice = selected;
   utterance.onstart = () => setVoiceStatus(panel, "상대 메시지를 읽고 있습니다.");
@@ -731,10 +779,12 @@ function speakLatestMessage(panel, state) {
 function activateVoiceMode(panel, state, roomId) {
   const settings = ensureChatVoiceSettings(state);
   if (settings.autoRead && !settings.speakerMuted) speakLatestMessage(panel, state);
-  if (!settings.microphoneMuted && (!voiceListening || voiceBoundToRoomId !== roomId)) {
+  if (settings.autoListen && !settings.microphoneMuted && (!voiceListening || voiceBoundToRoomId !== roomId)) {
     toggleVoice(panel, state, roomId);
   } else if (settings.microphoneMuted) {
     setVoiceStatus(panel, "마이크가 음소거되어 있습니다.");
+  } else {
+    setVoiceStatus(panel, "듣기 시작을 누르면 음성 인식이 시작됩니다.");
   }
 }
 
