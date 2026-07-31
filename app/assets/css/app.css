@@ -1433,3 +1433,62 @@ body[data-map-view="all"] .road-chat-dock{width:min(280px,calc(100% - 16px));lef
 .community-post-list .post-row b{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .community-post-detail #communityPostBody{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
 @media(max-width:720px){.community-filterbar{gap:6px}.community-post-list .post-row{grid-template-columns:34px minmax(0,1fr) auto}.community-post-list .post-row button{padding-inline:9px}}
+
+
+/* Chat voice-mode controls */
+.chat-voice-settings {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.chat-voice-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-voice-select select {
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.chat-voice-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.chat-voice-toggle-grid button,
+.chat-voice-settings > #voiceChat {
+  min-height: 38px;
+  padding: 8px 10px;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.chat-voice-toggle-grid button[aria-pressed="true"] {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.chat-voice-status {
+  min-height: 18px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+@media (max-width: 1180px) {
+  .chat-voice-toggle-grid {
+    grid-template-columns: 1fr;
+  }
+}
