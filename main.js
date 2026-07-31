@@ -376,6 +376,13 @@ async function runWorkspaceRuntimeTest(win) {
         );
         chat.voiceSamplePopupAcrossWorkspace = Boolean(voicePopup);
         chat.voiceSamplesVisible = document.querySelectorAll("[data-voice-sample]").length > 0;
+        chat.voicePracticalControls = Boolean(
+          voicePopup?.querySelector("#voiceAutoRead") &&
+          voicePopup?.querySelector("#voiceAutoListen") &&
+          voicePopup?.querySelector("#voiceSpeakerMute") &&
+          voicePopup?.querySelector("#voiceMicMute") &&
+          voicePopup?.querySelector("#voiceRateSelect")
+        );
         const speakerMute = voicePopup?.querySelector("#voiceSpeakerMute");
         const speakerMuteBefore = speakerMute?.getAttribute("aria-pressed");
         speakerMute?.click();
@@ -578,6 +585,7 @@ async function runWorkspaceRuntimeTest(win) {
           chat.voiceSettingsVisible,
           chat.voiceSamplePopupAcrossWorkspace,
           chat.voiceSamplesVisible,
+          chat.voicePracticalControls,
           chat.voiceMutePersists,
           chat.directBackRestoresThreeZones,
           chat.gridInThirdZone,
