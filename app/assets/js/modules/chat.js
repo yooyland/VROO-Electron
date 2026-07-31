@@ -33,6 +33,72 @@ let voiceRecognition = null;
 let voiceListening = false;
 let voiceBoundToRoomId = null;
 
+const CHAT_VOICE_DEFAULTS = Object.freeze({
+  voiceURI: "",
+  speakerMuted: false,
+  microphoneMuted: false,
+  autoRead: true
+});
+
+function ensureChatVoiceSettings(state) {
+  const current = state?.chatVoiceSettings && typeof state.chatVoiceSettings === "object"
+    ? state.chatVoiceSettings
+    : {};
+  const settings = {...CHAT_VOICE_DEFAULTS, ...current};
+  if (state) state.chatVoiceSettings = settings;
+  return settings;
+}
+
+function availableKoreanVoices() {
+  const voices = window.speechSynthesis?.getVoices?.() || [];
+  const korean = voices.filter((voice) => String(voice.lang || "").toLowerCase().startsWith("ko"));
+  return korean.length ? korean : voices;
+}
+
+function populateVoiceSelect(panel, state) {
+  const select = panel?.querySelector?.("#chatVoiceSelect");
+  if (!select) return;
+  const settings = ensureChatVoiceSettings(state);
+  const voices = availableKoreanVoices();
+  select.innerHTML = [
+    '<option value="">시스템 기본 목소리</option>',
+    ...voices.map((voice) =>
+      `<option value="${escapeHtml(voice.voiceURI)}">${escapeHtml(voice.name)} · ${escapeHtml(voice.lang || "")}</option>`
+    )
+  ].join("");
+  select.value = voices.some((voice) => voice.voiceURI === settings.voiceURI)
+    ? settings.voiceURI
+    : "";
+}
+
+function voiceControlsMarkup(state) {
+  const settings = ensureChatVoiceSettings(state);
+  return `
+    <div class="chat-voice-settings" data-chat-voice-settings>
+      <label class="chat-voice-select">
+        <span>목소리</span>
+        <select id="chatVoiceSelect" aria-label="읽어줄 목소리">
+          <option value="">시스템 기본 목소리</option>
+        </select>
+      </label>
+      <div class="chat-voice-toggle-grid">
+        <button class="secondary" id="voiceSpeakerMute" type="button" aria-pressed="${settings.speakerMuted}">
+          ${settings.speakerMuted ? "🔇 스피커 음소거" : "🔊 읽어주기 켜짐"}
+        </button>
+        <button class="secondary" id="voiceMicMute" type="button" aria-pressed="${settings.microphoneMuted}">
+          ${settings.microphoneMuted ? "🎙️ 마이크 음소거" : "🎤 마이크 켜짐"}
+        </button>
+        <button class="secondary" id="voiceAutoRead" type="button" aria-pressed="${settings.autoRead}">
+          ${settings.autoRead ? "자동 읽기 켜짐" : "자동 읽기 꺼짐"}
+        </button>
+      </div>
+      <button class="secondary" id="voiceChat" type="button">🎙️ 음성 듣기 시작</button>
+      <div class="muted chat-voice-status" id="voiceStatus" aria-live="polite">
+        음성 모드에 들어오면 읽기와 듣기가 자동으로 시작됩니다.
+      </div>
+    </div>`;
+}
+
 /** 현재 패널에 열린 채팅방 peer id (목록이면 null) */
 let activeRoomId = null;
 let activePanel = null;
@@ -506,7 +572,31 @@ function updateSpatialBadges(by) {
   }
 }
 
-function stopVoice() {
+function setVoiceStatus(panel, message) {
+  const status = panel?.querySelector?.("#voiceStatus");
+  if (status) status.textContent = message;
+}
+
+function updateVoiceSettingsUi(panel, state) {
+  const settings = ensureChatVoiceSettings(state);
+  const speaker = panel?.querySelector?.("#voiceSpeakerMute");
+  const mic = panel?.querySelector?.("#voiceMicMute");
+  const autoRead = panel?.querySelector?.("#voiceAutoRead");
+  if (speaker) {
+    speaker.setAttribute("aria-pressed", String(settings.speakerMuted));
+    speaker.textContent = settings.speakerMuted ? "🔇 스피커 음소거" : "🔊 읽어주기 켜짐";
+  }
+  if (mic) {
+    mic.setAttribute("aria-pressed", String(settings.microphoneMuted));
+    mic.textContent = settings.microphoneMuted ? "🎙️ 마이크 음소거" : "🎤 마이크 켜짐";
+  }
+  if (autoRead) {
+    autoRead.setAttribute("aria-pressed", String(settings.autoRead));
+    autoRead.textContent = settings.autoRead ? "자동 읽기 켜짐" : "자동 읽기 꺼짐";
+  }
+}
+
+function stopVoice(message = "음성 듣기가 중지되었습니다.") {
   voiceListening = false;
   voiceBoundToRoomId = null;
   try {
@@ -519,21 +609,77 @@ function stopVoice() {
     b.textContent = "🎙️ 음성 듣기 시작";
     b.classList.remove("voice-listening");
   }
+  setVoiceStatus(activePanel, message);
 }
 
-function speakLatestMessage(panel) {
+function speakLatestMessage(panel, state) {
+  const settings = ensureChatVoiceSettings(state);
+  if (settings.speakerMuted || !settings.autoRead) return;
   const bubbles = [...(panel?.querySelectorAll?.("#chatScroll .bubble:not(.mine)") || [])];
   const text = String(bubbles.at(-1)?.textContent || "").trim();
   if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ko-KR";
+  const selected = availableKoreanVoices().find((voice) => voice.voiceURI === settings.voiceURI);
+  if (selected) utterance.voice = selected;
+  utterance.onstart = () => setVoiceStatus(panel, "상대 메시지를 읽고 있습니다.");
+  utterance.onend = () => setVoiceStatus(panel, voiceListening ? "마이크로 듣고 있습니다." : "읽기를 마쳤습니다.");
   window.speechSynthesis.speak(utterance);
 }
 
 function activateVoiceMode(panel, state, roomId) {
-  speakLatestMessage(panel);
-  if (!voiceListening || voiceBoundToRoomId !== roomId) toggleVoice(panel, state, roomId);
+  const settings = ensureChatVoiceSettings(state);
+  if (settings.autoRead && !settings.speakerMuted) speakLatestMessage(panel, state);
+  if (!settings.microphoneMuted && (!voiceListening || voiceBoundToRoomId !== roomId)) {
+    toggleVoice(panel, state, roomId);
+  } else if (settings.microphoneMuted) {
+    setVoiceStatus(panel, "마이크가 음소거되어 있습니다.");
+  }
+}
+
+function bindVoiceControls(panel, state, roomId) {
+  populateVoiceSelect(panel, state);
+  window.speechSynthesis?.addEventListener?.("voiceschanged", () => populateVoiceSelect(panel, state), {once: true});
+  updateVoiceSettingsUi(panel, state);
+
+  const select = panel.querySelector("#chatVoiceSelect");
+  if (select) {
+    select.onchange = () => {
+      ensureChatVoiceSettings(state).voiceURI = select.value;
+      emit("state:save");
+      setVoiceStatus(panel, "목소리 설정을 저장했습니다.");
+    };
+  }
+
+  panel.querySelector("#voiceSpeakerMute")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.speakerMuted = !settings.speakerMuted;
+    if (settings.speakerMuted) window.speechSynthesis?.cancel?.();
+    else if (settings.autoRead) speakLatestMessage(panel, state);
+    updateVoiceSettingsUi(panel, state);
+    emit("state:save");
+  });
+
+  panel.querySelector("#voiceMicMute")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.microphoneMuted = !settings.microphoneMuted;
+    if (settings.microphoneMuted) stopVoice("마이크가 음소거되어 있습니다.");
+    else if (!voiceListening) toggleVoice(panel, state, roomId);
+    updateVoiceSettingsUi(panel, state);
+    emit("state:save");
+  });
+
+  panel.querySelector("#voiceAutoRead")?.addEventListener("click", () => {
+    const settings = ensureChatVoiceSettings(state);
+    settings.autoRead = !settings.autoRead;
+    if (!settings.autoRead) window.speechSynthesis?.cancel?.();
+    else if (!settings.speakerMuted) speakLatestMessage(panel, state);
+    updateVoiceSettingsUi(panel, state);
+    emit("state:save");
+  });
+
+  panel.querySelector("#voiceChat")?.addEventListener("click", () => toggleVoice(panel, state, roomId));
 }
 
 export function pauseChatVoice() {
@@ -1558,10 +1704,7 @@ function renderChat(panel, state, peerId) {
         <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
-      <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">🎙️ 음성 듣기 시작</button>
-        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
-      </div>
+      <div id="voiceCompose" style="display:none">${voiceControlsMarkup(state)}</div>
     </div>
   </div>`;
 
@@ -1613,7 +1756,7 @@ function renderChat(panel, state, peerId) {
     doSend();
   });
 
-  panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, peerId);
+  bindVoiceControls(panel, state, peerId);
   mountChatUtilities(panel, state, { type: "direct", peerId });
 
   requestAnimationFrame(() => {
@@ -1793,10 +1936,7 @@ function renderGridChat(panel, state, gridId) {
         <textarea id="chatText" placeholder="메시지를 입력하세요"></textarea>
         <div class="compose-actions"><button class="primary" id="sendChat" type="button">전송</button></div>
       </div>
-      <div id="voiceCompose" style="display:none">
-        <button class="secondary" id="voiceChat" type="button" style="width:100%;padding:14px">음성 듣기 시작</button>
-        <div class="muted" style="margin-top:8px">인식 결과가 입력창에 채워집니다. 확인 후 전송하세요.</div>
-      </div>
+      <div id="voiceCompose" style="display:none">${voiceControlsMarkup(state)}</div>
     </div>
   </div>`;
 
@@ -1840,7 +1980,7 @@ function renderGridChat(panel, state, gridId) {
     e.preventDefault();
     doSend();
   });
-  panel.querySelector("#voiceChat").onclick = () => toggleVoice(panel, state, roomId);
+  bindVoiceControls(panel, state, roomId);
   mountChatUtilities(panel, state, { type: "grid", gridId });
 
   requestAnimationFrame(() => {
@@ -1916,8 +2056,14 @@ function scheduleGridDemoReply(panel, state, gridId) {
 }
 
 function toggleVoice(panel, state, peerId) {
+  const settings = ensureChatVoiceSettings(state);
+  if (settings.microphoneMuted) {
+    setVoiceStatus(panel, "마이크가 음소거되어 있습니다.");
+    return;
+  }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
+    setVoiceStatus(panel, "이 환경에서는 음성 입력을 지원하지 않습니다.");
     showSystemMessage("이 환경에서는 음성 입력을 지원하지 않습니다.");
     return;
   }
@@ -1941,14 +2087,14 @@ function toggleVoice(panel, state, peerId) {
       if (ta) {
         ta.value = ta.value.trim() ? `${ta.value.trim()} ${chunk}` : chunk;
       }
-      activePanel?.querySelectorAll("[data-chatmode]").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.chatmode === "text");
-      });
-      if (textCompose) textCompose.style.display = "block";
-      if (voiceCompose) voiceCompose.style.display = "none";
+      setVoiceStatus(activePanel, "음성을 인식했습니다. 텍스트 탭에서 확인 후 전송하세요.");
+      if (textCompose && voiceCompose) {
+        textCompose.dataset.hasVoiceDraft = "true";
+      }
     };
-    voiceRecognition.onerror = () => {
-      stopVoice();
+    voiceRecognition.onerror = (event) => {
+      const reason = event?.error ? `음성 인식 오류: ${event.error}` : "음성 인식을 시작하지 못했습니다.";
+      stopVoice(reason);
     };
     voiceRecognition.onend = () => {
       if (voiceListening && voiceBoundToRoomId === activeRoomId) {
@@ -1973,6 +2119,7 @@ function toggleVoice(panel, state, peerId) {
   if (b) {
     b.textContent = "🔴 음성 듣기 종료";
     b.classList.add("voice-listening");
+    setVoiceStatus(panel, "마이크로 듣고 있습니다.");
   }
   try {
     voiceRecognition.start();
